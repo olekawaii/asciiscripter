@@ -1,0 +1,18 @@
+? /home/olekawaii/.stack/programs/x86_64-linux/ghc-tinfo6-9.8.4/lib/ghc-9.8.4/lib/x86_64-linux-ghc-9.8.4/rts-1.0.2/include/ghcversion.h
+: hash: 95162794a3bf5e6167631fdd41a509846597231d523d0f21a76713b1f801373c
+/home/olekawaii/code/hs/asciiscripter/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.8.4/build/autogen/Paths_asciiscripter.hs:
+  hash: 8511a651e746802e9955d1d4b2e12d9d0c4aa41117e227aca2e80869757ee4e2
+/home/olekawaii/code/hs/asciiscripter/.stack-work/dist/x86_64-linux-tinfo6/ghc-9.8.4/build/autogen/cabal_macros.h:
+  hash: e8f0bd09efd631c342bdba771c9c97932ab172b846b06669d4d0af493786b0ff
+/home/olekawaii/code/hs/asciiscripter/CHANGELOG.md:
+  hash: 228fff3a2d1e953c360e1e7514a369186eb2ee0c6b9f943308846eafc67af86a
+/home/olekawaii/code/hs/asciiscripter/README.md:
+  hash: 96cc8a1b4fb930d5cdcf5a1c551c7bfd637ba8515fc8206a359ad56db9eeb640
+/home/olekawaii/code/hs/asciiscripter/asciiscripter.cabal:
+  hash: df22e8946c556f0d4d4122abb208a7380ce681c44f18765cbab49a771bc619e2
+/home/olekawaii/code/hs/asciiscripter/package.yaml:
+  hash: 8b877938a3c1f82ce1ff22c7d7b6d58b61f0986fef77afc94031114961b09c2f
+/home/olekawaii/code/hs/asciiscripter/src/Lib.hs:
+  hash: 11d6d255cb397fa45980eb516ea685146565d9de2108c4eea356ea41db8364be
+/usr/include/stdc-predef.h:
+  hash: 8db4f65e62cade8ae4d9b77960ee6aee093255acc1b637e3fb37d79179733b15
