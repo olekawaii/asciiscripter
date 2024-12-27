@@ -10,29 +10,27 @@ import Data.Bifunctor (first, second)
 import Text.Read (readMaybe) 
 import Data.Maybe
 import Data.Tuple
--- import System.IO
+import System.IO
 
 import Types
 
 infix 8 ...
 
-
 -- main = interact $ show ||| show . map (name *** getDependencies . map snd) <<< parse <=< cutSpace 
-main = interact $ (show ||| finale . format . find) <<< get
-
-  -- show ||| concatMap (concatMap show . uncurry colorize) . (\(a,b) -> (\y -> (a,y)) <$> b). map (second snd) . head . filter (\x -> fst x == Header {name = "shooting_underscore", height = 9, width = 40, frames = 1}) <<< parse <=< cutSpace
-  --
-get   = parse <=< cutSpace 
-          :: String -> Either Error [(Header, Lines)]   
-find  = head . filter (\x -> name (fst x) == "bird_idle") 
-          :: [(Header,Lines)] -> (Header, Lines)
-format (h,b) = map (\x -> (h,x)) $ map snd b  --;:: (Header, Lines) -> [(Header, String)]
-finale = unlines . map (concat . map (colorChar) ) . map (uncurry colorize)
-          :: [(Header,String)] -> String
+main = interact $ 
+  show ||| 
+    unlines 
+    . map (concatMap colorChar . uncurry colorize) 
+    . uncurry (\h -> map ((\x -> (h,x)) . snd)) 
+    . head 
+    . filter (eq "bird_idle" . name . fst) 
+  <<< parse <=< cutSpace
 
 cons = (:)
 append :: a -> [a] -> [a]
 append  x y = y <> [x]
+eq :: Eq a => a -> a -> Bool
+eq = (==)
 
 parse :: Lines -> Either Error (Map Header Lines)   
 parse []           = return []
