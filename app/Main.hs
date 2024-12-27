@@ -4,46 +4,56 @@ module Main (main) where
 
 -- import Lib
 
-import Control.Monad
-import Control.Arrow
-import Text.Read
+import Control.Monad ((<=<))
+import Control.Arrow ((<<<),  (***), (&&&), (+++), (|||))
+import Data.Bifunctor (first, second)
+import Text.Read (readMaybe) 
 import Data.Maybe
-import Data.Bifunctor
--- import System.IO
 import Data.Tuple
+-- import System.IO
 
 import Types
 
+infix 8 ...
 
-main = interact $ fromEither . bimap show (show . map (name *** getDependencies . map snd)) . (cutSpace >=> parse)
 
-fromEither :: Either a a -> a
-fromEither (Left  a) = a
-fromEither (Right a) = a
+-- main = interact $ show ||| show . map (name *** getDependencies . map snd) <<< parse <=< cutSpace 
+main = interact $ (show ||| finale . format . find) <<< get
+
+  -- show ||| concatMap (concatMap show . uncurry colorize) . (\(a,b) -> (\y -> (a,y)) <$> b). map (second snd) . head . filter (\x -> fst x == Header {name = "shooting_underscore", height = 9, width = 40, frames = 1}) <<< parse <=< cutSpace
+  --
+get   = parse <=< cutSpace 
+          :: String -> Either Error [(Header, Lines)]   
+find  = head . filter (\x -> name (fst x) == "bird_idle") 
+          :: [(Header,Lines)] -> (Header, Lines)
+format (h,b) = map (\x -> (h,x)) $ map snd b  --;:: (Header, Lines) -> [(Header, String)]
+finale = unlines . map (concat . map (colorChar) ) . map (uncurry colorize)
+          :: [(Header,String)] -> String
 
 cons = (:)
 append :: a -> [a] -> [a]
 append  x y = y <> [x]
 
-parse :: RawData -> Either Error (Map Header RawData)   
+parse :: Lines -> Either Error (Map Header Lines)   
 parse []           = return []
 parse ((l,x) : xs) = parseHeader l x >>= \header -> case head . words . snd <$> listToMaybe xs of
   Nothing      -> Left $ Custom "Header is lacking a body" l
-  Just "frame" -> getDelimiter xs l "script" "end" [] >>= \(script, other) -> cons (header, script) <$> parse other
+  Just "frame" -> getDelimiter xs l "script" "end" [] >>= \(script, other) -> 
+                    cons (header, script) <$> parse other
   Just _       -> cons (header, take len xs) <$> parse (drop len xs)
     where len = height header * frames header
 
 -- finds closing delimiter and returs up to and after it
--- getDelimiter :: RawData -> LineNumber -> original -> good -> [bad] -> Either Error (garbage, RawData)
-getDelimiter :: RawData -> LineNumber -> String -> String -> [String] -> Either Error (RawData, RawData)
+-- getDelimiter :: Lines -> LineNumber -> original -> good -> [bad] -> Either Error (garbage, Lines)
+getDelimiter :: Lines -> LineNumber -> String -> String -> [String] -> Either Error (Lines, Lines)
 getDelimiter []           olden original _     _  = Left $ Delimiter original olden
 getDelimiter ((l,x) : xs) olden original good bad = case words x of
   [w] -> if 
     | w == good  -> return ([],xs)
     | elem w bad -> Left $ Delimiter original olden
-  _   -> bimap (append (l,x)) id <$> getDelimiter xs olden original good bad   
+  _   -> first (append (l,x)) <$> getDelimiter xs olden original good bad   
 
-cutSpace :: String -> Either Error RawData
+cutSpace :: String -> Either Error Lines
 cutSpace = cleanGood . zip [1..] . lines
   where
     cleanGood []           = Right []
@@ -63,28 +73,50 @@ getDependencies
   . unlines
 
 -- if something has no dependencies it can be calculated
-win :: EpicGifData -> Dependencies -> NamedRawData -> Either Error EpicGifData
+win :: EpicGifData -> Dependencies -> NamedLines -> Either Error EpicGifData
 win uwu []          _ = pure uwu
-win uwu ((n,[]):xs) d = solve uwu n (d ! n) >>= \s -> win (s : uwu) (bimap id (filter (/= n)) <$> xs) d
+win uwu ((n,[]):xs) d = solve uwu n (d ! n) >>= \s -> win (s:uwu) (second (filter (/= n)) <$> xs) d
 win uwu (x:xs)      d = win uwu (append x xs) d
 
-(!) :: Eq a => Map a b -> a -> b
-(!) m a = snd . head $ filter ((== a) . fst) m
+(...) = (.).(.)
 
-solve :: EpicGifData -> Name -> RawData -> Either Error (Name, Gif)
+(!) = fromJust ... flip lookup
+
+solve :: EpicGifData -> Name -> Lines -> Either Error (Name, Gif)
 solve = undefined
 
 -- every used gif and its dependencies
 
-colorize :: Header -> String -> [[[Colored Char]]]
-colorize h s = undefined
-  . print
-  . fmap (\x -> map swap $ zip (take (width h) x) (drop (width h) x))
-  . fmap (take $ width h)
-  $ lines s
+colorize :: Header -> String -> [Colored Char]
+colorize h = map (uncurry Colored) <<< uncurry zip <<< first (map charToColor) <<< swap <<< splitAt (width h)-- <<< lines
+  where 
+    charToColor x = case x of 
+      '0' -> Black 
+      '1' -> Red
+      '2' -> Green
+      '3' -> Yellow
+      '4' -> Blue
+      '5' -> Magenta
+      '6' -> Cyan
+      '7' -> White
+      '.' -> Transp
+      _   -> White
+
+colorChar :: Colored Char -> String
+colorChar c = case c of
+  Colored Black   s -> append s "\x1b[30m"
+  Colored Red     s -> append s "\x1b[31m"
+  Colored Green   s -> append s "\x1b[32m"
+  Colored Yellow  s -> append s "\x1b[33m"
+  Colored Blue    s -> append s "\x1b[34m"
+  Colored Magenta s -> append s "\x1b[35m"
+  Colored Cyan    s -> append s "\x1b[36m"
+  Colored White   s -> append s "\x1b[37m"
+  Colored Transp  s -> append s "\x1b[30m"
+
 
 parseHeader :: LineNumber -> String -> Either Error Header
-parseHeader l = bimap ($ l) id . parseHelper . words
+parseHeader l = first ($ l) . parseHelper . words
   where 
     parseHelper :: [String] -> Either (LineNumber -> Error) Header
     parseHelper [a,b,c,d] = case readMaybe a of 
