@@ -68,6 +68,7 @@ data Color
   | Cyan     
   | White    
   | Transp
+  deriving Eq
 
 instance Show a => Show (Colored a) where
   show (Colored Black   s) = "\x1b[30m" <> (init . tail $ show s)

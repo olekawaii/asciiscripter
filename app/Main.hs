@@ -11,20 +11,24 @@ import Text.Read (readMaybe)
 import Data.Maybe
 import Data.Tuple
 import System.IO
+import Data.List
 
 import Types
 
 infix 8 ...
 
 -- main = interact $ show ||| show . map (name *** getDependencies . map snd) <<< parse <=< cutSpace 
-main = interact $ 
+
+printBody =  
   show ||| 
-    unlines 
-    . map (concatMap colorChar . uncurry colorize) 
+    concat 
+    . map (renderer . uncurry colorize) 
     . uncurry (\h -> map ((\x -> (h,x)) . snd)) 
-    . head 
-    . filter (eq "bird_idle" . name . fst) 
+    . fromJust
+    . find (eq "shooting_underscore" . name . fst) 
   <<< parse <=< cutSpace
+
+main = readFile "gifs/bird.aa" >>= putStr . printBody
 
 cons = (:)
 append :: a -> [a] -> [a]
@@ -64,11 +68,11 @@ cutSpace = cleanGood . zip [1..] . lines
 getDependencies :: [String] -> [Name]
 getDependencies 
   = filter (\x -> 
-      x `notElem` ["DRAW", "PLAY", "SHIFT", "frame", "CLEAR"] && 
+      x `notElem` ["frame"] && 
       head x `notElem` "'\"")
   . words
-  . filter (flip notElem "1234567890,.!-+")
-  . unlines
+  . filter (flip notElem (['0'..'9'] <> ['A'..'Z'] <> ",.!-+" <> ['\n','"']))
+  . concat
 
 -- if something has no dependencies it can be calculated
 win :: EpicGifData -> Dependencies -> NamedLines -> Either Error EpicGifData
@@ -83,6 +87,15 @@ win uwu (x:xs)      d = win uwu (append x xs) d
 solve :: EpicGifData -> Name -> Lines -> Either Error (Name, Gif)
 solve = undefined
 
+renderer :: [Colored Char] -> String
+renderer x = "\x1b[0m" <> helper x White
+  where
+    helper :: [Colored Char] -> Color -> String
+    helper [] _ = "\x1b[0m\n"
+    helper (Colored color char :xs) oldcolor = 
+      if color == oldcolor 
+      then char : helper xs oldcolor
+      else colorChar (Colored color char) <> helper xs color
 -- every used gif and its dependencies
 
 colorize :: Header -> String -> [Colored Char]
