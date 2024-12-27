@@ -40,6 +40,7 @@ library
 executable asciiscripter-exe
   main-is: Main.hs
   other-modules:
+      Types
       Paths_asciiscripter
   autogen-modules:
       Paths_asciiscripter
