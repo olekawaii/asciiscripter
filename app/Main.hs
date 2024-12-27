@@ -22,8 +22,8 @@ infix 8 ...
 printBody =  
   show ||| 
     concat 
-    . map (renderer . uncurry colorize) 
-    . uncurry (\h -> map ((\x -> (h,x)) . snd)) 
+    . map (renderer . uncurry parseColorLine) 
+    . uncurry (\h -> map ((\x -> (width h,x)) . snd)) 
     . fromJust
     . find (eq "shooting_underscore" . name . fst) 
   <<< parse <=< cutSpace
@@ -96,10 +96,11 @@ renderer x = "\x1b[0m" <> helper x White
       if color == oldcolor 
       then char : helper xs oldcolor
       else colorChar (Colored color char) <> helper xs color
+
 -- every used gif and its dependencies
 
-colorize :: Header -> String -> [Colored Char]
-colorize h = map (uncurry Colored) <<< uncurry zip <<< first (map charToColor) <<< swap <<< splitAt (width h)-- <<< lines
+parseColorLine :: Int -> String -> [Colored Char]
+parseColorLine = map (uncurry Colored) . uncurry zip . first (map charToColor) . swap ... splitAt 
   where 
     charToColor x = case x of 
       '0' -> Black 
