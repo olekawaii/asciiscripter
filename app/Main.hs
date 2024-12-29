@@ -30,9 +30,16 @@ printBody =
   <<< parse <=< cutSpace
 
 number :: Origin -> String -> [Marked String]
-number o = map (\(x,y) -> Marked Mark {origin = o, line = x} y) . zip [1..] . lines
+number o = zipWith (\ x y -> Marked Mark {origin = o, line = x} y) [1..] . lines
 
-main = 
+main = interact printBody
+
+maino = 
+  getArgs >>= \args ->
+  zipWith number (map File args) <$> traverse readFile args >>=
+  print . show
+
+{-
   putStr . show =<< uncurry numberFiles . (id &&& map readFile) =<< getArgs
     where
       numberFiles :: [String] -> [IO String] -> IO [Marked String]
@@ -41,9 +48,7 @@ main =
           helper :: Map String (IO String) -> IO [Marked String]
           helper [] = return []
           helper ((s,x):xs) = x >>= \text -> (number (File s) text <>) <$> helper xs
-
-        -- number :: Origin -> String -> [Marked String]
-        -- number o = map (\(x,y) -> Marked Mark {origin = o, line = x} y) . zip [1..] . lines
+-}
 
 (<$>?) :: (a -> Either (Mark -> Error) b) -> Marked a -> Either Error (Marked b) 
 (<$>?) f (Marked m a) = case f a of
@@ -136,7 +141,7 @@ renderer x = "\x1b[0m" <> helper x White
 -- every used gif and its dependencies
 
 parseColorLine :: Int -> String -> [Colored Char]
-parseColorLine = map (uncurry Colored) . uncurry zip . first (map charToColor) . swap ... splitAt 
+parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... splitAt
   where 
     charToColor x = case x of 
       '0' -> Black 
