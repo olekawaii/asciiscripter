@@ -1,10 +1,11 @@
 module Types where
 
 type OrError       = Either Error
+type OrToError     = Either (Mark -> Error)
 type Body          = (Header, Lines)
 type LineNumber    = Int
-type NamedLines  = Map Name Lines
-type Lines       = Map LineNumber String
+type NamedLines    = Map Name Lines
+type Lines         = Map LineNumber String
 type EpicGifData   = Map Name Gif
 type Dependencies  = Map Name [Name]
 type Size          = (Int, Int)
@@ -15,8 +16,7 @@ type Layer         = Map Coordinate Art
 type Coordinate    = (Int,Int)
 type Map a b       = [(a,b)]
 
-data Origin = File FilePath | StdIn deriving Show
-data Mark = Mark {origin :: Origin, line :: LineNumber} deriving Show
+data Mark = Mark {origin :: FilePath, line :: LineNumber}
 
 data Marked a = Marked Mark a deriving Show
 
@@ -24,31 +24,35 @@ instance Functor Marked where
   fmap f (Marked a b) = Marked a (f b)
 
 data Error 
-  = Delimiter  String LineNumber
-  | Parse      String String String LineNumber
-  | Custom     String LineNumber
+  = Delimiter  Mark
+  | Parse      String String String Mark
+  | Custom     String Mark
+  | MissingArgs Int
 
 instance Show Error where 
   show err = flip mappend ".\n" $ "\x1b[31mError: \x1b[0m" <> case err of
-    Delimiter s l 
-      -> "There is an incomplete " 
-      <> show s 
-      <> " at line " 
-      <> show l 
-    Parse thing expected got l
+    Delimiter m 
+      -> "The Delimiter at was not closed at " 
+      <> show m 
+    Parse thing expected got m
       -> "Couldn't parse " 
       <> thing 
       <> ". Expected " 
       <> expected 
       <> " but got " 
       <> got
-      <> " at line "
-      <> show l
-    Custom s l 
+      <> " at "
+      <> show m
+    Custom s m 
       -> s 
-      <> " at line " 
-      <> show l
+      <> " at " 
+      <> show m
+    MissingArgs n
+      -> "Missing Arguments. Expected at least 2 but got "
+      <> show n
 
+instance Show Mark where
+  show Mark {origin = o, line = l} = "line " <> show l <> "in" <> o
 
 data Header = Header {
   width   :: Int,

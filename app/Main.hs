@@ -20,49 +20,41 @@ infix 8 ...
 
 -- main = interact $ show ||| show . map (name *** getDependencies . map snd) <<< parse <=< cutSpace 
 
-printBody =  
-  show ||| 
-    concat 
-    . map (renderer . uncurry parseColorLine) 
-    . uncurry (\h -> map ((\x -> (width h,x)) . snd)) 
-    . fromJust
-    . find (eq "shooting_underscore" . name . fst) 
-  <<< parse <=< cutSpace
+-- printBody =  
+--   show ||| 
+--     concat 
+--     . map (renderer . uncurry parseColorLine) 
+--     . uncurry (\h -> map ((\x -> (width h,x)) . snd)) 
+--     . fromJust
+--     . find (eq "shooting_underscore" . name . fst) 
+--   <<< parse <=< cutSpace
 
-number :: Origin -> String -> [Marked String]
-number o = zipWith (\ x y -> Marked Mark {origin = o, line = x} y) [1..] . lines
+number :: FilePath -> String -> [Marked String]
+number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
 
-main = interact printBody
+-- main = interact printBody
 
-maino = 
-  getArgs >>= \args ->
-  zipWith number (map File args) <$> traverse readFile args >>=
-  print . show
+main = getArgs >>= \arguments -> case arguments of 
+  []          -> putStr . show $ MissingArgs 0
+  [_]         -> putStr . show $ MissingArgs 1
+  (name:args) -> zipWith number args <$> mapM readFile args >>= print . show
 
-{-
-  putStr . show =<< uncurry numberFiles . (id &&& map readFile) =<< getArgs
-    where
-      numberFiles :: [String] -> [IO String] -> IO [Marked String]
-      numberFiles args f = helper (zip args f)
-        where 
-          helper :: Map String (IO String) -> IO [Marked String]
-          helper [] = return []
-          helper ((s,x):xs) = x >>= \text -> (number (File s) text <>) <$> helper xs
--}
-
-(<$>?) :: (a -> Either (Mark -> Error) b) -> Marked a -> Either Error (Marked b) 
+(<$>?) :: (a -> OrToError b) -> Marked a -> OrError (Marked b) 
 (<$>?) f (Marked m a) = case f a of
   Right x -> return (Marked m x)
   Left fn -> Left (fn m)
 
-(=<<?) :: (a -> Either (Mark -> Error) b) -> Either Error (Marked a) -> Either Error (Marked b)
+(=<<?) :: (a -> OrToError b) -> Either Error (Marked a) -> OrError (Marked b)
 (=<<?) _ (Left x) = Left x
 (=<<?) f (Right x) = f <$>? x
 
-(<=<?) :: (a -> Either (Mark -> Error) b) -> (x -> Either (Mark -> Error) a) ->  Marked x -> Either Error (Marked b)
+(<=<?) :: (b -> OrToError c) -> (a -> OrToError b) ->  Marked a -> OrError (Marked c)
 (<=<?) g f a =  case (f <$>? a) of
   Right x -> g <$>? x
   Left  x -> Left x
+
+(>?) :: Mark -> OrToError a -> OrError a
+(>?) x y = first ($ x) y
 
 cons = (:)
 append :: a -> [a] -> [a]
@@ -70,40 +62,40 @@ append  x y = y <> [x]
 eq :: Eq a => a -> a -> Bool
 eq = (==)
 
-parse :: Lines -> OrError (Map Header Lines)   
+parse :: [Marked String] -> OrError (Map Header [Marked String])   
 parse []           = return []
-parse ((l,x) : xs) = parseHeader l x >>= \header -> case head . words . snd <$> listToMaybe xs of
-  Nothing      -> Left $ Custom "Header is lacking a body" l
-  Just "frame" -> getDelimiter xs l "script" "end" [] >>= \(script, other) -> 
-                    cons (header, script) <$> parse other
-  Just _       -> cons (header, take len xs) <$> parse (drop len xs)
-    where len = height header * frames header
+parse (Marked m l : xs) = m >? parseHeader l >>= 
+  \header -> case head . words . unwrap <$> listToMaybe xs of
+    Nothing      -> Left $ Custom "Header is lacking a body" m
+    Just "frame" -> m >? getDelimiter xs "end" [] >>= \(script, other) -> 
+                      cons (header, script) <$> parse other
+    Just _       -> cons (header, take len xs) <$> parse (drop len xs)
+      where len = height header * frames header
 
 -- if something has no dependencies it can be calculated
-win :: EpicGifData -> Dependencies -> NamedLines -> OrError EpicGifData
+win :: EpicGifData -> Dependencies -> Map Name [Marked String] -> OrError EpicGifData
 win uwu []          _ = pure uwu
 win uwu ((n,[]):xs) d = solve uwu n (d ! n) >>= \s -> win (s:uwu) (second (filter (/= n)) <$> xs) d
 win uwu (x:xs)      d = win uwu (append x xs) d
 
 -- finds closing delimiter and returs up to and after it
 -- getDelimiter :: Lines -> LineNumber -> original -> good -> [bad] -> OrError (garbage, Lines)
-getDelimiter :: Lines -> LineNumber -> String -> String -> [String] -> OrError (Lines, Lines)
-getDelimiter []           olden original _     _  = Left $ Delimiter original olden
-getDelimiter ((l,x) : xs) olden original good bad = case words x of
+getDelimiter :: [Marked String] -> String -> [String] -> OrToError ([Marked String], [Marked String])
+getDelimiter []       _    _   = Left Delimiter
+getDelimiter (x : xs) good bad = case words $ unwrap x of
   [w] -> if 
     | w == good  -> return ([],xs)
-    | elem w bad -> Left $ Delimiter original olden
-  _   -> first (append (l,x)) <$> getDelimiter xs olden original good bad   
+    | elem w bad -> Left Delimiter
+    | otherwise  -> first (append x) <$> getDelimiter xs good bad   
+  _   -> first (append x) <$> getDelimiter xs good bad   
 
-cutSpace :: String -> OrError Lines
-cutSpace = cleanGood . zip [1..] . lines
-  where
-    cleanGood []           = Right []
-    cleanGood ((l,x) : xs) = case words x of 
-      []      -> cleanGood xs
-      ["com"] -> getDelimiter xs l "com" "moc" ["com"] >>= cleanGood . snd
-      ["moc"] -> Left $ Delimiter "moc" l
-      _       -> cons (l,x) <$> cleanGood xs
+cutSpace :: [Marked String] -> OrToError [Marked String]
+cutSpace []           = Right []
+cutSpace (x@(Marked m l) : xs) = case words $ unwrap x of 
+  []      -> cutSpace xs
+  ["com"] -> getDelimiter xs "moc" ["com"] >>= cutSpace . snd
+  ["moc"] -> Left Delimiter
+  _       -> cons x <$> cutSpace xs
 
 unwrap :: Marked a -> a
 unwrap (Marked _ a) = a  
@@ -125,7 +117,7 @@ getDependencies = undefined
 
 (!) = fromJust ... flip lookup
 
-solve :: EpicGifData -> Name -> Lines -> OrError (Name, Gif)
+solve :: EpicGifData -> Name -> [Marked String] -> OrError (Name, Gif)
 solve = undefined
 
 renderer :: [Colored Char] -> String
@@ -168,13 +160,13 @@ colorChar c = case c of
   Colored Transp  s -> append s "\x1b[30m"
 
 
-parseHeader :: LineNumber -> String -> OrError Header
-parseHeader l = first ($ l) . parseHelper . words
+parseHeader :: String -> OrToError Header
+parseHeader = parseHelper . words
   where 
-    parseHelper :: [String] -> Either (LineNumber -> Error) Header
+    parseHelper :: [String] -> Either (Mark -> Error) Header
     parseHelper [a,b,c,d] = case readMaybe a of 
-      Nothing    -> Left $ Parse "width"  "an int" (show a) 
-      Just width -> case readMaybe b of 
+      Nothing     -> Left $ Parse "width"  "an int" (show a) 
+      Just width  -> case readMaybe b of 
         Nothing     -> Left $ Parse "height" "an int" (show b)
         Just height -> case readMaybe c of 
           Nothing     -> Left $ Parse "number of frames" "an int" (show c) 
@@ -187,6 +179,7 @@ parseHeader l = first ($ l) . parseHelper . words
                 name   = d
               }
     parseHelper w = Left $ Parse "header" "4 values" (show $ length w) 
+
 {-
  - tree structure
  - could be texture.uwu or script.uwuscript
