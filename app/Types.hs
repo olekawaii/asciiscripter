@@ -1,5 +1,6 @@
 module Types where
 
+type OrError       = Either Error
 type Body          = (Header, Lines)
 type LineNumber    = Int
 type NamedLines  = Map Name Lines
@@ -13,7 +14,14 @@ type Gif           = [Frame]
 type Layer         = Map Coordinate Art
 type Coordinate    = (Int,Int)
 type Map a b       = [(a,b)]
-type FilePath      = String
+
+data Origin = File FilePath | StdIn deriving Show
+data Mark = Mark {origin :: Origin, line :: LineNumber} deriving Show
+
+data Marked a = Marked Mark a deriving Show
+
+instance Functor Marked where
+  fmap f (Marked a b) = Marked a (f b)
 
 data Error 
   = Delimiter  String LineNumber

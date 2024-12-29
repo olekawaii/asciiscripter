@@ -3,7 +3,6 @@
 module Main (main) where
 
 -- import Lib
-
 import Control.Monad ((<=<))
 import Control.Arrow ((<<<),  (***), (&&&), (+++), (|||))
 import Data.Bifunctor (first, second)
@@ -11,8 +10,10 @@ import Text.Read (readMaybe)
 import Data.Maybe
 import Data.Tuple
 import System.IO
+
 import Data.List
 
+import System.Environment
 import Types
 
 infix 8 ...
@@ -28,7 +29,35 @@ printBody =
     . find (eq "shooting_underscore" . name . fst) 
   <<< parse <=< cutSpace
 
-main = readFile "gifs/bird.aa" >>= putStr . printBody
+number :: Origin -> String -> [Marked String]
+number o = map (\(x,y) -> Marked Mark {origin = o, line = x} y) . zip [1..] . lines
+
+main = 
+  putStr . show =<< uncurry numberFiles . (id &&& map readFile) =<< getArgs
+    where
+      numberFiles :: [String] -> [IO String] -> IO [Marked String]
+      numberFiles args f = helper (zip args f)
+        where 
+          helper :: Map String (IO String) -> IO [Marked String]
+          helper [] = return []
+          helper ((s,x):xs) = x >>= \text -> (number (File s) text <>) <$> helper xs
+
+        -- number :: Origin -> String -> [Marked String]
+        -- number o = map (\(x,y) -> Marked Mark {origin = o, line = x} y) . zip [1..] . lines
+
+(<$>?) :: (a -> Either (Mark -> Error) b) -> Marked a -> Either Error (Marked b) 
+(<$>?) f (Marked m a) = case f a of
+  Right x -> return (Marked m x)
+  Left fn -> Left (fn m)
+
+(=<<?) :: (a -> Either (Mark -> Error) b) -> Either Error (Marked a) -> Either Error (Marked b)
+(=<<?) _ (Left x) = Left x
+(=<<?) f (Right x) = f <$>? x
+
+(<=<?) :: (a -> Either (Mark -> Error) b) -> (x -> Either (Mark -> Error) a) ->  Marked x -> Either Error (Marked b)
+(<=<?) g f a =  case (f <$>? a) of
+  Right x -> g <$>? x
+  Left  x -> Left x
 
 cons = (:)
 append :: a -> [a] -> [a]
@@ -36,7 +65,7 @@ append  x y = y <> [x]
 eq :: Eq a => a -> a -> Bool
 eq = (==)
 
-parse :: Lines -> Either Error (Map Header Lines)   
+parse :: Lines -> OrError (Map Header Lines)   
 parse []           = return []
 parse ((l,x) : xs) = parseHeader l x >>= \header -> case head . words . snd <$> listToMaybe xs of
   Nothing      -> Left $ Custom "Header is lacking a body" l
@@ -45,9 +74,15 @@ parse ((l,x) : xs) = parseHeader l x >>= \header -> case head . words . snd <$> 
   Just _       -> cons (header, take len xs) <$> parse (drop len xs)
     where len = height header * frames header
 
+-- if something has no dependencies it can be calculated
+win :: EpicGifData -> Dependencies -> NamedLines -> OrError EpicGifData
+win uwu []          _ = pure uwu
+win uwu ((n,[]):xs) d = solve uwu n (d ! n) >>= \s -> win (s:uwu) (second (filter (/= n)) <$> xs) d
+win uwu (x:xs)      d = win uwu (append x xs) d
+
 -- finds closing delimiter and returs up to and after it
--- getDelimiter :: Lines -> LineNumber -> original -> good -> [bad] -> Either Error (garbage, Lines)
-getDelimiter :: Lines -> LineNumber -> String -> String -> [String] -> Either Error (Lines, Lines)
+-- getDelimiter :: Lines -> LineNumber -> original -> good -> [bad] -> OrError (garbage, Lines)
+getDelimiter :: Lines -> LineNumber -> String -> String -> [String] -> OrError (Lines, Lines)
 getDelimiter []           olden original _     _  = Left $ Delimiter original olden
 getDelimiter ((l,x) : xs) olden original good bad = case words x of
   [w] -> if 
@@ -55,7 +90,7 @@ getDelimiter ((l,x) : xs) olden original good bad = case words x of
     | elem w bad -> Left $ Delimiter original olden
   _   -> first (append (l,x)) <$> getDelimiter xs olden original good bad   
 
-cutSpace :: String -> Either Error Lines
+cutSpace :: String -> OrError Lines
 cutSpace = cleanGood . zip [1..] . lines
   where
     cleanGood []           = Right []
@@ -64,27 +99,28 @@ cutSpace = cleanGood . zip [1..] . lines
       ["com"] -> getDelimiter xs l "com" "moc" ["com"] >>= cleanGood . snd
       ["moc"] -> Left $ Delimiter "moc" l
       _       -> cons (l,x) <$> cleanGood xs
-    
-getDependencies :: [String] -> [Name]
-getDependencies 
-  = filter (\x -> 
-      x `notElem` ["frame"] && 
-      head x `notElem` "'\"")
-  . words
-  . filter (flip notElem (['0'..'9'] <> ['A'..'Z'] <> ",.!-+" <> ['\n','"']))
-  . concat
 
--- if something has no dependencies it can be calculated
-win :: EpicGifData -> Dependencies -> NamedLines -> Either Error EpicGifData
-win uwu []          _ = pure uwu
-win uwu ((n,[]):xs) d = solve uwu n (d ! n) >>= \s -> win (s:uwu) (second (filter (/= n)) <$> xs) d
-win uwu (x:xs)      d = win uwu (append x xs) d
+unwrap :: Marked a -> a
+unwrap (Marked _ a) = a  
+    
+-- recursive for each branch, passing in parsed info
+getDependencies :: Body -> Map Name [String]
+getDependencies = undefined
+  where
+    extractDependencies :: [String] -> [Name]
+    extractDependencies 
+      = filter (\x -> x `notElem` ["frame"] && head x `notElem` "'\"")
+      . words
+      . filter (`notElem` ['0'..'9'] <> ['A'..'Z'] <> ",.!-+" <> ['\n','"'])
+      . unlines
+
+    -- killQuotes
 
 (...) = (.).(.)
 
 (!) = fromJust ... flip lookup
 
-solve :: EpicGifData -> Name -> Lines -> Either Error (Name, Gif)
+solve :: EpicGifData -> Name -> Lines -> OrError (Name, Gif)
 solve = undefined
 
 renderer :: [Colored Char] -> String
@@ -127,7 +163,7 @@ colorChar c = case c of
   Colored Transp  s -> append s "\x1b[30m"
 
 
-parseHeader :: LineNumber -> String -> Either Error Header
+parseHeader :: LineNumber -> String -> OrError Header
 parseHeader l = first ($ l) . parseHelper . words
   where 
     parseHelper :: [String] -> Either (LineNumber -> Error) Header
