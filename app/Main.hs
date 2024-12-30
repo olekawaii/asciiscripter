@@ -34,6 +34,7 @@ main = getArgs >>= \arguments -> case arguments of
 uwu :: Name -> [Marked String] -> OrError String
 uwu target = cutSpace >=> parse >=> lookupName >=>
   return . 
+  (\x -> "echo $'" <> x <> "'") . 
   concat .
   map (renderer . uncurry parseColorLine) .   
   uncurry (\h -> map ((\x -> (width h,x)) . unwrap))
@@ -125,14 +126,19 @@ solve :: EpicGifData -> Name -> [Marked String] -> OrError (Name, Gif)
 solve = undefined
 
 renderer :: [Colored Char] -> String
-renderer x = "\x1b[0m" <> helper x White
+renderer x = helper x Transp --  "\\x1b[0m" <> helper x White
   where
     helper :: [Colored Char] -> Color -> String
-    helper [] _ = "\x1b[0m\n"
+    helper [] _ = "\\n"
     helper (Colored color char :xs) oldcolor = 
-      if color == oldcolor 
-      then char : helper xs oldcolor
+      if color == oldcolor || char == ' ' || color == Transp
+      then clean char <> helper xs oldcolor
       else colorChar (Colored color char) <> helper xs color
+      where 
+        clean c = case c of 
+          '\\' -> "\\\\"
+          '\'' -> "\\\'"
+          a    -> [a]
 
 -- every used gif and its dependencies
 
@@ -153,15 +159,20 @@ parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... 
 
 colorChar :: Colored Char -> String
 colorChar c = case c of
-  Colored Black   s -> append s "\x1b[30m"
-  Colored Red     s -> append s "\x1b[31m"
-  Colored Green   s -> append s "\x1b[32m"
-  Colored Yellow  s -> append s "\x1b[33m"
-  Colored Blue    s -> append s "\x1b[34m"
-  Colored Magenta s -> append s "\x1b[35m"
-  Colored Cyan    s -> append s "\x1b[36m"
-  Colored White   s -> append s "\x1b[37m"
-  Colored Transp  s -> append s "\x1b[30m"
+  Colored Black   s -> appen s "\\x1b[30m"
+  Colored Red     s -> appen s "\\x1b[31m"
+  Colored Green   s -> appen s "\\x1b[32m"
+  Colored Yellow  s -> appen s "\\x1b[33m"
+  Colored Blue    s -> appen s "\\x1b[34m"
+  Colored Magenta s -> appen s "\\x1b[35m"
+  Colored Cyan    s -> appen s "\\x1b[36m"
+  Colored White   s -> appen s "\\x1b[37m"
+  Colored Transp  s -> appen s "\\x1b[30m"
+  where 
+    appen l x = case l of 
+      '\\' -> x <> ("\\\\")
+      '\'' -> x <> "\\\'"
+      a   -> append a x
 
 parseHeader :: String -> OrToError Header
 parseHeader = parseHelper . words
