@@ -28,11 +28,12 @@ data Error
   | Parse      String String String Mark
   | Custom     String Mark
   | MissingArgs Int
+  | NoMatchingName Name
 
 instance Show Error where 
   show err = flip mappend ".\n" $ "\x1b[31mError: \x1b[0m" <> case err of
     Delimiter m 
-      -> "The Delimiter at was not closed at " 
+      -> "The delimiter at was not closed" 
       <> show m 
     Parse thing expected got m
       -> "Couldn't parse " 
@@ -41,18 +42,20 @@ instance Show Error where
       <> expected 
       <> " but got " 
       <> got
-      <> " at "
       <> show m
     Custom s m 
       -> s 
-      <> " at " 
       <> show m
     MissingArgs n
       -> "Missing Arguments. Expected at least 2 but got "
       <> show n
+    NoMatchingName a
+      -> "could not find "
+      <> a
+      <> " in the input files"
 
 instance Show Mark where
-  show Mark {origin = o, line = l} = "line " <> show l <> "in" <> o
+  show Mark {origin = o, line = l} = " at line " <> show l <> " in " <> o
 
 data Header = Header {
   width   :: Int,

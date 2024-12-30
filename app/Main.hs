@@ -3,31 +3,21 @@
 module Main (main) where
 
 -- import Lib
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), (>=>))
 import Control.Arrow ((<<<),  (***), (&&&), (+++), (|||))
 import Data.Bifunctor (first, second)
 import Text.Read (readMaybe) 
 import Data.Maybe
 import Data.Tuple
 import System.IO
-
 import Data.List
-
 import System.Environment
+
 import Types
 
 infix 8 ...
 
 -- main = interact $ show ||| show . map (name *** getDependencies . map snd) <<< parse <=< cutSpace 
-
--- printBody =  
---   show ||| 
---     concat 
---     . map (renderer . uncurry parseColorLine) 
---     . uncurry (\h -> map ((\x -> (width h,x)) . snd)) 
---     . fromJust
---     . find (eq "shooting_underscore" . name . fst) 
---   <<< parse <=< cutSpace
 
 number :: FilePath -> String -> [Marked String]
 number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
@@ -37,14 +27,28 @@ number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
 main = getArgs >>= \arguments -> case arguments of 
   []          -> putStr . show $ MissingArgs 0
   [_]         -> putStr . show $ MissingArgs 1
-  (name:args) -> zipWith number args <$> mapM readFile args >>= print . show
+  (target:args) -> zipWith number args <$> mapM readFile args >>= (
+      putStr <<< show ||| id <<< uwu target <<< concat
+    )
+
+uwu :: Name -> [Marked String] -> OrError String
+uwu target = cutSpace >=> parse >=> lookupName >=>
+  return . 
+  concat .
+  map (renderer . uncurry parseColorLine) .   
+  uncurry (\h -> map ((\x -> (width h,x)) . unwrap))
+    where
+      lookupName x = case find (eq target . name . fst) x of
+        Nothing -> Left $ NoMatchingName target
+        Just x  -> return x
+
 
 (<$>?) :: (a -> OrToError b) -> Marked a -> OrError (Marked b) 
 (<$>?) f (Marked m a) = case f a of
   Right x -> return (Marked m x)
   Left fn -> Left (fn m)
 
-(=<<?) :: (a -> OrToError b) -> Either Error (Marked a) -> OrError (Marked b)
+(=<<?) :: (a -> OrToError b) -> OrError (Marked a) -> OrError (Marked b)
 (=<<?) _ (Left x) = Left x
 (=<<?) f (Right x) = f <$>? x
 
@@ -82,19 +86,19 @@ win uwu (x:xs)      d = win uwu (append x xs) d
 -- getDelimiter :: Lines -> LineNumber -> original -> good -> [bad] -> OrError (garbage, Lines)
 getDelimiter :: [Marked String] -> String -> [String] -> OrToError ([Marked String], [Marked String])
 getDelimiter []       _    _   = Left Delimiter
-getDelimiter (x : xs) good bad = case words $ unwrap x of
+getDelimiter (x:xs) good bad = case words $ unwrap x of
   [w] -> if 
     | w == good  -> return ([],xs)
     | elem w bad -> Left Delimiter
     | otherwise  -> first (append x) <$> getDelimiter xs good bad   
   _   -> first (append x) <$> getDelimiter xs good bad   
 
-cutSpace :: [Marked String] -> OrToError [Marked String]
-cutSpace []           = Right []
+cutSpace :: [Marked String] -> OrError [Marked String]
+cutSpace []                    = Right []
 cutSpace (x@(Marked m l) : xs) = case words $ unwrap x of 
   []      -> cutSpace xs
-  ["com"] -> getDelimiter xs "moc" ["com"] >>= cutSpace . snd
-  ["moc"] -> Left Delimiter
+  ["com"] -> m >? getDelimiter xs "moc" ["com"] >>= cutSpace . snd
+  ["moc"] -> Left $ Custom "Unexpected moc" m
   _       -> cons x <$> cutSpace xs
 
 unwrap :: Marked a -> a
@@ -159,11 +163,10 @@ colorChar c = case c of
   Colored White   s -> append s "\x1b[37m"
   Colored Transp  s -> append s "\x1b[30m"
 
-
 parseHeader :: String -> OrToError Header
 parseHeader = parseHelper . words
   where 
-    parseHelper :: [String] -> Either (Mark -> Error) Header
+    parseHelper :: [String] -> OrToError Header
     parseHelper [a,b,c,d] = case readMaybe a of 
       Nothing     -> Left $ Parse "width"  "an int" (show a) 
       Just width  -> case readMaybe b of 
