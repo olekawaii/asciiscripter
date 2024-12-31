@@ -26,22 +26,23 @@ main = getArgs >>= \arguments -> case arguments of
   []          -> putStr . show $ MissingArgs 0
   [_]         -> putStr . show $ MissingArgs 1
   (target:args) -> zipWith number args <$> mapM readFile args >>= (
-      putStr 
-      <<< 
-      show ||| show
-      <<< flip dependenciesOf target . map (name *** map unwrap)
-      <=< parse
-      <=< cutSpace
-      <<< concat
-      -- putStr <<< show ||| id <<< uwu target <<< concat
+      -- putStr 
+      -- <<< 
+      -- show ||| show
+      -- <<< flip dependenciesOf target . map (name *** map unwrap)
+      -- <=< parse
+      -- <=< cutSpace
+      -- <<< concat
+      putStr <<< show ||| id <<< uwu target <<< concat
     )
 
 uwu :: Name -> [Marked String] -> OrError String
 uwu target = cutSpace >=> parse >=> lookupName >=>
   return . 
-  (\x -> "echo $'" <> x <> "'") . 
-  concat .
-  map (renderer . uncurry parseColorLine) .   
+  (\x -> "echo -e '" <> x <> "'\n") . 
+  -- concat .
+  renderer . 
+  map (uncurry parseColorLine) .   
   uncurry (\h -> map ((\x -> (width h,x)) . unwrap))
     where
       lookupName x = case find (eq target . name . fst) x of
@@ -137,14 +138,10 @@ isValidName x = all ($ x)
 
 extractDependencies :: [String] -> [Name]
 extractDependencies x = case words . head $ x of
-  ["script"] ->
-    filter isValidName .
-    map reverse .
-    flip helper [] . 
-    unlines $ x
+  ["script"] -> filter isValidName . map reverse . flip helper [] . unlines $ x
       where 
         helper :: String -> Name -> [Name]
-        helper []     w = []
+        helper []     _ = []
         helper (x:xs) w = if x `elem` '_' : ['a'..'z'] <> ['1'..'9']
                           then helper xs (x:w)
                           else w : helper xs []
@@ -158,20 +155,28 @@ solve :: EpicGifData -> Name -> [Marked String] -> OrError (Name, Gif)
 solve = undefined
 
 -- TODO cut tai of ' ' <> colored \n
-renderer :: [Colored Char] -> String
-renderer x = helper x Transp --  "\\x1b[0m" <> helper x White
+renderer :: [[Colored Char]] -> String
+renderer = helper Transp . concat . map (append (Colored Transp '\n') . removeExtraSpaces)
   where
-    helper :: [Colored Char] -> Color -> String
-    helper [] _ = "\\n"
-    helper (Colored color char :xs) oldcolor = 
-      if color == oldcolor || char == ' ' || color == Transp
-      then clean char <> helper xs oldcolor
-      else colorChar (Colored color char) <> helper xs color
-      where 
-        clean c = case c of 
-          '\\' -> "\\\\"
-          '\'' -> "\\\'"
-          a    -> [a]
+    helper :: Color -> [Colored Char] -> String
+    helper _        []                       = "" --"\\n"
+    helper oldcolor (Colored color char :xs) = 
+      if color == oldcolor || elem char " \n" || color == Transp
+      then clean char <> helper oldcolor xs
+      else colorChar (Colored color char) <> helper color xs
+    
+    removeExtraSpaces :: [Colored Char] -> [Colored Char]
+    removeExtraSpaces = reverse . remove . reverse
+      where
+        remove (Colored _ ' ' : as) = remove as
+        remove (a: as) = a:as
+
+
+clean c = case c of 
+  '\\' -> "\\\\"
+  '\'' -> "'\\''"
+  '\n' -> "\\n"
+  a    -> [a]
 
 -- every used gif and its dependencies
 
@@ -192,20 +197,15 @@ parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... 
 
 colorChar :: Colored Char -> String
 colorChar c = case c of
-  Colored Black   s -> appen s "\\x1b[30m"
-  Colored Red     s -> appen s "\\x1b[31m"
-  Colored Green   s -> appen s "\\x1b[32m"
-  Colored Yellow  s -> appen s "\\x1b[33m"
-  Colored Blue    s -> appen s "\\x1b[34m"
-  Colored Magenta s -> appen s "\\x1b[35m"
-  Colored Cyan    s -> appen s "\\x1b[36m"
-  Colored White   s -> appen s "\\x1b[37m"
-  Colored Transp  s -> appen s "\\x1b[30m"
-  where 
-    appen l x = case l of 
-      '\\' -> x <> ("\\\\")
-      '\'' -> x <> "\\\'"
-      a   -> append a x
+  Colored Black   s -> "\\x1b[30m" <> clean s
+  Colored Red     s -> "\\x1b[31m" <> clean s
+  Colored Green   s -> "\\x1b[32m" <> clean s
+  Colored Yellow  s -> "\\x1b[33m" <> clean s
+  Colored Blue    s -> "\\x1b[34m" <> clean s
+  Colored Magenta s -> "\\x1b[35m" <> clean s
+  Colored Cyan    s -> "\\x1b[36m" <> clean s
+  Colored White   s -> "\\x1b[37m" <> clean s
+  Colored Transp  s -> "\\x1b[30m" <> clean s
 
 parseHeader :: String -> OrToError Header
 parseHeader = parseHelper . words

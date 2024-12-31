@@ -64,12 +64,12 @@ end
 17 11 3 robot_juggling
 script
   frame 1
-      1 DRAW 3 1 shooting_underscore.1
-      2 PLAY 2 2 robot2
+    1 DRAW 3 1 shooting_underscore.1
+    2 PLAY 2 2 robot2
   frame 2
-      1 SHIFT +1 -1
+    1 SHIFT +1 -1
   frame 3
-      2 CLEAR!
-      2 DRAW 1 1 tree
+    2 CLEAR!
+    2 DRAW 1 1 tree
   frame 4 7
 end

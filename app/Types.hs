@@ -78,7 +78,7 @@ data Encoded a = Script a | Drawing a -- for parse
 data Art = Giffy Header Gif | Framy Header Frame
 
 data Colored a = Colored Color a
-data Color 
+data Color  
   = Black    
   | Red      
   | Green    
