@@ -17,18 +17,23 @@ import Types
 
 infix 8 ...
 
--- main = interact $ show ||| show . map (name *** getDependencies . map snd) <<< parse <=< cutSpace 
+maino = interact $ unlines . extractDependencies . lines
 
 number :: FilePath -> String -> [Marked String]
 number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
-
--- main = interact printBody
 
 main = getArgs >>= \arguments -> case arguments of 
   []          -> putStr . show $ MissingArgs 0
   [_]         -> putStr . show $ MissingArgs 1
   (target:args) -> zipWith number args <$> mapM readFile args >>= (
-      putStr <<< show ||| id <<< uwu target <<< concat
+      putStr 
+      <<< 
+      show ||| show
+      <<< flip dependenciesOf target . map (name *** map unwrap)
+      <=< parse
+      <=< cutSpace
+      <<< concat
+      -- putStr <<< show ||| id <<< uwu target <<< concat
     )
 
 uwu :: Name -> [Marked String] -> OrError String
@@ -42,7 +47,6 @@ uwu target = cutSpace >=> parse >=> lookupName >=>
       lookupName x = case find (eq target . name . fst) x of
         Nothing -> Left $ NoMatchingName target
         Just x  -> return x
-
 
 (<$>?) :: (a -> OrToError b) -> Marked a -> OrError (Marked b) 
 (<$>?) f (Marked m a) = case f a of
@@ -70,11 +74,11 @@ eq = (==)
 parse :: [Marked String] -> OrError (Map Header [Marked String])   
 parse []           = return []
 parse (Marked m l : xs) = m >? parseHeader l >>= 
-  \header -> case head . words . unwrap <$> listToMaybe xs of
-    Nothing      -> Left $ Custom "Header is lacking a body" m
-    Just "frame" -> m >? getDelimiter xs "end" [] >>= \(script, other) -> 
-                      cons (header, script) <$> parse other
-    Just _       -> cons (header, take len xs) <$> parse (drop len xs)
+  \header -> case words . unwrap <$> listToMaybe xs of
+    Nothing         -> Left $ Custom "Header is lacking a body" m
+    Just ["script"] -> m >? getDelimiter xs "end" [] >>= \(script, other) -> 
+                         cons (header, script) <$> parse other
+    Just _          -> cons (header, take len xs) <$> parse (drop len xs)
       where len = height header * frames header
 
 -- if something has no dependencies it can be calculated
@@ -84,15 +88,15 @@ win uwu ((n,[]):xs) d = solve uwu n (d ! n) >>= \s -> win (s:uwu) (second (filte
 win uwu (x:xs)      d = win uwu (append x xs) d
 
 -- finds closing delimiter and returs up to and after it
--- getDelimiter :: Lines -> LineNumber -> original -> good -> [bad] -> OrError (garbage, Lines)
+-- getDelimiter :: Lines -> good -> [bad] -> OrError (inside, outside)
 getDelimiter :: [Marked String] -> String -> [String] -> OrToError ([Marked String], [Marked String])
 getDelimiter []       _    _   = Left Delimiter
 getDelimiter (x:xs) good bad = case words $ unwrap x of
   [w] -> if 
     | w == good  -> return ([],xs)
     | elem w bad -> Left Delimiter
-    | otherwise  -> first (append x) <$> getDelimiter xs good bad   
-  _   -> first (append x) <$> getDelimiter xs good bad   
+    | otherwise  -> first (cons x) <$> getDelimiter xs good bad   
+  _   -> first (cons x) <$> getDelimiter xs good bad   
 
 cutSpace :: [Marked String] -> OrError [Marked String]
 cutSpace []                    = Right []
@@ -105,18 +109,46 @@ cutSpace (x@(Marked m l) : xs) = case words $ unwrap x of
 unwrap :: Marked a -> a
 unwrap (Marked _ a) = a  
     
--- recursive for each branch, passing in parsed info
-getDependencies :: Body -> Map Name [String]
-getDependencies = undefined
+dependenciesOf :: Map Name [String] -> Name -> OrError (Map Name [Name])
+dependenciesOf table = fmap nub . getDependencies []
   where
-    extractDependencies :: [String] -> [Name]
-    extractDependencies 
-      = filter (\x -> x `notElem` ["frame"] && head x `notElem` "'\"")
-      . words
-      . filter (`notElem` ['0'..'9'] <> ['A'..'Z'] <> ",.!-+" <> ['\n','"'])
-      . unlines
+  getDependencies :: [Name] -> Name -> OrError (Map Name [Name])
+  getDependencies used target = if elem target used then Left $ Recursive target else
+    case extractDependencies <$> lookup target table of 
+      Nothing -> Left $ NoMatchingName target
+      Just x  -> fmap (cons (target,x) . concat) . sequence . map (getDependencies (target : used)) $ x
 
-    -- killQuotes
+concatEither :: [Either a [b]] -> Either a [b]
+concatEither = foldl fn (Right []) 
+  where 
+    fn :: Either a [b] -> Either a [b] -> Either a [b]
+    fn x y = case x of 
+      Left a -> Left a
+      Right a -> Right $ a <> fromRight y
+
+    fromRight (Right x) = x
+
+isValidName :: Name -> Bool
+isValidName x = all ($ x) 
+  [ flip notElem ["frame","end","com","moc","script"]
+  , all (`elem` '_' : ['a'..'z'] <> ['0'..'9'])
+  , any (`elem` ['a'..'z'])
+  ]
+
+extractDependencies :: [String] -> [Name]
+extractDependencies x = case words . head $ x of
+  ["script"] ->
+    filter isValidName .
+    map reverse .
+    flip helper [] . 
+    unlines $ x
+      where 
+        helper :: String -> Name -> [Name]
+        helper []     w = []
+        helper (x:xs) w = if x `elem` '_' : ['a'..'z'] <> ['1'..'9']
+                          then helper xs (x:w)
+                          else w : helper xs []
+  _ -> []
 
 (...) = (.).(.)
 
@@ -125,6 +157,7 @@ getDependencies = undefined
 solve :: EpicGifData -> Name -> [Marked String] -> OrError (Name, Gif)
 solve = undefined
 
+-- TODO cut tai of ' ' <> colored \n
 renderer :: [Colored Char] -> String
 renderer x = helper x Transp --  "\\x1b[0m" <> helper x White
   where
@@ -185,7 +218,7 @@ parseHeader = parseHelper . words
         Just height -> case readMaybe c of 
           Nothing     -> Left $ Parse "number of frames" "an int" (show c) 
           Just frames -> if
-            | any (`notElem` '_' : ['a'..'z']) d -> Left $ Parse "name" "only chars a-z and _" (show d)
+            | not $ isValidName d -> Left $ Parse "name" "only chars a-z and _" (show d)
             | otherwise -> Right Header {
                 width  = width, 
                 height = height,
@@ -193,12 +226,3 @@ parseHeader = parseHelper . words
                 name   = d
               }
     parseHelper w = Left $ Parse "header" "4 values" (show $ length w) 
-
-{-
- - tree structure
- - could be texture.uwu or script.uwuscript
- - both have the same output, a size and frameorder
- - calling script file is recursive
- - a script file can compile to a texture file whick compiles to a gif
- - a script can't use itself
--}

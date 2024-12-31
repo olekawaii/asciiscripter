@@ -1,9 +1,11 @@
-9 5 2 bird_idle
+9 5 1 bird_idle
     ,,   ....11...
   <')    ..381....
    ( \   ...101...
 ---YY----666336666
      |\  .....11..
+
+9 5 1 bird_confused
     ,  ? ....1..2.
    (v)   ...131...
    ( \   ...101...
@@ -37,6 +39,7 @@ e   welcom7...123456
  welcome  .1234567..
 
 10 1 11 welcome
+script
 frame 1
     1 DRAW -t 2 (1,1) "welcome   welcome   1234567...1234567..."
 frame 2 10
@@ -52,14 +55,21 @@ j f |/   2.2.77...
     |    ....7....
    /A\   ...777...
 
-17 11 3 robot_juggling
+17 11 3 robot2
+script
 frame 1
-    1 DRAW 3 1 house.1
-    2 PLAY 2 2 bird
-frame 2
-    1 SHIFT +1 -1
-frame 3
-    2 CLEAR!
-    2 DRAW 1 1 "Hello there12345.61234"
-frame 4 7
+  1 DRAW 1 1 bird_idle
+end
+
+17 11 3 robot_juggling
+script
+  frame 1
+      1 DRAW 3 1 shooting_underscore.1
+      2 PLAY 2 2 robot2
+  frame 2
+      1 SHIFT +1 -1
+  frame 3
+      2 CLEAR!
+      2 DRAW 1 1 tree
+  frame 4 7
 end

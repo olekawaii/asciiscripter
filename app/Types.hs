@@ -29,6 +29,7 @@ data Error
   | Custom     String Mark
   | MissingArgs Int
   | NoMatchingName Name
+  | Recursive Name
 
 instance Show Error where 
   show err = flip mappend ".\n" $ "\x1b[31mError: \x1b[0m" <> case err of
@@ -53,6 +54,9 @@ instance Show Error where
       -> "could not find "
       <> a
       <> " in the input files"
+    Recursive a
+      -> show a
+      <> " called itself recursively"
 
 instance Show Mark where
   show Mark {origin = o, line = l} = " at line " <> show l <> " in " <> o
@@ -65,10 +69,11 @@ data Header = Header {
 } deriving Show
 
 data Command 
-  = Draw  Layer Int Int Frame 
-  | Play  Layer Int Int Gif
+  = Draw  Layer Int Int Gif 
   | Clear Layer
   | Shift Layer Int Int
+
+data Encoded a = Script a | Drawing a -- for parse
 
 data Art = Giffy Header Gif | Framy Header Frame
 
