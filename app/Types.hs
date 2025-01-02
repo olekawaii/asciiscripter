@@ -1,20 +1,18 @@
 module Types where
 
+type Map a b       = [(a,b)]
 type OrError       = Either Error
 type OrToError     = Either (Mark -> Error)
-type Body          = (Header, Lines)
 type LineNumber    = Int
-type NamedLines    = Map Name Lines
-type Lines         = Map LineNumber String
 type EpicGifData   = Map Name Gif
 type Dependencies  = Map Name [Name]
-type Size          = (Int, Int)
 type Name          = String
 type Frame         = Map Coordinate (Colored Char)
 type Gif           = [Frame]
-type Layer         = Map Coordinate Art
+type Layer         = Map Coordinate Gif
 type Coordinate    = (Int,Int)
-type Map a b       = [(a,b)]
+type Line          = String
+type Lines         = [String] --Map LineNumber String
 
 data Mark = Mark {origin :: FilePath, line :: LineNumber}
 
@@ -34,7 +32,7 @@ data Error
 instance Show Error where 
   show err = flip mappend ".\n" $ "\x1b[31mError: \x1b[0m" <> case err of
     Delimiter m 
-      -> "The delimiter at was not closed" 
+      -> "The delimiter at was not closed, starting" 
       <> show m 
     Parse thing expected got m
       -> "Couldn't parse " 
@@ -51,15 +49,18 @@ instance Show Error where
       -> "Missing Arguments. Expected at least 2 but got "
       <> show n
     NoMatchingName a
-      -> "could not find "
-      <> a
+      -> "could not find the name "
+      <> colour Magenta a
       <> " in the input files"
     Recursive a
-      -> show a
+      -> show (Colored Magenta a)
       <> " called itself recursively"
 
 instance Show Mark where
-  show Mark {origin = o, line = l} = " at line " <> show l <> " in " <> o
+  show Mark {origin = o, line = l} = 
+    " at line " <> 
+    show (Colored Cyan l) <> 
+    colour Cyan o
 
 data Header = Header {
   width   :: Int,
@@ -73,9 +74,11 @@ data Command
   | Clear Layer
   | Shift Layer Int Int
 
-data Encoded a = Script a | Drawing a -- for parse
+data Notated a = Script a | Drawings a -- for parse
 
-data Art = Giffy Header Gif | Framy Header Frame
+instance Functor Notated where
+  fmap f (Script a) = Script (f a)
+  fmap f (Drawings a) = Drawings (f a)
 
 data Colored a = Colored Color a
 data Color  
@@ -91,12 +94,18 @@ data Color
   deriving Eq
 
 instance Show a => Show (Colored a) where
-  show (Colored Black   s) = "\x1b[30m" <> (init . tail $ show s)
-  show (Colored Red     s) = "\x1b[31m" <> (init . tail $ show s)
-  show (Colored Green   s) = "\x1b[32m" <> (init . tail $ show s)
-  show (Colored Yellow  s) = "\x1b[33m" <> (init . tail $ show s)
-  show (Colored Blue    s) = "\x1b[34m" <> (init . tail $ show s)
-  show (Colored Magenta s) = "\x1b[35m" <> (init . tail $ show s)
-  show (Colored Cyan    s) = "\x1b[36m" <> (init . tail $ show s)
-  show (Colored White   s) = "\x1b[37m" <> (init . tail $ show s)
-  show (Colored Transp  s) = "\x1b[30m" <> (init . tail $ show s)
+  show (Colored color c) = colour color (show c)
+
+colour :: Color -> String -> String 
+colour c s = colorCode c <> s <> "\x1b[0m"
+
+colorCode :: Color -> String
+colorCode Black   = "\x1b[30m"
+colorCode Red     = "\x1b[31m"
+colorCode Green   = "\x1b[32m"
+colorCode Yellow  = "\x1b[33m"
+colorCode Blue    = "\x1b[34m"
+colorCode Magenta = "\x1b[35m"
+colorCode Cyan    = "\x1b[36m"
+colorCode White   = "\x1b[37m"
+colorCode Transp  = "\x1b[30m"
