@@ -158,7 +158,7 @@ renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtra
     removeExtraSpaces = reverse . remove . reverse
       where
         remove (Colored _ ' ' : as) = remove as
-        remove (a: as) = a:as
+        remove as = as
 
 
 clean c = case c of 
