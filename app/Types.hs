@@ -22,7 +22,8 @@ instance Functor Marked where
   fmap f (Marked a b) = Marked a (f b)
 
 data Error 
-  = Delimiter  Mark
+  = Delimiter  String Mark
+  | BadDelimiter String Mark
   | Parse      String String String Mark
   | Custom     String Mark
   | MissingArgs Int
@@ -31,9 +32,18 @@ data Error
 
 instance Show Error where 
   show err = flip mappend ".\n" $ "\x1b[31mError: \x1b[0m" <> case err of
-    Delimiter m 
-      -> "The delimiter at was not closed, starting" 
+    Delimiter s m 
+      -> "The delimiter "
+      <> colour Blue s 
+      <> " did not find the matching "
+      <> colour Blue (reverse s) 
+      <> " starting" 
       <> show m 
+    BadDelimiter s m 
+      -> "Unexpected closing deliminator "
+      <> colour Blue s
+      <> " was found"
+      <> show m
     Parse thing expected got m
       -> "Couldn't parse " 
       <> thing 
@@ -49,17 +59,19 @@ instance Show Error where
       -> "Missing Arguments. Expected at least 2 but got "
       <> show n
     NoMatchingName a
-      -> "could not find the name "
+      -> "Could not find the name "
       <> colour Magenta a
       <> " in the input files"
     Recursive a
-      -> show (Colored Magenta a)
+      -> "The script "
+      <> colour Magenta a
       <> " called itself recursively"
 
 instance Show Mark where
   show Mark {origin = o, line = l} = 
     " at line " <> 
     show (Colored Cyan l) <> 
+    " in " <>
     colour Cyan o
 
 data Header = Header {

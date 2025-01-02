@@ -17,8 +17,6 @@ import Types
 
 infix 8 ...
 
--- maino = interact $ unlines. unwrapNotated . extractDependencies . lines
-
 unwrapNotated (Drawings x) = x
 unwrapNotated (Script x) = x
 
@@ -26,19 +24,20 @@ number :: FilePath -> String -> [Marked String]
 number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
 
 main = getArgs >>= \arguments -> case arguments of 
-  []          -> putStr . show $ MissingArgs 0
-  [_]         -> putStr . show $ MissingArgs 1
-  (target:args) -> 
-      if target == "--python" then putStrLn "\x1b[31mError: \x1b[0mfuck you" else
-      if target == "-i" then zipWith number args <$> mapM readFile (tail args) >>= (
+  []                         -> putStr . show $ MissingArgs 0
+  [_]                        -> putStr . show $ MissingArgs 1
+  (".--python":target:args)  -> putStrLn "\x1b[31mError: \x1b[0mfuck you" 
+  (".-i":target:args)        -> 
+    zipWith number args <$> mapM readFile args >>= (
       putStr 
       <<< 
       show ||| show
-      <<< flip dependenciesOf (head args) . map (name *** fmap (map unwrap))
+      <<< flip dependenciesOf target . map (name *** fmap (map unwrap))
       <=< parse
       <=< cutSpace
       <<< concat
-    ) else
+    )
+  (target:args)              -> 
     zipWith number args <$> mapM readFile args >>= (
     putStr <<< show ||| id <<< uwu target <<< concat)
 
@@ -68,7 +67,7 @@ parse []                = pure []
 parse (Marked m l : xs) = m >? parseHeader l >>= 
   \header -> case words . unwrap <$> listToMaybe xs of
     Nothing         -> Left $ Custom "Header is lacking a body" m
-    Just ["script"] -> m >? getDelimiter xs "end" [] >>= \(script, other) -> 
+    Just ["scr"] -> m >? getDelimiter (tail xs) "rcs" >>= \(script, other) -> 
                          cons (header,(Script script)) <$> parse other
     Just _          -> cons (header,(Drawings $ take len xs)) <$> parse (drop len xs)
       where len = height header * frames header
@@ -80,22 +79,22 @@ win uwu ((n,[]):xs) d = solve uwu n (d ! n) >>= \s -> win (s:uwu) (second (filte
 win uwu (x:xs)      d = win uwu (append x xs) d
 
 -- finds closing delimiter and returs up to and after it
--- getDelimiter :: Lines -> good -> [bad] -> OrError (inside, outside)
-getDelimiter :: [Marked String] -> String -> [String] -> OrToError ([Marked String], [Marked String])
-getDelimiter []       _    _   = Left Delimiter
-getDelimiter (x:xs) good bad = case words $ unwrap x of
+-- getDelimiter :: Lines -> good -> OrError (inside, outside)
+getDelimiter :: [Marked String] -> String -> OrToError ([Marked String], [Marked String])
+getDelimiter []     good  = Left $ Delimiter (reverse good)
+getDelimiter (x:xs) good  = case words $ unwrap x of
   [w] -> if 
     | w == good  -> pure ([],xs)
-    | elem w bad -> Left Delimiter
-    | otherwise  -> first (cons x) <$> getDelimiter xs good bad   
-  _   -> first (cons x) <$> getDelimiter xs good bad   
+    | w == reverse good -> Left $ Delimiter (reverse good)
+    | otherwise  -> first (cons x) <$> getDelimiter xs good   
+  _   -> first (cons x) <$> getDelimiter xs good
 
 cutSpace :: [Marked String] -> OrError [Marked String]
 cutSpace []                    = Right []
 cutSpace (x@(Marked m l) : xs) = case words $ unwrap x of 
   []      -> cutSpace xs
-  ["com"] -> m >? getDelimiter xs "moc" ["com"] >>= cutSpace . snd
-  ["moc"] -> Left $ Custom "Unexpected moc" m
+  ["com"] -> m >? getDelimiter xs "moc" >>= cutSpace . snd
+  ["moc"] -> Left $ BadDelimiter "moc" m
   _       -> cons x <$> cutSpace xs
 
 unwrap :: Marked a -> a
@@ -122,7 +121,7 @@ concatEither = foldl fn (Right [])
 
 isValidName :: Name -> Bool
 isValidName x = all ($ x) 
-  [ flip notElem ["frame","end","com","moc","script"]
+  [ flip notElem ["frame","com","moc","scr","rcs"]
   , all (`elem` '_' : ['a'..'z'] <> ['0'..'9'])
   , any (`elem` ['a'..'z'])
   ]
@@ -133,7 +132,7 @@ extractDependencies (Script x)   = filter isValidName . map reverse . flip helpe
   where 
     helper :: String -> Name -> [Name]
     helper []     _ = []
-    helper (x:xs) w = if x `elem` '_' : ['a'..'z'] <> ['1'..'9']
+    helper (x:xs) w = if x `elem` '_' : ['a'..'z'] <> ['0'..'9']
                       then helper xs (x:w)
                       else w : helper xs []
 
@@ -185,19 +184,22 @@ parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... 
       '.' -> Transp
       _   -> White
 
+test :: Int -> Bool
+test i = case putStr "" of 
+  _ -> True
 parseHeader :: String -> OrToError Header
 parseHeader = parseHelper . words
   where
     parseHelper :: [String] -> OrToError Header
     parseHelper [a,b,c,d] = case readMaybe a of 
-      Nothing     -> Left $ Parse "width" "an int" (show $ Colored Magenta a) 
+      Nothing     -> Left $ Parse "width" "an int" (colour Magenta (show a)) 
       Just width  -> case readMaybe b of 
-        Nothing     -> Left $ Parse "height" "an int" (show $ Colored Magenta b) 
+        Nothing     -> Left $ Parse "height" "an int" (colour Magenta (show b)) 
         Just height -> case readMaybe c of 
-          Nothing     -> Left $ Parse "number of frames" "an int" (show $ Colored Magenta c) 
+          Nothing     -> Left $ Parse "number of frames" "an int" (colour Magenta (show c)) 
           Just frames -> if
             | not $ isValidName d -> 
-                Left $ Parse "name" "only chars a-z and _" (show $ Colored Magenta c)
+                Left $ Parse "name" "chars a-z, 0-9 and _" (colour Magenta (show d))
             | otherwise -> Right Header {
                 width  = width, 
                 height = height,
