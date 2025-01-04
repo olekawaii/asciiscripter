@@ -26,7 +26,6 @@ number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
 main = getArgs >>= \arguments -> case arguments of 
   []                         -> putStr . show $ MissingArgs 0
   [_]                        -> putStr . show $ MissingArgs 1
-  (".--python":target:args)  -> putStrLn "\x1b[31mError: \x1b[0mfuck you" 
   (".-i":target:args)        -> 
     zipWith number args <$> mapM readFile args >>= (
       putStr 
@@ -73,9 +72,10 @@ parse (Marked m l : xs) = m >? parseHeader l >>=
       where len = height header * frames header
 
 -- if something has no dependencies it can be calculated
-win :: EpicGifData -> Dependencies -> Map Name [Marked String] -> OrError EpicGifData
+win :: EpicGifData -> Dependencies -> Map Header (Notated [Marked String]) -> OrError EpicGifData
 win uwu []          _ = pure uwu
-win uwu ((n,[]):xs) d = solve uwu n (d ! n) >>= \s -> win (s:uwu) (second (filter (/= n)) <$> xs) d
+win uwu ((n,[]):xs) d = solve uwu `uncurry` (fromJust . find ((== n) . name . fst)) d >>= \s -> 
+                        win (s:uwu) (second (filter (/= n)) <$> xs) d
 win uwu (x:xs)      d = win uwu (append x xs) d
 
 -- finds closing delimiter and returs up to and after it
@@ -119,10 +119,12 @@ concatEither = foldl fn (Right [])
 
     fromRight (Right x) = x
 
+legalNameChars = '_' : ['a'..'z'] <> ['0'..'9'] 
+
 isValidName :: Name -> Bool
 isValidName x = all ($ x) 
   [ flip notElem ["frame","com","moc","scr","rcs"]
-  , all (`elem` '_' : ['a'..'z'] <> ['0'..'9'])
+  , all (`elem` legalNameChars)
   , any (`elem` ['a'..'z'])
   ]
 
@@ -132,18 +134,17 @@ extractDependencies (Script x)   = filter isValidName . map reverse . flip helpe
   where 
     helper :: String -> Name -> [Name]
     helper []     _ = []
-    helper (x:xs) w = if x `elem` '_' : ['a'..'z'] <> ['0'..'9']
+    helper (x:xs) w = if x `elem` legalNameChars
                       then helper xs (x:w)
                       else w : helper xs []
 
 (...) = (.).(.)
 
-(!) = fromJust ... flip lookup
+-- (!) = fromJust ... flip lookup
 
-solve :: EpicGifData -> Name -> [Marked String] -> OrError (Name, Gif)
+solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Name, Gif)
 solve = undefined
 
--- TODO cut tai of ' ' <> colored \n
 renderer :: [[Colored Char]] -> String
 renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtraSpaces)
   where
