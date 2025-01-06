@@ -1,15 +1,17 @@
 {-# Language MultiWayIf #-}
+{-# Language TupleSections #-}
 
 module Main (main) where
 
 -- import Lib
+import Control.Applicative
 import Control.Monad ((<=<), (>=>))
-import Control.Arrow ((<<<),  (***), (&&&), (+++), (|||))
+import Control.Arrow ((<<<), (>>>), (***), (&&&), (+++), (|||))
 import Data.Bifunctor (first, second)
 import Text.Read (readMaybe) 
 import Data.Maybe
 import Data.Tuple
-import System.IO
+-- import System.IO
 import Data.List
 import System.Environment
 
@@ -91,7 +93,7 @@ getDelimiter (x:xs) good  = case words $ unwrap x of
 
 cutSpace :: [Marked String] -> OrError [Marked String]
 cutSpace []                    = Right []
-cutSpace (x@(Marked m l) : xs) = case words $ unwrap x of 
+cutSpace (x@(Marked m l) : xs) = case words l of 
   []      -> cutSpace xs
   ["com"] -> m >? getDelimiter xs "moc" >>= cutSpace . snd
   ["moc"] -> Left $ BadDelimiter "moc" m
@@ -140,10 +142,18 @@ extractDependencies (Script x)   = filter isValidName . map reverse . flip helpe
 
 (...) = (.).(.)
 
--- (!) = fromJust ... flip lookup
-
 solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Name, Gif)
-solve = undefined
+solve _ h (Drawings x) 
+  = pure 
+  . (name h, )  
+  . map (zip (liftA2 (flip (,)) [1..height h] [1..width h]) . concat) 
+  . chunksOf (height h) 
+  . map (parseColorLine (width h) . unwrap) 
+  $ x
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf _ [] = []
+chunksOf n x  = uncurry ((. chunksOf n) . cons) $ splitAt n x
 
 renderer :: [[Colored Char]] -> String
 renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtraSpaces)
@@ -161,14 +171,11 @@ renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtra
         remove (Colored _ ' ' : as) = remove as
         remove as = as
 
-
 clean c = case c of 
   '\\' -> "\\\\"
   '\'' -> "'\\''"
   '\n' -> "\\n"
   a    -> [a]
-
--- every used gif and its dependencies
 
 parseColorLine :: Int -> String -> [Colored Char]
 parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... splitAt
@@ -185,19 +192,19 @@ parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... 
       '.' -> Transp
       _   -> White
 
-test :: Int -> Bool
-test i = case putStr "" of 
-  _ -> True
 parseHeader :: String -> OrToError Header
 parseHeader = parseHelper . words
   where
     parseHelper :: [String] -> OrToError Header
     parseHelper [a,b,c,d] = case readMaybe a of 
       Nothing     -> Left $ Parse "width" "an int" (colour Magenta (show a)) 
+      Just 0      -> Left $ Custom "The header's width must be greater than 0"
       Just width  -> case readMaybe b of 
         Nothing     -> Left $ Parse "height" "an int" (colour Magenta (show b)) 
+        Just 0      -> Left $ Custom "The header's height must be greater than 0"
         Just height -> case readMaybe c of 
-          Nothing     -> Left $ Parse "number of frames" "an int" (colour Magenta (show c)) 
+          Nothing     -> Left $ Parse "Header's number of frames" "an int" (colour Magenta (show c)) 
+          Just 0      -> Left $ Custom "The header must have at least one frame"
           Just frames -> if
             | not $ isValidName d -> 
                 Left $ Parse "name" "chars a-z, 0-9 and _" (colour Magenta (show d))
