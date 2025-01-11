@@ -39,21 +39,38 @@ main = getArgs >>= \case
       <=< cutSpace
       <<< concat
     )
-  (target:args)              -> 
-    zipWith number args <$> mapM readFile args >>= (
-    putStr <<< show ||| id <<< uwu target <<< concat)
+  -- (target:args)              -> 
+  --   zipWith number args <$> mapM readFile args >>= (
+  --   putStr <<< show ||| id <<< uwu target <<< concat)
+    
+  (target:args) -> 
+      concat . zipWith number args <$> mapM readFile args >>= (
+        (cutSpace >=> parse >=> (\x -> 
+          (flip dependenciesOf target . map (name *** fmap (map unwrap))) x >>= \d ->
+            fromJust . find ((== target) . name . fst) <$> win [] d x >>=
+               \(header,gif) -> 
+                  Right . formatSh header $
+                  map (renderer . chunksOf (width header)) gif 
+        ))
+        >>>
+        (show ||| id)
+        >>>
+        putStr 
+      )
 
-uwu :: Name -> [Marked String] -> OrError String
-uwu target = cutSpace >=> parse >=> lookupName . map (second unwrapNotated) >=>
-  pure . 
-  (\x -> "printf '" <> x <> "'") . 
-  renderer . 
-  map (uncurry parseColorLine) .   
-  uncurry (\h -> map ((width h,) . unwrap))
-    where
-      lookupName x = case find (eq target . name . fst) x of
-        Nothing -> Left $ NoMatchingName target
-        Just x  -> pure x
+
+formatSh :: Header -> [String] -> String
+formatSh h xs =
+  "#!/bin/sh\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r\\033[0J$1\"\n  sleep 0.3\n}\n"
+  <> "printf '" <> take (ht * 2) (cycle "\\n") <> "'\n" 
+  <> "while true\ndo\n"
+  <> concatMap (\x -> "  draw '" <> x <> "'\n") xs
+  <> "done"
+  where ht = height h 
+      
+
+
+
 
 (>?) :: Mark -> OrToError a -> OrError a
 (>?) x y = first ($ x) y
@@ -143,11 +160,12 @@ extractDependencies (Script x)   = filter isValidName . map reverse . flip helpe
 
 (...) = (.).(.)
 
-solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Name, Gif)
+solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Header, Gif)
 solve _ h (Drawings x) 
   = pure 
-  . (name h, )  
-  . map (zip (liftA2 (flip (,)) [1..height h] [1..width h]) . concat) 
+  . (h,)
+  . map concat
+  -- . map (zip (liftA2 (flip (,)) [1..height h] [1..width h]) . concat) 
   . chunksOf (height h) 
   . map (parseColorLine (width h) . unwrap) 
   $ x
