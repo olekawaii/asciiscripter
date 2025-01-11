@@ -5,6 +5,7 @@
 module Main (main) where
 
 -- import Lib
+import System.Process
 import Control.Applicative
 import Control.Monad ((<=<), (>=>))
 import Control.Arrow ((<<<), (>>>), (***), (&&&), (+++), (|||))
@@ -39,25 +40,21 @@ main = getArgs >>= \case
       <=< cutSpace
       <<< concat
     )
-  -- (target:args)              -> 
-  --   zipWith number args <$> mapM readFile args >>= (
-  --   putStr <<< show ||| id <<< uwu target <<< concat)
-    
   (target:args) -> 
       concat . zipWith number args <$> mapM readFile args >>= (
-        (cutSpace >=> parse >=> (\x -> 
-          (flip dependenciesOf target . map (name *** fmap (map unwrap))) x >>= \d ->
-            fromJust . find ((== target) . name . fst) <$> win [] d x >>=
-               \(header,gif) -> 
-                  Right . formatSh header $
-                  map (renderer . chunksOf (width header)) gif 
-        ))
-        >>>
-        (show ||| id)
-        >>>
-        putStr 
+        (
+          cutSpace >=> parse >=>                                                  \x -> 
+          (flip dependenciesOf target . map (name *** fmap (map unwrap))) x  >>=  \d ->
+          fromJust . find ((== target) . name . fst) <$> win [] d x >>=           \(header,gif) -> 
+          pure . formatSh header $ map (renderer . chunksOf (width header)) gif 
+        ) >>> \case
+          Left e -> putStr $ show e
+          Right x -> let name = target <> ".sh" in
+            writeFile name x >> 
+            callCommand ("chmod +x " <> name) >>
+            putStr (colour Green "Success!" <> " Gif saved to " <> colour Cyan name <> ".\n") >>
+            callCommand (".//" <> name)
       )
-
 
 formatSh :: Header -> [String] -> String
 formatSh h xs =
@@ -67,10 +64,6 @@ formatSh h xs =
   <> concatMap (\x -> "  draw '" <> x <> "'\n") xs
   <> "done"
   where ht = height h 
-      
-
-
-
 
 (>?) :: Mark -> OrToError a -> OrError a
 (>?) x y = first ($ x) y
