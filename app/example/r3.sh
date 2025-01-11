@@ -1,12 +1,13 @@
-echo $'\n\n'
+#!/bin/sh
+printf '\n\n'
 while true
 do
-  echo -n $'\e[3A\e[0J\r\e[31mo   o\n \e[36m\\_/\n[\e[33m   \e[36m]\n'
-  sleep 0.3
-  echo -n $'\e[3A\e[0J\r \e[31mo o\n \e[36m V\n[  ]]\n'
-  sleep 0.3
-  echo -n $'\e[3A\e[0J\r  \e[31mo\n  \e[36m|\n [ ]\n'
-  sleep 0.3
-  echo -n $'\e[3A\e[0J\r\e[31m o o\n \e[36m V\n[[  ]\n'
-  sleep 0.3
+  printf '\033[3A\r\033[0J\033[31mo   o\n \033[34m\134_/\n[   ]\n'
+  sleep 0.2
+  printf '\033[3A\r\033[0J \033[31mo O\n  \033[34mV\n[  ]]\n'
+  sleep 0.2
+  printf '\033[3A\r\033[0J  \033[31mO\n  \033[34m|\n [ ]\n'
+  sleep 0.2
+  printf '\033[3A\r\033[0J \033[31mO o\n  \033[34mV\n[[  ]\n'
+  sleep 0.2
 done

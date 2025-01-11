@@ -46,7 +46,7 @@ main = getArgs >>= \case
 uwu :: Name -> [Marked String] -> OrError String
 uwu target = cutSpace >=> parse >=> lookupName . map (second unwrapNotated) >=>
   pure . 
-  (\x -> "echo $'" <> x <> "'\n") . 
+  (\x -> "printf '" <> x <> "'") . 
   renderer . 
   map (uncurry parseColorLine) .   
   uncurry (\h -> map ((width h,) . unwrap))
@@ -110,7 +110,7 @@ dependenciesOf table = fmap nub . getDependencies []
     getDependencies used target = if elem target used then Left $ Recursive target else
       case extractDependencies <$> lookup target table of 
         Nothing -> Left $ NoMatchingName target
-        Just x  -> fmap (cons (target,x) . concat) . sequence . map (getDependencies (target : used)) $ x
+        Just x  -> fmap (cons (target,x) . concat) . sequence . map (getDependencies (target:used)) $ x
 
 concatEither :: [Either a [b]] -> Either a [b]
 concatEither = foldl fn (Right []) 
@@ -173,9 +173,10 @@ renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtra
         remove as = as
 
 clean = \case 
-  '\\' -> "\\\\"
-  '\'' -> "\\'"
+  '\\' -> "\\134"
+  '\'' -> "\\047"
   '\n' -> "\\n"
+  '%'  -> "%%"
   a    -> [a]
 
 parseColorLine :: Int -> String -> [Colored Char]
@@ -219,12 +220,12 @@ parseHeader = parseHelper . words
 
 colorChar :: Colored Char -> String
 colorChar (Colored c s) = case c of
-  Black   -> "\\e[30m" <> clean s
-  Red     -> "\\e[31m" <> clean s
-  Green   -> "\\e[32m" <> clean s
-  Yellow  -> "\\e[33m" <> clean s
-  Blue    -> "\\e[34m" <> clean s
-  Magenta -> "\\e[35m" <> clean s
-  Cyan    -> "\\e[36m" <> clean s
-  White   -> "\\e[37m" <> clean s
-  Transp  -> "\\e[30m" <> clean s
+  Black   -> "\\033[30m" <> clean s
+  Red     -> "\\033[31m" <> clean s
+  Green   -> "\\033[32m" <> clean s
+  Yellow  -> "\\033[33m" <> clean s
+  Blue    -> "\\033[34m" <> clean s
+  Magenta -> "\\033[35m" <> clean s
+  Cyan    -> "\\033[36m" <> clean s
+  White   -> "\\033[37m" <> clean s
+  Transp  -> "\\033[30m" <> clean s
