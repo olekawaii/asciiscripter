@@ -1,5 +1,6 @@
 {-# Language MultiWayIf #-}
 {-# Language TupleSections #-}
+{-# Language LambdaCase #-}
 
 module Main (main) where
 
@@ -25,7 +26,7 @@ unwrapNotated (Script x) = x
 number :: FilePath -> String -> [Marked String]
 number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
 
-main = getArgs >>= \arguments -> case arguments of 
+main = getArgs >>= \case
   []                         -> putStr . show $ MissingArgs 0
   [_]                        -> putStr . show $ MissingArgs 1
   (".-i":target:args)        -> 
@@ -45,10 +46,10 @@ main = getArgs >>= \arguments -> case arguments of
 uwu :: Name -> [Marked String] -> OrError String
 uwu target = cutSpace >=> parse >=> lookupName . map (second unwrapNotated) >=>
   pure . 
-  (\x -> "echo -e '" <> x <> "'\n") . 
+  (\x -> "echo $'" <> x <> "'\n") . 
   renderer . 
   map (uncurry parseColorLine) .   
-  uncurry (\h -> map ((\x -> (width h,x)) . unwrap))
+  uncurry (\h -> map ((width h,) . unwrap))
     where
       lookupName x = case find (eq target . name . fst) x of
         Nothing -> Left $ NoMatchingName target
@@ -65,12 +66,12 @@ eq = (==)
 
 parse :: [Marked String] -> OrError (Map Header (Notated [Marked String])) 
 parse []                = pure []
-parse (Marked m l : xs) = m >? parseHeader l >>= 
-  \header -> case words . unwrap <$> listToMaybe xs of
-    Nothing         -> Left $ Custom "Header is lacking a body" m
+parse (Marked m l : xs) = m >? parseHeader l >>= \header -> 
+  case words . unwrap <$> listToMaybe xs of
+    Nothing      -> Left $ Custom "Header is lacking a body" m
     Just ["scr"] -> m >? getDelimiter (tail xs) "rcs" >>= \(script, other) -> 
-                         cons (header,(Script script)) <$> parse other
-    Just _          -> cons (header,(Drawings $ take len xs)) <$> parse (drop len xs)
+                    cons (header,(Script script)) <$> parse other
+    Just _       -> cons (header,(Drawings $ take len xs)) <$> parse (drop len xs)
       where len = height header * frames header
 
 -- if something has no dependencies it can be calculated
@@ -171,16 +172,16 @@ renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtra
         remove (Colored _ ' ' : as) = remove as
         remove as = as
 
-clean c = case c of 
+clean = \case 
   '\\' -> "\\\\"
-  '\'' -> "'\\''"
+  '\'' -> "\\'"
   '\n' -> "\\n"
   a    -> [a]
 
 parseColorLine :: Int -> String -> [Colored Char]
 parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... splitAt
   where 
-    charToColor x = case x of 
+    charToColor = \case 
       '0' -> Black 
       '1' -> Red
       '2' -> Green
@@ -218,12 +219,12 @@ parseHeader = parseHelper . words
 
 colorChar :: Colored Char -> String
 colorChar (Colored c s) = case c of
-  Black   -> "\\x1b[30m" <> clean s
-  Red     -> "\\x1b[31m" <> clean s
-  Green   -> "\\x1b[32m" <> clean s
-  Yellow  -> "\\x1b[33m" <> clean s
-  Blue    -> "\\x1b[34m" <> clean s
-  Magenta -> "\\x1b[35m" <> clean s
-  Cyan    -> "\\x1b[36m" <> clean s
-  White   -> "\\x1b[37m" <> clean s
-  Transp  -> "\\x1b[30m" <> clean s
+  Black   -> "\\e[30m" <> clean s
+  Red     -> "\\e[31m" <> clean s
+  Green   -> "\\e[32m" <> clean s
+  Yellow  -> "\\e[33m" <> clean s
+  Blue    -> "\\e[34m" <> clean s
+  Magenta -> "\\e[35m" <> clean s
+  Cyan    -> "\\e[36m" <> clean s
+  White   -> "\\e[37m" <> clean s
+  Transp  -> "\\e[30m" <> clean s
