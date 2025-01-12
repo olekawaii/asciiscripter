@@ -42,7 +42,7 @@ instance Show Error where
     BadDelimiter s m 
       -> "Unexpected closing deliminator "
       <> colour Blue s
-      <> " was found"
+      <> " found"
       <> show m
     Parse thing expected got m
       -> "Couldn't parse " 
@@ -59,7 +59,7 @@ instance Show Error where
       -> "Missing Arguments. Expected at least 2 but got "
       <> show n
     NoMatchingName a
-      -> "Could not find the name "
+      -> "Could not find the gif "
       <> colour Magenta a
       <> " in the input files"
     Recursive a

@@ -40,10 +40,10 @@ e   welcom7...123456
   welcome ..1234567.
  welcome  .1234567..
 
-10 1 11 welcome
+10 1 10 welcome
 scr
 frame 1
-    1 DRAW -t 2 (1,1) "welcome   welcome   1234567...1234567..."
+    1 DRAW (1,1) "welcome   welcome   1234567...1234567..."
 frame 2 10
     1 ShIft (-1,0) 
 rcs
