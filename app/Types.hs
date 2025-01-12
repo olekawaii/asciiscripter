@@ -26,12 +26,23 @@ data Error
   | BadDelimiter String Mark
   | Parse      String String String Mark
   | Custom     String Mark
-  | MissingArgs Int
   | NoMatchingName Name
   | Recursive Name
+  | ArgError String
+  | Help
 
 instance Show Error where 
-  show err = flip mappend ".\n" $ "\x1b[31mError: \x1b[0m" <> case err of
+  show Help =
+    "Usage: \x1b[33mascr\x1b[0m "
+    <> "[\x1b[33m-h\x1b[0m] "
+    <> "[\x1b[33m-f \x1b[34mFLOAT\x1b[0m] "
+    <> "[\x1b[33m-d \x1b[36mDIR\x1b[0m] "
+    <> "\x1b[35mNAME \x1b[0m<\x1b[36mFILE\x1b[0m>\n"
+    <> "Options:\n"
+    <> "  " <> colour Yellow "-d" <> "     Directory in which to save the gif\n"
+    <> "  " <> colour Yellow "-f" <> "     Frames per second\n"
+    <> "  " <> colour Yellow "-h" <> "     Show this help text"
+  show err = flip mappend "." $ "\x1b[31;1mError:\x1b[0m " <> case err of
     Delimiter s m 
       -> "The delimiter "
       <> colour Blue s 
@@ -55,9 +66,6 @@ instance Show Error where
     Custom s m 
       -> s 
       <> show m
-    MissingArgs n
-      -> "Missing Arguments. Expected at least 2 but got "
-      <> show n
     NoMatchingName a
       -> "Could not find the gif "
       <> colour Magenta a
@@ -66,6 +74,9 @@ instance Show Error where
       -> "The script "
       <> colour Magenta a
       <> " called itself recursively"
+    ArgError s
+      -> s
+      <> ". Check out " <> colour Yellow "ascr -h"
 
 instance Show Mark where
   show Mark {origin = o, line = l} = 
@@ -73,6 +84,11 @@ instance Show Mark where
     show (Colored Cyan l) <> 
     " in " <>
     colour Cyan o
+
+data Modifiers = Modifiers {
+  fps         :: Float,
+  directory   :: FilePath
+}
 
 data Header = Header {
   width   :: Int,
