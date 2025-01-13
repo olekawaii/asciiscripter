@@ -34,7 +34,7 @@ data Error
 instance Show Error where 
   show Help =
     "Usage: ascr [\x1b[33mOPTIONS\x1b[0m] \x1b[35mNAME\x1b[0m <\x1b[36mFILE\x1b[0m>\n\nOptions:\n"
-    <> "  \x1b[33m-c\x1b[0m        Don't write to file\n"
+    <> "  \x1b[33m-c\x1b[0m        Don't write to a file\n"
     <> "  \x1b[33m-d\x1b[0m \x1b[36mDIR\x1b[0m    Directory in which to save the gif\n"
     <> "  \x1b[33m-f\x1b[0m \x1b[32mNUM\x1b[0m    Frames per second\n"
     <> "  \x1b[33m-h\x1b[0m        Show this help text\n"
@@ -89,7 +89,7 @@ data Modifiers = Modifiers {
   message     :: Bool,
   quiet       :: Bool,
   check       :: Bool
-}
+} deriving Show
 
 data Header = Header {
   width   :: Int,

@@ -25,7 +25,7 @@ import Types
 infix 8 ...
 
 unwrapNotated (Drawings x) = x
-unwrapNotated (Script x) = x
+unwrapNotated (Script x)   = x
 
 number :: FilePath -> String -> [Marked String]
 number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
@@ -55,30 +55,34 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
       ) 
       >>> \case
         Left e -> exitWithError e
-        Right x -> let name = directory mods <> "/" <> target <> ".sh" in
+        Right x -> let file = directory mods <> "/" <> target <> ".sh" in
           putStr "\x1b[32;1mSuccess!\x1b[0m" >>
           unless (check mods) (
-            writeFile name x >> 
-            callCommand ("chmod +x " <> name) >>
-            putStr ("\b\b Gif saved to " <> colour Cyan name <> ".")
+            writeFile file x >> 
+            callCommand ("chmod +x " <> file) >>
+            putStr (" Gif saved to " <> colour Cyan file <> ".")
           ) >>
           putStr "\n" >>
-          unless (quiet mods) (callCommand name)
+          unless (quiet mods) (callCommand file)
     )
 
-parseArgs :: [String] -> Modifiers -> OrError (Modifiers, Name, [FilePath])
-parseArgs ("-c":xs)     m = parseArgs xs m {check     = True}
-parseArgs ("-q":xs)     m = parseArgs xs m {quiet     = True}
-parseArgs ("-m":xs)     m = parseArgs xs m {message   = True}  
-parseArgs ("-d":dir:xs) m = parseArgs xs m {directory = dir}  
-parseArgs ("-f":fps:xs) m = case readMaybe fps >>= \n -> if n <= 0 then Nothing else pure n of 
-  Nothing -> Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m"
-  Just x  -> parseArgs xs m {fps = 1.0 / x}
-parseArgs ("-h":_)     _ = Left $ Help 
-parseArgs (('-':x):_)  _ = Left . ArgError $ "Unknown argument '" <> colour Yellow ('-':x) <> "'"
-parseArgs []           _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
-parseArgs [_]          _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
-parseArgs (name:args)  m = pure (m,name,args)
+maybeGuard :: (a -> Bool) -> a -> Maybe a
+maybeGuard f a = if f a then pure a else Nothing
+
+parseArgs ("-h":_)   _ = Left Help 
+parseArgs (a:b:cs) m = case a of
+  "-c"        -> parseArgs (b:cs) m {check     = True}
+  "-q"        -> parseArgs (b:cs) m {quiet     = True}
+  "-m"        -> parseArgs (b:cs) m {message   = True}  
+  "-d"        -> parseArgs cs     m {directory = b   }  
+  "-f"        -> case readMaybe b >>= maybeGuard (>= 0) of 
+    Nothing -> Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m"
+    Just x  -> parseArgs cs m {fps = 1 / x}
+  ('-':'-':x) -> Left . ArgError $ "Unknown argument '" <> colour Yellow ('-':'-':x) <> "'"
+  ['-',x]     -> Left . ArgError $ "Unknown argument '" <> colour Yellow ['-',x] <> "'"
+  ('-':x)     -> parseArgs (map (cons '-' . pure) x <> (b:cs)) m
+  name        -> pure (m,name,(b:cs))
+parseArgs _ _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
 
 formatSh :: Modifiers -> Header -> String -> [String] -> String
 formatSh m h d s = 
@@ -93,7 +97,7 @@ formatSh m h d s =
       "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r\\033[0J$1\"\n  sleep " 
       <> show (fps m) 
       <> "\n}\n"
-      <> "printf '" <> take (ht * 2) (cycle "\\n") <> "\033[0m'\n" 
+      <> "printf '" <> take (ht * 2) (cycle "\\n") <> "\\033[0m'\n" 
       <> "while true\ndo\n"
       <> concatMap (\x -> "  draw '" <> x <> "'\n") xs
       <> "done\n"
