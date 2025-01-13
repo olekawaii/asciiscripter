@@ -10,7 +10,7 @@ import System.Process
 import System.Environment
 
 import Control.Applicative
-import Control.Monad ((<=<), (>=>))
+import Control.Monad ((<=<), (>=>), guard, unless)
 import Control.Arrow ((<<<), (>>>), (***), (&&&), (+++), (|||))
 
 import Data.Bifunctor (first, second)
@@ -35,7 +35,8 @@ defaultMods = Modifiers {
   fps       = 0.2,
   directory = ".",
   message   = False,
-  quiet     = False
+  quiet     = False,
+  check     = False
 }
 
 exitWithError :: Error -> IO ()
@@ -48,28 +49,31 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
     concat . zipWith number args <$> mapM readFile args >>= (
       (
         cutSpace >=> parse >=>                                                  \x -> 
-        (flip dependenciesOf target . map (name *** fmap (map unwrap))) x  >>=  \d ->
+        (flip dependenciesOf target . map (name *** fmap (map unwrap))) x >>=   \d ->
         fromJust . find ((== target) . name . fst) <$> win [] d x >>=           \(header,gif) -> 
         pure . formatSh mods header stdIn $ map (renderer . chunksOf (width header)) gif 
       ) 
       >>> \case
         Left e -> exitWithError e
         Right x -> let name = directory mods <> "/" <> target <> ".sh" in
-          writeFile name x >> 
-          callCommand ("chmod +x " <> name) >>
-          putStr ("\x1b[32;1mSuccess!\x1b[0m" <> " Gif saved to " <> colour Cyan name <> ".\n") >>
-          if quiet mods then pure () else callCommand name
+          putStr "\x1b[32;1mSuccess!\x1b[0m" >>
+          unless (check mods) (
+            writeFile name x >> 
+            callCommand ("chmod +x " <> name) >>
+            putStr ("\b\b Gif saved to " <> colour Cyan name <> ".")
+          ) >>
+          putStr "\n" >>
+          unless (quiet mods) (callCommand name)
     )
 
 parseArgs :: [String] -> Modifiers -> OrError (Modifiers, Name, [FilePath])
+parseArgs ("-c":xs)     m = parseArgs xs m {check     = True}
 parseArgs ("-q":xs)     m = parseArgs xs m {quiet     = True}
 parseArgs ("-m":xs)     m = parseArgs xs m {message   = True}  
 parseArgs ("-d":dir:xs) m = parseArgs xs m {directory = dir}  
-parseArgs ("-f":fps:xs) m = case readMaybe fps :: Maybe Float of 
-  Nothing -> Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a \x1b[33mFLOAT\033[0m"
-  Just x  -> if x <= 0 
-             then Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a positive number"
-             else parseArgs xs m {fps = 1.0 / x}
+parseArgs ("-f":fps:xs) m = case readMaybe fps >>= \n -> if n <= 0 then Nothing else pure n of 
+  Nothing -> Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m"
+  Just x  -> parseArgs xs m {fps = 1.0 / x}
 parseArgs ("-h":_)     _ = Left $ Help 
 parseArgs (('-':x):_)  _ = Left . ArgError $ "Unknown argument '" <> colour Yellow ('-':x) <> "'"
 parseArgs []           _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
