@@ -10,7 +10,7 @@ import System.Process
 import System.Environment
 
 import Control.Applicative
-import Control.Monad ((<=<), (>=>), guard, unless)
+import Control.Monad ((<=<), (>=>), guard, unless, when)
 import Control.Arrow ((<<<), (>>>), (***), (&&&), (+++), (|||))
 
 import Data.Bifunctor (first, second)
@@ -50,20 +50,25 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
       (
         cutSpace >=> parse >=>                                                  \x -> 
         (flip dependenciesOf target . map (name *** fmap (map unwrap))) x >>=   \d ->
-        fromJust . find ((== target) . name . fst) <$> win [] d x >>=           \(header,gif) -> 
-        pure . formatSh mods header stdIn $ map (renderer . chunksOf (width header)) gif 
+        fromJust . find ((== target) . name . fst) <$> win [] d x           
       ) 
-      >>> \case
+      >>> \case 
         Left e -> exitWithError e
-        Right x -> let file = directory mods <> "/" <> target <> ".sh" in
-          putStr "\x1b[32;1mSuccess!\x1b[0m" >>
+        Right (header,gif) -> 
+          let 
+            file = directory mods <> "/" <> target <> ".sh" 
+            x    = formatSh mods header stdIn $ map (renderer . chunksOf (width header)) gif 
+          in
+          putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
           unless (check mods) (
             writeFile file x >> 
             callCommand ("chmod +x " <> file) >>
-            putStr (" Gif saved to " <> colour Cyan file <> ".")
-          ) >>
-          putStr "\n" >>
-          unless (quiet mods) (callCommand file)
+            putStr ("Gif saved to " <> colour Cyan file <> ".\n") >>
+            unless (quiet mods) (
+              putStr ("\r\x1b[0J" <> (if length gif > 1 then "\x1b[1A" else "") <> "\x1b[0m") >>
+              callCommand file
+            )
+          )
     )
 
 maybeGuard :: (a -> Bool) -> a -> Maybe a
@@ -108,8 +113,6 @@ formatSh m h d s =
 cons = (:)
 append :: a -> [a] -> [a]
 append  x y = y <> [x]
-eq :: Eq a => a -> a -> Bool
-eq = (==)
 
 parse :: [Marked String] -> OrError (Map Header (Notated [Marked String])) 
 parse []                = pure []
