@@ -9,10 +9,15 @@ type Dependencies  = Map Name [Name]
 type Name          = String
 type Frame         = [Colored Char]
 type Gif           = [Frame]
-type Layer         = Map Coordinate Gif
 type Coordinate    = (Int,Int)
 type Line          = String
 type Lines         = [String] --Map LineNumber String
+
+data Layer = Layer {
+  header :: Header,
+  coord  :: Coordinate,
+  gif    :: Gif
+}
 
 data Mark = Mark {origin :: FilePath, line :: LineNumber}
 
@@ -99,9 +104,9 @@ data Header = Header {
 } deriving Show
 
 data Command 
-  = Draw  Layer Int Int Gif 
-  | Clear Layer
-  | Shift Layer Int Int
+  = Draw  Int (Int,Int) (Header, Gif) 
+  | Clear Int
+  | Shift Int (Int,Int)
 
 data Notated a = Script a | Drawings a -- for parse
 

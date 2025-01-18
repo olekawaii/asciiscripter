@@ -1,0 +1,16 @@
+5 5 2 test
+scr
+  frame 1
+  1 DRAW 1 1 example
+  2 DRAW 3 3 example
+  frame 2
+  1 DRAW 0 0 example
+rcs
+
+3 3 2 example
+\^/131
+<O>323
+/v\131
+\^/313
+<O>121
+and313

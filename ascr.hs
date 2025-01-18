@@ -13,6 +13,7 @@ import Control.Applicative
 import Control.Monad ((<=<), (>=>), guard, unless, when)
 import Control.Arrow ((<<<), (>>>), (***), (&&&), (+++), (|||))
 
+import qualified Data.Map.Strict as Map
 import Data.Bifunctor (first, second)
 import Data.Maybe
 import Data.Tuple
@@ -102,7 +103,7 @@ formatSh m h d s =
       "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r\\033[0J$1\"\n  sleep " 
       <> show (fps m) 
       <> "\n}\n"
-      <> "printf '" <> take (ht * 2) (cycle "\\n") <> "\\033[0m'\n" 
+      <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
       <> "while true\ndo\n"
       <> concatMap (\x -> "  draw '" <> x <> "'\n") xs
       <> "done\n"
@@ -193,15 +194,70 @@ extractDependencies (Script x)   = filter isValidName . map reverse . flip helpe
 
 (...) = (.).(.)
 
+
 solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Header, Gif)
-solve _ h (Drawings x) 
-  = pure 
-  . (h,)
-  . map concat
-  -- . map (zip (liftA2 (flip (,)) [1..height h] [1..width h]) . concat) 
-  . chunksOf (height h) 
-  . map (parseColorLine (width h) . unwrap) 
-  $ x
+solve _ h (Drawings x) = 
+  pure . (h,) . map concat . chunksOf (height h) . map (parseColorLine (width h) . unwrap) $ x
+solve e h (Script x) = 
+  formatFrames (fmap words <$> x) >>= 
+  traverse (traverse parse) >>= 
+  fmap (h,) . interpritCommands
+  where
+    formatFrames :: [Marked [String]] -> OrError [[Marked [String]]]
+    formatFrames []               = pure []
+    formatFrames (Marked m ["frame",n]:xs) = case readMaybe n :: Maybe Int of 
+      Nothing -> Left $ Parse "command" "an Int" n m
+      Just x  -> let (f,p) = findRestOfFrame xs in (f:) <$> formatFrames p
+      where
+        findRestOfFrame :: [Marked [String]] -> ([Marked [String]], [Marked [String]])
+        findRestOfFrame []                = ([],[])
+        findRestOfFrame a@(Marked _ ["frame",_]:_) = ([],a) 
+        findRestOfFrame (Marked m x:xs)            = first (Marked m x :) $ findRestOfFrame xs
+    
+    parse :: Marked [String] -> OrError Command
+    parse (Marked m [layer, "DRAW", x, y, n]) = 
+      pure $ Draw (read layer) (read x, read y) (fromJust $ find ((== n) . name . fst) e)
+    parse (Marked m _) = Left $ Parse "command" "Command" "Idk" m
+
+    interpritCommands :: [[Command]] -> OrError Gif
+    interpritCommands coms = pure . map toFrame $ helper coms []
+      where
+        helper :: [[Command]] -> Map Int Layer -> [Map Int Layer]
+        helper [] _ = [] 
+        helper ([]:xs) sol = sol : helper xs (shift sol)
+        helper ((Draw layer coord (header,gif) :as):xs)  sol = 
+          helper (as:xs) $ insertVal layer (Layer {coord = coord, gif = gif, header = header}) sol
+
+        toFrame :: Map Int Layer -> Frame
+        toFrame = unite . concat . map render . reverse . map snd . sortOn fst
+          where 
+            coords = liftA2 (flip (,))  [height h, height h -1 .. 1] [1..width h]
+
+            render :: Layer -> Map Coordinate (Colored Char)
+            render x = let (x_loc, y_loc) = coord x in 
+              liftA2 
+                (flip (,)) 
+                [ height (header x) + y_loc -1,height (header x) + y_loc -2  .. y_loc] 
+                [x_loc .. width  (header x) + x_loc -1] 
+              `zip` head (gif x)
+            
+            unite :: Map Coordinate (Colored Char) -> [Colored Char]
+            unite dict = uniteHelper coords
+              where 
+                uniteHelper [] = []
+                uniteHelper (x:xs) = case lookup x dict of
+                  Nothing -> Colored Black ' ' : uniteHelper xs
+                  Just a  -> a : uniteHelper xs
+
+
+insertVal :: Eq a => a -> b -> Map a b -> Map a b
+insertVal new val x = (new,val) : filter ((/= new) . fst) x
+
+shift :: Map Int Layer -> Map Int Layer
+shift = map (second (\b -> b {gif = rotate $ gif b})) 
+  where 
+    rotate [] = []
+    rotate (x:xs) = xs <> [x]
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
@@ -211,8 +267,8 @@ renderer :: [[Colored Char]] -> String
 renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtraSpaces)
   where
     helper :: Color -> [Colored Char] -> String
-    helper _        []                       = "" --"\\n"
-    helper oldcolor (Colored color char :xs) = 
+    helper _        []                        = "" --"\\n"
+    helper oldcolor (Colored color char : xs) = 
       if color == oldcolor || elem char " \n" || color == Transp
       then clean char <> helper oldcolor xs
       else colorChar (Colored color char) <> helper color xs
@@ -223,12 +279,12 @@ renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtra
         remove (Colored _ ' ' : as) = remove as
         remove as = as
 
-clean = \case 
-  '\\' -> "\\134"
-  '\'' -> "\\047"
-  '\n' -> "\\n"
-  '%'  -> "%%"
-  a    -> [a]
+clean :: Char -> String
+clean '\\' = "\\134"
+clean '\'' = "\\047"
+clean '\n' = "\\n"
+clean '%'  = "%%"
+clean a    = [a]
 
 parseColorLine :: Int -> String -> [Colored Char]
 parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... splitAt
