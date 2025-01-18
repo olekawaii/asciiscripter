@@ -28,6 +28,7 @@ _|   __  |_|_| |   |_,_ / ) _ ~ ~ ~~~ ~ 2700077007777707000722205050244040334040
 8 1 1 rose
 @)~,~'~~55222222
 
+com
 10 1 10 welcome
 welcome   1234567...
 elcome   w234567...1
@@ -39,13 +40,26 @@ e   welcom7...123456
    welcome...1234567
   welcome ..1234567.
  welcome  .1234567..
+moc
 
-10 1 10 welcome
+20 1 2 welcome
+welcome   welcome   1234567...1234567...
+welcome   welcome   2345671...2345671...
+
+10 1 10 welcome_good
+scr
+  frame 1
+    1 DRAW 1 1 welcome
+  frame 2 10
+    1 SHIFT -1 0 
+rcs
+
+20 20 2 test
 scr
 frame 1
-    1 DRAW (1,1) "welcome   welcome   1234567...1234567..."
-frame 2 10
-    1 ShIft (-1,0) 
+1 DRAW 1 1 bird_idle
+frame 2 
+1 SHIFT 5 5 
 rcs
 
 9 7 1 tree

@@ -205,18 +205,23 @@ solve e h (Script x) =
   where
     formatFrames :: [Marked [String]] -> OrError [[Marked [String]]]
     formatFrames []               = pure []
-    formatFrames (Marked m ["frame",n]:xs) = case readMaybe n :: Maybe Int of 
-      Nothing -> Left $ Parse "command" "an Int" n m
-      Just x  -> let (f,p) = findRestOfFrame xs in (f:) <$> formatFrames p
+    formatFrames (Marked m ("frame":as):xs) = 
+      let (f,p) = findRestOfFrame xs in 
+      case traverse readMaybe as :: Maybe [Int] of 
+        Nothing -> Left $ Parse "command" "an Int" (concat as) m
+        Just [x]   -> (f:) <$> formatFrames p
+        Just [x,y] -> mappend (replicate (y - x + 1) f) <$> formatFrames p
       where
         findRestOfFrame :: [Marked [String]] -> ([Marked [String]], [Marked [String]])
         findRestOfFrame []                = ([],[])
-        findRestOfFrame a@(Marked _ ["frame",_]:_) = ([],a) 
+        findRestOfFrame a@(Marked _ ("frame":_):_) = ([],a) 
         findRestOfFrame (Marked m x:xs)            = first (Marked m x :) $ findRestOfFrame xs
     
     parse :: Marked [String] -> OrError Command
     parse (Marked m [layer, "DRAW", x, y, n]) = 
       pure $ Draw (read layer) (read x, read y) (fromJust $ find ((== n) . name . fst) e)
+    parse (Marked m [layer, "SHIFT", x, y]) = 
+      pure $ Shift (read layer) (read x) (read y)
     parse (Marked m _) = Left $ Parse "command" "Command" "Idk" m
 
     interpritCommands :: [[Command]] -> OrError Gif
@@ -225,8 +230,16 @@ solve e h (Script x) =
         helper :: [[Command]] -> Map Int Layer -> [Map Int Layer]
         helper [] _ = [] 
         helper ([]:xs) sol = sol : helper xs (shift sol)
-        helper ((Draw layer coord (header,gif) :as):xs)  sol = 
-          helper (as:xs) $ insertVal layer (Layer {coord = coord, gif = gif, header = header}) sol
+        helper ((x:as):xs) sol  = case x of
+          Draw layer coord (header, gif) ->
+            helper (as:xs) $ 
+            insertVal 
+              layer 
+              (Layer {coord = coord, gif = map (formatFrame header) gif, header = header}) 
+              sol
+          Shift layer x y -> 
+            helper (as:xs) (insertVal layer theGif {gif = map (shiftAll x y) . gif $ theGif} sol)
+            where theGif = fromJust $ lookup layer sol
 
         toFrame :: Map Int Layer -> Frame
         toFrame = unite . concat . map render . reverse . map snd . sortOn fst
@@ -235,12 +248,8 @@ solve e h (Script x) =
 
             render :: Layer -> Map Coordinate (Colored Char)
             render x = let (x_loc, y_loc) = coord x in 
-              liftA2 
-                (flip (,)) 
-                [ height (header x) + y_loc -1,height (header x) + y_loc -2  .. y_loc] 
-                [x_loc .. width  (header x) + x_loc -1] 
-              `zip` head (gif x)
-            
+              shiftAll x_loc y_loc (head $ gif x)
+
             unite :: Map Coordinate (Colored Char) -> [Colored Char]
             unite dict = uniteHelper coords
               where 
@@ -248,6 +257,18 @@ solve e h (Script x) =
                 uniteHelper (x:xs) = case lookup x dict of
                   Nothing -> Colored Black ' ' : uniteHelper xs
                   Just a  -> a : uniteHelper xs
+
+formatFrame :: Header -> Frame -> Map Coordinate (Colored Char)
+formatFrame header gif = 
+  liftA2
+    (flip (,)) 
+    [ height header -1, height header -2 .. 0] 
+    [0 .. width header -1] 
+  `zip`
+  gif
+
+shiftAll :: Int -> Int -> Map Coordinate a -> Map Coordinate a
+shiftAll x y = map (first ((+ (x)) *** (+ (y))))
 
 
 insertVal :: Eq a => a -> b -> Map a b -> Map a b

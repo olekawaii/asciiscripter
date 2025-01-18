@@ -16,7 +16,7 @@ type Lines         = [String] --Map LineNumber String
 data Layer = Layer {
   header :: Header,
   coord  :: Coordinate,
-  gif    :: Gif
+  gif    :: [Map Coordinate (Colored Char)]
 }
 
 data Mark = Mark {origin :: FilePath, line :: LineNumber}
@@ -106,7 +106,7 @@ data Header = Header {
 data Command 
   = Draw  Int (Int,Int) (Header, Gif) 
   | Clear Int
-  | Shift Int (Int,Int)
+  | Shift Int Int Int
 
 data Notated a = Script a | Drawings a -- for parse
 
