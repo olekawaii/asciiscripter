@@ -121,7 +121,7 @@ o   o7...7
 5 7 8 robot_bw
 scr
   frame 1 
-    1 DRAW 2 1 robot_body
+    1 DRAW 2 1 robot_bodyy
     1 SLOW 4
     2 DRAW 1 5 robot_head
   frame 2 8

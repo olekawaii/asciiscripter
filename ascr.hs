@@ -79,7 +79,7 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
 gigaParse :: Name -> Modifiers -> [Marked String] -> OrError (Header, Gif)
 gigaParse target mods = 
   cutSpace >=> parse >=>                                                  \x -> 
-  (flip dependenciesOf target . map (name *** fmap (map unwrap))) x >>=
+  (flip dependenciesOf target . map (name *** id)) x >>=
   \d -> fromJust . find ((== target) . name . fst) <$> win [] d x
 
 maybeGuard :: (a -> Bool) -> a -> Maybe a
@@ -165,16 +165,39 @@ cutSpace (x@(Marked m l) : xs) = case words l of
 unwrap :: Marked a -> a
 unwrap (Marked _ a) = a  
     
-dependenciesOf :: Map Name (Notated [String]) -> Name -> OrError (Map Name [Name])
-dependenciesOf table = fmap nub . getDependencies []
+dependenciesOf :: Map Name (Notated [Marked String]) -> Name -> OrError (Map Name [Name])
+dependenciesOf table = 
+  fmap nub . 
+  getDependencies [] . 
+  Marked Mark {origin = "this should not happen", line = 4}
   where
-    getDependencies :: [Name] -> Name -> OrError (Map Name [Name])
-    getDependencies used target = 
+    getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
+    getDependencies used (Marked m target) = 
       if elem target used 
       then Left $ Recursive target 
       else case extractDependencies <$> lookup target table of 
-        Nothing -> Left $ NoMatchingName target
-        Just x  -> cons (target,x) . concat <$> traverse (getDependencies (target:used)) x
+        Nothing -> Left $ NoMatchingName target m
+        Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
+
+extractDependencies :: Notated [Marked String] -> [Marked Name]
+extractDependencies (Drawings _) = []
+extractDependencies (Script x)   = 
+  concat . 
+  map format $ x
+  where 
+    format :: Marked String -> [Marked Name]
+    format (Marked m x) = map (Marked m) deps
+      where
+        deps = helper x []
+
+    helper :: String -> Name -> [Name]
+    helper []     w = if isValidName w then [w] else []
+    helper (x:xs) w = 
+      if x `elem` legalNameChars
+      then helper xs (w <> [x])
+      else if isValidName w
+           then w : helper xs []
+           else helper xs []
 
 concatEither :: [Either a [b]] -> Either a [b]
 concatEither = foldl fn (Right []) 
@@ -195,15 +218,6 @@ isValidName x = all ($ x)
   , any (`elem` ['a'..'z'])
   ]
 
-extractDependencies :: Notated [String] -> [Name]
-extractDependencies (Drawings _) = []
-extractDependencies (Script x)   = filter isValidName . map reverse . flip helper [] . unlines $ x
-  where 
-    helper :: String -> Name -> [Name]
-    helper []     _ = []
-    helper (x:xs) w = if x `elem` legalNameChars
-                      then helper xs (x:w)
-                      else w : helper xs []
 
 (...) = (.).(.)
 
@@ -234,7 +248,9 @@ solve e h (Script x) =
         [x,y,n] ->  
           parseInt x "x-coordinate" >>= \x ->
           parseInt y "y-coordinate" >>= \y ->
-          pure $ Draw layer (x,y) (fromJust $ find ((== n) . name . fst) e)
+          pure $ Draw layer (x,y) (case find ((== n) . name . fst) e of
+            Nothing -> error (show . map (name . fst) $ e )
+            Just x -> x)
         x -> Left $ Value command 3 (length x)
       "SHIFT" -> case xs of
         [x,y] ->

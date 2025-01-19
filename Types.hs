@@ -33,7 +33,7 @@ data Error
   | Parse String String String Mark
   | Value String Int Int Mark
   | Custom String Mark
-  | NoMatchingName Name
+  | NoMatchingName Name Mark
   | Recursive Name
   | ArgError String
   | Help
@@ -80,10 +80,11 @@ instance Show Error where
     Custom s m 
       -> s 
       <> show m
-    NoMatchingName a
+    NoMatchingName a m
       -> "Could not find the gif "
       <> colour Magenta a
       <> " in the input files"
+      <> show m
     Recursive a
       -> "The script "
       <> colour Magenta a
