@@ -1,5 +1,6 @@
 module Types where
 
+type NumFrame      = Map Coordinate (Colored Char)
 type Map a b       = [(a,b)]
 type OrError       = Either Error
 type OrToError     = Either (Mark -> Error)
@@ -106,6 +107,7 @@ data Header = Header {
 data Command 
   = Draw  Int (Int,Int) (Header, Gif) 
   | Clear Int
+  | Slow Int Int
   | Shift Int Int Int
 
 data Notated a = Script a | Drawings a -- for parse

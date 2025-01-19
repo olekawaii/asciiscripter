@@ -222,6 +222,8 @@ solve e h (Script x) =
       pure $ Draw (read layer) (read x, read y) (fromJust $ find ((== n) . name . fst) e)
     parse (Marked m [layer, "SHIFT", x, y]) = 
       pure $ Shift (read layer) (read x) (read y)
+    parse (Marked m [layer, "SLOW", num]) =
+      pure $ Slow (read layer) (read num)  
     parse (Marked m _) = Left $ Parse "command" "Command" "Idk" m
 
     interpritCommands :: [[Command]] -> OrError Gif
@@ -238,8 +240,20 @@ solve e h (Script x) =
               (Layer {coord = coord, gif = map (formatFrame header) gif, header = header}) 
               sol
           Shift layer x y -> 
-            helper (as:xs) (insertVal layer theGif {gif = map (shiftAll x y) . gif $ theGif} sol)
-            where theGif = fromJust $ lookup layer sol
+            helper (as:xs) (changeGif sol layer (shiftAll x y <$>))
+            -- helper (as:xs) (
+            --   insertVal 
+            --     layer 
+            --     (theGif layer) {gif = map (shiftAll x y) . gif $ theGif layer} sol
+            -- )
+          Slow layer num ->
+            helper (as:xs) (changeGif sol layer (concat . map (replicate num)))
+          where 
+            changeGif :: Map Int Layer -> Int -> ([NumFrame] -> [NumFrame]) -> Map Int Layer
+            changeGif g i f = insertVal i (fromJust $ lookup i sol) {gif = f $ yourGif i} g
+            
+            yourGif :: Int -> [NumFrame]
+            yourGif l = gif . fromJust $ lookup l sol
 
         toFrame :: Map Int Layer -> Frame
         toFrame = unite . concat . map render . reverse . map snd . sortOn fst
@@ -251,10 +265,11 @@ solve e h (Script x) =
               shiftAll x_loc y_loc (head $ gif x)
 
             unite :: Map Coordinate (Colored Char) -> [Colored Char]
-            unite dict = uniteHelper coords
+            unite dict = uniteHelper  coords
               where 
+                goodDict = filter (\(_,Colored x _) -> x /= Transp) dict
                 uniteHelper [] = []
-                uniteHelper (x:xs) = case lookup x dict of
+                uniteHelper (x:xs) = case lookup x goodDict of
                   Nothing -> Colored Black ' ' : uniteHelper xs
                   Just a  -> a : uniteHelper xs
 
