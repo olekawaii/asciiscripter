@@ -77,20 +77,20 @@ com
 moc
 
 15 7 1 text
-hello there!   000000000000000
-This si my     000000000000000
-favorite robot.000000000000000
-I hope you like000000000000000
-it.            000000000000000
-Thanks You     000000000000000
-UwU            000000000000000
+hello there!   222222222222222
+This is my     222222222222222
+favorite robot.222222222222222
+I hope you like222222222222222
+it.            222222222222222
+Thanks You     222222222222222
+UwU            222222222222222
 
 
 21 7 8 robot_text 
 scr
   frame 1
   1 DRAW 1 1 spin
-  0 DRAW 3 1 text
+  0 DRAW 7 1 text
   frame 2 8 
 rcs
 

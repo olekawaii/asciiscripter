@@ -25,6 +25,14 @@ import Types
 
 infix 8 ...
 
+parseInt :: String -> String -> OrToError Int
+parseInt x y = case readMaybe x of
+  Just x  -> pure x
+  Nothing -> Left $ Parse y  "an int" x
+
+parseName :: String -> OrToError Name
+parseName s = if isValidName s then pure s else Left $ Parse "name" "a valid name" s
+
 unwrapNotated (Drawings x) = x
 unwrapNotated (Script x)   = x
 
@@ -48,11 +56,7 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
   Right (mods,target,args) ->
     (if message mods then getContents else pure "") >>= \stdIn ->
     concat . zipWith number args <$> mapM readFile args >>= (
-      (
-        cutSpace >=> parse >=>                                                  \x -> 
-        (flip dependenciesOf target . map (name *** fmap (map unwrap))) x >>=   \d ->
-        fromJust . find ((== target) . name . fst) <$> win [] d x           
-      ) 
+      gigaParse target mods
       >>> \case 
         Left e -> exitWithError e
         Right (header,gif) -> 
@@ -72,6 +76,12 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
           )
     )
 
+gigaParse :: Name -> Modifiers -> [Marked String] -> OrError (Header, Gif)
+gigaParse target mods = 
+  cutSpace >=> parse >=>                                                  \x -> 
+  (flip dependenciesOf target . map (name *** fmap (map unwrap))) x >>=
+  \d -> fromJust . find ((== target) . name . fst) <$> win [] d x
+
 maybeGuard :: (a -> Bool) -> a -> Maybe a
 maybeGuard f a = if f a then pure a else Nothing
 
@@ -87,7 +97,10 @@ parseArgs (a:b:cs) m = case a of
   ('-':'-':x) -> Left . ArgError $ "Unknown argument '" <> colour Yellow ('-':'-':x) <> "'"
   ['-',x]     -> Left . ArgError $ "Unknown argument '" <> colour Yellow ['-',x] <> "'"
   ('-':x)     -> parseArgs (map (cons '-' . pure) x <> (b:cs)) m
-  name        -> pure (m,name,(b:cs))
+  name        -> 
+    if isValidName name
+    then pure (m,name,(b:cs)) 
+    else Left . ArgError $ "The target arg " <> colour Magenta name <> " is not a valid name"
 parseArgs _ _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
 
 formatSh :: Modifiers -> Header -> String -> [String] -> String
@@ -96,9 +109,7 @@ formatSh m h d s =
   <> (unlines . map ("# " <>) . lines) d
   <> case s of
     [x] ->
-      "\nprintf '" 
-      <> x
-      <> "'\n"
+      "\nprintf '" <> x <> "'\n"
     xs  -> let ht = height h in
       "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r\\033[0J$1\"\n  sleep " 
       <> show (fps m) 
@@ -158,10 +169,12 @@ dependenciesOf :: Map Name (Notated [String]) -> Name -> OrError (Map Name [Name
 dependenciesOf table = fmap nub . getDependencies []
   where
     getDependencies :: [Name] -> Name -> OrError (Map Name [Name])
-    getDependencies used target = if elem target used then Left $ Recursive target else
-      case extractDependencies <$> lookup target table of 
+    getDependencies used target = 
+      if elem target used 
+      then Left $ Recursive target 
+      else case extractDependencies <$> lookup target table of 
         Nothing -> Left $ NoMatchingName target
-        Just x  -> fmap (cons (target,x) . concat) . sequence . map (getDependencies (target:used)) $ x
+        Just x  -> cons (target,x) . concat <$> traverse (getDependencies (target:used)) x
 
 concatEither :: [Either a [b]] -> Either a [b]
 concatEither = foldl fn (Right []) 
@@ -199,9 +212,7 @@ solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Header, Gi
 solve _ h (Drawings x) = 
   pure . (h,) . map concat . chunksOf (height h) . map (parseColorLine (width h) . unwrap) $ x
 solve e h (Script x) = 
-  formatFrames (fmap words <$> x) >>= 
-  traverse (traverse parse) >>= 
-  fmap (h,) . interpritCommands
+  formatFrames (fmap words <$> x) >>= traverse (traverse parse) >>= fmap (h,) . interpritCommands
   where
     formatFrames :: [Marked [String]] -> OrError [[Marked [String]]]
     formatFrames []               = pure []
@@ -218,13 +229,28 @@ solve e h (Script x) =
         findRestOfFrame (Marked m x:xs)            = first (Marked m x :) $ findRestOfFrame xs
     
     parse :: Marked [String] -> OrError Command
-    parse (Marked m [layer, "DRAW", x, y, n]) = 
-      pure $ Draw (read layer) (read x, read y) (fromJust $ find ((== n) . name . fst) e)
-    parse (Marked m [layer, "SHIFT", x, y]) = 
-      pure $ Shift (read layer) (read x) (read y)
-    parse (Marked m [layer, "SLOW", num]) =
-      pure $ Slow (read layer) (read num)  
-    parse (Marked m _) = Left $ Parse "command" "Command" "Idk" m
+    parse (Marked m (layer:command:xs)) = (m >?) $ parseInt layer "layer" >>= \layer -> case command of
+      "DRAW" -> case xs of 
+        [x,y,n] ->  
+          parseInt x "x-coordinate" >>= \x ->
+          parseInt y "y-coordinate" >>= \y ->
+          pure $ Draw layer (x,y) (fromJust $ find ((== n) . name . fst) e)
+        x -> Left $ Value command 3 (length x)
+      "SHIFT" -> case xs of
+        [x,y] ->
+          parseInt x "x-coordinate" >>= \x ->
+          parseInt y "y-coordinate" >>= \y ->
+          pure $ Shift layer x y
+        x -> Left $ Value command 3 (length x)
+      "SLOW" -> case xs of
+        [num] -> 
+          parseInt num "length of frame" >>= \num ->
+          pure $ Slow layer num  
+        x -> Left $ Value command 3 (length x)
+      "REVERSE" -> case xs of
+        [] -> pure $ Reverse layer
+        x -> Left $ Value command 0 (length x)
+      _ -> Left (Parse "command" "Command" "Idk")
 
     interpritCommands :: [[Command]] -> OrError Gif
     interpritCommands coms = pure . map toFrame $ helper coms []
@@ -234,6 +260,7 @@ solve e h (Script x) =
         helper ([]:xs) sol = sol : helper xs (shift sol)
         helper ((x:as):xs) sol  = case x of
           Draw layer coord (header, gif) ->
+            -- helper (as:xs) (changeGif sol layer . const $ map (formatFrame header) gif)
             helper (as:xs) $ 
             insertVal 
               layer 
@@ -241,16 +268,18 @@ solve e h (Script x) =
               sol
           Shift layer x y -> 
             helper (as:xs) (changeGif sol layer (shiftAll x y <$>))
-            -- helper (as:xs) (
-            --   insertVal 
-            --     layer 
-            --     (theGif layer) {gif = map (shiftAll x y) . gif $ theGif layer} sol
-            -- )
           Slow layer num ->
-            helper (as:xs) (changeGif sol layer (concat . map (replicate num)))
+            helper (as:xs) (changeGif sol layer $ concat . map (replicate num))
+          Reverse layer -> 
+            helper (as:xs) (changeGif sol layer $ \case
+              [] -> []
+              (x:xs) -> x : reverse xs
+            )
           where 
             changeGif :: Map Int Layer -> Int -> ([NumFrame] -> [NumFrame]) -> Map Int Layer
-            changeGif g i f = insertVal i (fromJust $ lookup i sol) {gif = f $ yourGif i} g
+            changeGif g i f = case lookup i sol of
+              Nothing -> g
+              Just x  -> insertVal i x {gif = f $ yourGif i} g
             
             yourGif :: Int -> [NumFrame]
             yourGif l = gif . fromJust $ lookup l sol
@@ -341,25 +370,18 @@ parseHeader :: String -> OrToError Header
 parseHeader = parseHelper . words
   where
     parseHelper :: [String] -> OrToError Header
-    parseHelper [a,b,c,d] = case readMaybe a of 
-      Nothing     -> Left $ Parse "width" "an int" (colour Magenta (show a)) 
-      Just 0      -> Left $ Custom "The header's width must be greater than 0"
-      Just width  -> case readMaybe b of 
-        Nothing     -> Left $ Parse "height" "an int" (colour Magenta (show b)) 
-        Just 0      -> Left $ Custom "The header's height must be greater than 0"
-        Just height -> case readMaybe c of 
-          Nothing     -> Left $ Parse "Header's number of frames" "an int" (colour Magenta (show c)) 
-          Just 0      -> Left $ Custom "The header must have at least one frame"
-          Just frames -> if
-            | not $ isValidName d -> 
-                Left $ Parse "name" "chars a-z, 0-9 and _" (colour Magenta (show d))
-            | otherwise -> Right Header {
-                width  = width, 
-                height = height,
-                frames = frames,
-                name   = d
-              }
-    parseHelper w = Left $ Parse "header" "4 values" (show $ length w) 
+    parseHelper [a,b,c,d] = 
+      parseInt a "header's width"       >>= \width  ->
+      parseInt b "header's height"      >>= \height ->
+      parseInt c "header's framecount"  >>= \frames ->
+      parseName d                       >>= \name   ->
+        pure Header {
+            width  = width, 
+            height = height,
+            frames = frames,
+            name   = name
+          }
+    parseHelper w = Left $ Value "header" 4 (length w) 
 
 colorChar :: Colored Char -> String
 colorChar (Colored c s) = case c of

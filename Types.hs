@@ -31,11 +31,13 @@ data Error
   = Delimiter String Mark
   | BadDelimiter String Mark
   | Parse String String String Mark
+  | Value String Int Int Mark
   | Custom String Mark
   | NoMatchingName Name
   | Recursive Name
   | ArgError String
   | Help
+  | CommandArg String Int Int Mark
 
 instance Show Error where 
   show Help =
@@ -65,7 +67,15 @@ instance Show Error where
       <> ". Expected " 
       <> expected 
       <> " but got " 
-      <> got
+      <> colour Red ("'" <> got <> "'")
+      <> show m
+    Value thing expected got m
+      -> "Couldn't parse " 
+      <> thing 
+      <> ". Expected " 
+      <> show expected
+      <> " values but got " 
+      <> colour Red (show got)
       <> show m
     Custom s m 
       -> s 
@@ -81,6 +91,14 @@ instance Show Error where
     ArgError s
       -> s
       <> ". Check " <> colour Yellow "ascr -h"
+    CommandArg c x y m
+      -> "The command "
+      <> colour Green c
+      <> " expected "
+      <> show x
+      <> " arguments but got "
+      <> show y
+      <> show m
 
 instance Show Mark where
   show Mark {origin = o, line = l} = 
@@ -109,6 +127,7 @@ data Command
   | Clear Int
   | Slow Int Int
   | Shift Int Int Int
+  | Reverse Int
 
 data Notated a = Script a | Drawings a -- for parse
 
