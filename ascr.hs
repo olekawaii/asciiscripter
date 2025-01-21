@@ -133,7 +133,9 @@ parse (Marked m l : xs) = m >? parseHeader l >>= \header ->
     Nothing      -> Left $ Custom "Header is lacking a body" m
     Just ["scr"] -> m >? getDelimiter (tail xs) "rcs" >>= \(script, other) -> 
                     cons (header,(Script script)) <$> parse other
-    Just _       -> cons (header,(Drawings $ take len xs)) <$> parse (drop len xs)
+    Just ["gif"] -> m >? getDelimiter (tail xs) "fig" >>= \(gif,    other) -> 
+                    cons (header,(Drawings gif)) <$> parse other
+    Just _       -> Left $ Custom "expected a delimiter but found nothing" m
       where len = height header * frames header
 
 -- if something has no dependencies it can be calculated
@@ -214,17 +216,48 @@ legalNameChars = '_' : ['a'..'z'] <> ['0'..'9']
 isValidName :: Name -> Bool
 isValidName x = all ($ x) 
   [ flip notElem ["frame","com","moc","scr","rcs"]
+  , not . null
   , all (`elem` legalNameChars)
-  , any (`elem` ['a'..'z'])
+  , flip elem ['a'..'z'] . head
   ]
-
 
 (...) = (.).(.)
 
+stripWhitespace :: String -> String
+stripWhitespace = reverse . helper . reverse
+  where 
+    helper []       = []
+    helper (' ':xs) = helper xs
+    helper x        = x
 
 solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Header, Gif)
-solve _ h (Drawings x) = 
-  pure . (h,) . map concat . chunksOf (height h) . map (parseColorLine (width h) . unwrap) $ x
+solve _ header (Drawings y) = let x = fmap stripWhitespace <$> y in
+  -- pure . (header,) . map concat . chunksOf h . map (parseColorLine . unwrap) $ x
+  if mod (length x) h /= 0 
+  then Left . ReallyCustom $ 
+    "gif's number of lines should be divisible by the header's height.\n You have " 
+    <> show (length x) <> "lines." 
+  else (header,) . concat <$> traverse validateStrings (chunksOf h x)
+  where 
+    validateStrings :: [Marked String] -> OrError [[Colored Char]]
+    validateStrings [] = pure []
+    validateStrings (x:xs) = map concat . chunksOf h . map parseColorLine . rearange <$> helper (x:xs) 
+      where
+        n = length . stripWhitespace $ unwrap x
+
+        rearange :: [String] -> [String]
+        rearange = concat . transpose . map (chunksOf (w * 2))
+
+        helper :: [Marked String] -> OrError [String]
+        helper [] = pure []
+        helper ((Marked m x):xs) = let len = length x in
+          if len /= n
+          then Left $ Value "line" n len m
+          else cons x <$> helper xs
+
+    h = height header
+    w = width  header
+
 solve e h (Script x) = 
   formatFrames (fmap words <$> x) >>= traverse (traverse parse) >>= fmap (h,) . interpritCommands
   where
@@ -367,8 +400,8 @@ clean '\n' = "\\n"
 clean '%'  = "%%"
 clean a    = [a]
 
-parseColorLine :: Int -> String -> [Colored Char]
-parseColorLine = uncurry (zipWith Colored) . first (map charToColor) . swap ... splitAt
+parseColorLine :: String -> [Colored Char]
+parseColorLine x = uncurry (zipWith Colored) . first (map charToColor) . swap $ splitAt (length x `quot` 2) x
   where 
     charToColor = \case 
       '0' -> Black 

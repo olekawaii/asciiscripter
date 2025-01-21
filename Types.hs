@@ -38,6 +38,7 @@ data Error
   | ArgError String
   | Help
   | CommandArg String Int Int Mark
+  | ReallyCustom String
 
 instance Show Error where 
   show Help =
@@ -100,6 +101,8 @@ instance Show Error where
       <> " arguments but got "
       <> show y
       <> show m
+    ReallyCustom x
+      -> x
 
 instance Show Mark where
   show Mark {origin = o, line = l} = 
