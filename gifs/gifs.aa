@@ -28,7 +28,7 @@ _|   __  |_|_| |   |_,_ / ) _ ~ ~ ~~~ ~ 2700077007777707000722205050244040334040
    ^            ^ ^        |   \~`~~~`~~0002000000000000202000000002000243343344
 fig
 
-6 1 11 commet
+6 1 12 commet
 gif
      `.....7
     ``....73
@@ -41,6 +41,7 @@ _.-'  3115..
 _.-   115...
 _.    15....
 _     5.....
+      ......
 fig
 
 
@@ -57,15 +58,12 @@ _|   __  |_|_| |   |_,_ / ) _ ~ ~ ~~~ ~ 2700077007777707000722205050244040334040
    ^            ^ ^        |   \~`~~~`~~0002000000000000202000000002000243343344
 fig
 
-40 9 12 shooting_gif
+40 9 11 shooting_gif
 scr
   frame 1 
     1 DRAW 1  1 shooting
     2 DRAW 33 9 commet
-  frame 2 6
-  frame 7
-    2 REVERSE
-  frame 8 12
+  frame 2 11
 rcs
 
 8 1 1 rose
@@ -123,22 +121,37 @@ fig
 17 11 3 robot2
 scr
 frame 1
-com
-  robot2
-moc
   1 DRAW 1 1 bird_idle
+frame 2 3
 rcs
 
 
 17 11 3 robot_juggling
 scr
   frame 1
-    1 DRAW 3 1 shooting_underscore.1
-    2 PLAY 2 2 robot2
+    1 DRAW 3 1 shooting_underscore
+    2 DRAW 2 2 robot2
   frame 2
-    1 SHIFT +1 -1
+    4 DRAW 4 11 welcome_good
+    1 SHIFT 1 -1
   frame 3
-    2 CLEAR!
-    2 DRAW 1 1 tree
+    1 CLEAR
+    3 DRAW 1 1 tree
   frame 4 7
+rcs
+
+40 15 12 demo
+scr
+  frame 1 
+    1 DRAW 1 1 shooting_gif
+  frame 2 3
+  frame 4
+    2 DRAW 1 1 tree
+  frame 5 
+    3 DRAW 11 8 bird_idle
+    3 SLOW 2
+  frame 6
+    4 DRAW 5 15 welcome_good
+  frame 6 12 
+
 rcs

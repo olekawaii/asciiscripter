@@ -20,7 +20,10 @@ data Layer = Layer {
   gif    :: [Map Coordinate (Colored Char)]
 }
 
-data Mark = Mark {origin :: FilePath, line :: LineNumber}
+data Mark 
+  = File {origin :: FilePath, line :: LineNumber}
+  | Arguments
+  | None
 
 data Marked a = Marked Mark a deriving Show
 
@@ -49,67 +52,75 @@ instance Show Error where
     <> "  \x1b[33m-h\x1b[0m        Show this help text\n"
     <> "  \x1b[33m-m\x1b[0m        Past StdIn as a comment into the output script\n"
     <> "  \x1b[33m-q\x1b[0m        Suppress success gif"
-  show err = flip mappend "." $ "\x1b[31;1mError:\x1b[0m " <> case err of
+  show err = case err of
     Delimiter s m 
-      -> "The delimiter "
+      -> show m 
+      <> "The delimiter "
       <> colour Blue s 
       <> " did not find the matching "
       <> colour Blue (reverse s) 
       <> " starting" 
-      <> show m 
     BadDelimiter s m 
-      -> "Unexpected closing deliminator "
+      -> show m
+      <> "Unexpected closing deliminator "
       <> colour Blue s
       <> " found"
-      <> show m
     Parse thing expected got m
-      -> "Couldn't parse " 
+      -> show m
+      <> "Couldn't parse " 
       <> thing 
       <> ". Expected " 
       <> expected 
       <> " but got " 
       <> colour Red ("'" <> got <> "'")
-      <> show m
     Value thing expected got m
-      -> "Couldn't parse " 
+      -> show m
+      <> "Couldn't parse " 
       <> thing 
       <> ". Expected " 
       <> show expected
       <> " values but got " 
       <> colour Red (show got)
-      <> show m
     Custom s m 
-      -> s 
-      <> show m
+      -> show m
+      <> s 
     NoMatchingName a m
-      -> "Could not find the gif "
+      -> show m
+      <> "Could not find the gif "
       <> colour Magenta a
       <> " in the input files"
-      <> show m
     Recursive a
-      -> "The script "
+      -> show None
+      <> "The script "
       <> colour Magenta a
       <> " called itself recursively"
     ArgError s
-      -> s
+      -> show Arguments
+      <> s
       <> ". Check " <> colour Yellow "ascr -h"
     CommandArg c x y m
-      -> "The command "
+      -> show m
+      <> "The command "
       <> colour Green c
       <> " expected "
       <> show x
       <> " arguments but got "
       <> show y
-      <> show m
     ReallyCustom x
       -> x
 
 instance Show Mark where
-  show Mark {origin = o, line = l} = 
-    " at line " <> 
-    show (Colored Cyan l) <> 
-    " in " <>
-    colour Cyan o
+  show x = "\x1b[31;1mError\x1b[0m " <> (
+    case x of
+      File {origin = o, line = l} -> 
+        "at line " <> 
+        show (Colored Cyan l) <> 
+        " in " <>
+        colour Cyan o
+      Arguments -> "in the \x1b[33marguments\x1b[0m"
+      None      -> ""
+    ) <> ":\n"
+    
 
 data Modifiers = Modifiers {
   fps         :: Float,
@@ -132,6 +143,7 @@ data Command
   | Slow Int Int
   | Shift Int Int Int
   | Reverse Int
+  | Skip Int Int
 
 data Notated a = Script a | Drawings a -- for parse
 

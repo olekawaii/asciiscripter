@@ -37,7 +37,7 @@ unwrapNotated (Drawings x) = x
 unwrapNotated (Script x)   = x
 
 number :: FilePath -> String -> [Marked String]
-number f = zipWith (\x y -> Marked Mark {origin = f, line = x} y) [1..] . lines
+number f = zipWith (\x y -> Marked File {origin = f, line = x} y) [1..] . lines
 
 defaultMods :: Modifiers
 defaultMods = Modifiers {
@@ -128,12 +128,12 @@ append  x y = y <> [x]
 
 parse :: [Marked String] -> OrError (Map Header (Notated [Marked String])) 
 parse []                = pure []
-parse (Marked m l : xs) = m >? parseHeader l >>= \header -> 
-  case words . unwrap <$> listToMaybe xs of
+parse (Marked m@(File {line = lineNum}) l : xs) = m >? parseHeader l >>= \header -> 
+  case fmap words <$> listToMaybe xs of
     Nothing      -> Left $ Custom "Header is lacking a body" m
-    Just ["scr"] -> m >? getDelimiter (tail xs) "rcs" >>= \(script, other) -> 
+    Just (Marked d ["scr"]) -> d >? getDelimiter (tail xs) "rcs" >>= \(script, other) -> 
                     cons (header,(Script script)) <$> parse other
-    Just ["gif"] -> m >? getDelimiter (tail xs) "fig" >>= \(gif,    other) -> 
+    Just (Marked d ["gif"]) -> d >? getDelimiter (tail xs) "fig" >>= \(gif,    other) -> 
                     cons (header,(Drawings gif)) <$> parse other
     Just _       -> Left $ Custom "expected a delimiter but found nothing" m
       where len = height header * frames header
@@ -158,11 +158,11 @@ getDelimiter (x:xs) good  = case words $ unwrap x of
 
 cutSpace :: [Marked String] -> OrError [Marked String]
 cutSpace []                    = Right []
-cutSpace (x@(Marked m l) : xs) = case words l of 
+cutSpace (Marked m l : xs) = case words l of 
   []      -> cutSpace xs
   ["com"] -> m >? getDelimiter xs "moc" >>= cutSpace . snd
   ["moc"] -> Left $ BadDelimiter "moc" m
-  _       -> cons x <$> cutSpace xs
+  _       -> cons (Marked m $ stripWhitespace l) <$> cutSpace xs
 
 unwrap :: Marked a -> a
 unwrap (Marked _ a) = a  
@@ -171,7 +171,7 @@ dependenciesOf :: Map Name (Notated [Marked String]) -> Name -> OrError (Map Nam
 dependenciesOf table = 
   fmap nub . 
   getDependencies [] . 
-  Marked Mark {origin = "this should not happen", line = 4}
+  Marked Arguments
   where
     getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
     getDependencies used (Marked m target) = 
@@ -231,7 +231,7 @@ stripWhitespace = reverse . helper . reverse
     helper x        = x
 
 solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Header, Gif)
-solve _ header (Drawings y) = let x = fmap stripWhitespace <$> y in
+solve _ header (Drawings x) =
   -- pure . (header,) . map concat . chunksOf h . map (parseColorLine . unwrap) $ x
   if mod (length x) h /= 0 
   then Left . ReallyCustom $ 
@@ -299,6 +299,14 @@ solve e h (Script x) =
       "REVERSE" -> case xs of
         [] -> pure $ Reverse layer
         x -> Left $ Value command 0 (length x)
+      "CLEAR" -> case xs of
+        [] -> pure $ Clear layer
+        x -> Left $ Value command 0 (length x)
+      "SKIP" -> case xs of 
+        [x] -> 
+          parseInt x "number of frames" >>= \num ->
+          pure $ Skip layer num
+        x -> Left $ Value command 1 (length x)
       _ -> Left (Parse "command" "Command" "Idk")
 
     interpritCommands :: [[Command]] -> OrError Gif
@@ -324,6 +332,12 @@ solve e h (Script x) =
               [] -> []
               (x:xs) -> x : reverse xs
             )
+          Clear layer -> 
+            helper (as:xs) (filter ((/= layer) . fst) sol)
+          Skip layer num ->
+            helper (as:xs) (changeGif sol layer (
+                \x -> let d = num `toTake` length x in uncurry mappend . swap . splitAt d $ x
+            ))
           where 
             changeGif :: Map Int Layer -> Int -> ([NumFrame] -> [NumFrame]) -> Map Int Layer
             changeGif g i f = case lookup i sol of
@@ -332,6 +346,9 @@ solve e h (Script x) =
             
             yourGif :: Int -> [NumFrame]
             yourGif l = gif . fromJust $ lookup l sol
+
+            toTake :: Int -> Int -> Int
+            toTake x y = if x <= y then y - x else toTake x (y - x)
 
         toFrame :: Map Int Layer -> Frame
         toFrame = unite . concat . map render . reverse . map snd . sortOn fst
@@ -348,7 +365,7 @@ solve e h (Script x) =
                 goodDict = filter (\(_,Colored x _) -> x /= Transp) dict
                 uniteHelper [] = []
                 uniteHelper (x:xs) = case lookup x goodDict of
-                  Nothing -> Colored Black ' ' : uniteHelper xs
+                  Nothing -> Colored Transp ' ' : uniteHelper xs
                   Just a  -> a : uniteHelper xs
 
 formatFrame :: Header -> Frame -> Map Coordinate (Colored Char)

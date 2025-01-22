@@ -1,11 +1,4 @@
-test 5 5 2 
-scr
-frame 1
-  1 DRAW 2 2 example
-frame 2
-rcs
-
-test 5 5 2 
+5 5 2 test 
 scr
 frame 1
   1 DRAW 2 2 example

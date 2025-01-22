@@ -1,12 +1,20 @@
-5 7 8 spinny
+5 7 8 robot
 gif
- o O .5.6.  O  ..6.. O o .6.5.o   o6...5 o O .6.5.  O  ..5.. O o .5.6.o   o5...6
-  V  ..4..  |  ..4..  V  ..4.. \_/ .444.  V  ..4..  |  ..4..  V  ..4.. \_/ .444.
-[_ ]]42044 [ ] .404.[[_ ]44404[__ ]44404[_ ]]44044 [ ] .404.[[_ ]44204[=_=]42224
- ( ) .3.1.  \  ..1..  \  ..1.. \ / .1.3. ( ) .1.3.  \  ..3..  \  ..3.. \ / .3.1.
-  \  ..3.. ( ) .3.1. ( ) .3.1.  \  ..1..  \  ..1.. ( ) .1.3. ( ) .1.3.  \  ..3..
- ( ) .1.3.  \  ..3..  \  ..3.. ( ) .3.1. ( ) .3.1.  \  ..1..  \  ..1.. ( ) .1.3.
-  \  ..1.. ( ) .1.3. ( ) .1.3.  \  ..3..  \  ..3.. ( ) .3.1. ( ) .3.1.  \  ..1..
+ o O .5.6.  O  ..6.. O o .6.5.o   o6...5
+  V  ..7..  |  ..7..  V  ..7.. \_/ .777.
+[_ ]]72077 [ ] .707.[[_ ]77707[__ ]77707
+ ( ) .6.5.  \  ..5..  \  ..5.. \ / .5.6.
+  \  ..6.. ( ) .6.5. ( ) .6.5.  \  ..5..
+ ( ) .5.6.  \  ..6..  \  ..6.. ( ) .6.5.
+  \  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
+
+ o O .6.5.  O  ..5.. O o .5.6.o   o5...6
+  V  ..7..  |  ..7..  V  ..7.. \_/ .777.
+[_ ]]77077 [ ] .707.[[_ ]77207[=_=]72227
+ ( ) .5.6.  \  ..6..  \  ..6.. \ / .6.5.
+  \  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
+ ( ) .6.5.  \  ..5..  \  ..5.. ( ) .5.6.
+  \  ..6.. ( ) .6.5. ( ) .6.5.  \  ..5..
 fig
 
 15 7 1 text
@@ -62,3 +70,117 @@ scr
   frame 2 8
 rcs
 
+1 1 3 ball_yellow
+gif
+O3c3.3
+fig
+
+1 1 3 ball_blue
+gif
+O4c4.4
+fig
+
+1 1 3 ball_red
+gif
+O1c1.1
+fig
+
+1 1 24 balls_helper
+scr
+  frame 1 
+    1 DRAW 1 1 ball_red
+  frame 2 3
+  frame 4 
+    1 CLEAR
+  frame 5 8
+  frame 9
+    1 DRAW 1 1 ball_blue
+  frame 10 11
+  frame 12
+    1 CLEAR
+  frame 13 16
+  frame 17
+    1 DRAW 1 1 ball_yellow
+  frame 18 19
+  frame 20
+    1 CLEAR
+  frame 21 24
+rcs
+
+13 11 24 juggling_balls
+scr
+  frame 1
+    1 DRAW 1 4 balls_helper
+    2 DRAW 7 11 balls_helper
+    2 SKIP 8
+    3 DRAW 13 4 balls_helper
+    3 SKIP 16
+
+    4 DRAW 1 5 balls_helper
+    4 SKIP 1
+    5 DRAW 9 11 balls_helper
+    5 SKIP 9
+    6 DRAW 12 3 balls_helper
+    6 SKIP 17
+
+    7 DRAW 1 6 balls_helper
+    7 SKIP 2
+    8 DRAW 11 10 balls_helper
+    8 SKIP 10
+    9 DRAW 11 2 balls_helper
+    9 SKIP 18
+
+   10 DRAW 1 7 balls_helper
+   10 SKIP 3
+   11 DRAW 12 9 balls_helper
+   11 SKIP 11
+   12 DRAW 9 1 balls_helper
+   12 SKIP 19
+
+   13 DRAW 1 8 balls_helper
+   13 SKIP 4
+   14 DRAW 13 8 balls_helper
+   14 SKIP 12
+   15 DRAW 7 1 balls_helper
+   15 SKIP 20
+
+   16 DRAW 2 9 balls_helper
+   16 SKIP 5
+   17 DRAW 13 7 balls_helper
+   17 SKIP 13
+   18 DRAW 5 1 balls_helper
+   18 SKIP 21
+
+   19 DRAW 3 10 balls_helper
+   19 SKIP 6
+   20 DRAW 13 6 balls_helper
+   20 SKIP 14
+   21 DRAW 3 2 balls_helper
+   21 SKIP 22
+
+   22 DRAW 5 11 balls_helper
+   22 SKIP 7
+   23 DRAW 13 5 balls_helper
+   23 SKIP 15
+   24 DRAW 2 3 balls_helper
+   24 SKIP 23
+  frame 2 24
+rcs
+
+com
+6 robot_juggler
+    o   o    
+     \_/     
+    [=_=] <  
+  }_/|_|\/
+    \ -
+     <
+moc
+
+13 11 24 robot_juggler
+scr
+  frame 1 
+    1 DRAW 1 1 juggling_balls
+    2 DRAW 5 3 robot
+  frame 2 24
+rcs
