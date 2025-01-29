@@ -135,7 +135,8 @@ data Header = Header {
   width   :: Int,
   height  :: Int,
   frames  :: Int,
-  name    :: String
+  name    :: String,
+  mark    :: Mark
 } deriving Show
 
 data Command 

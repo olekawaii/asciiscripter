@@ -66,7 +66,7 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
           (
             if text mods 
             then fmap (
-              flip mappend (cycle [[ ]]) . 
+              flip mappend (cycle [[]]) . 
               map (map (Colored White)) . 
               take (height header) . 
               map (' ':) .
@@ -131,7 +131,8 @@ formatSh m h d s =
     [x] ->
       "\nprintf '" <> x <> "'\n"
     xs  -> let ht = height h in
-      "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r\\033[0J$1\"\n  sleep " 
+      -- "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r\\033[0J$1\"\n  sleep " 
+      "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " 
       <> show (fps m) 
       <> "\n}\n"
       <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
@@ -149,7 +150,7 @@ append  x y = y <> [x]
 
 parse :: [Marked String] -> OrError (Map Header (Notated [Marked String])) 
 parse []                = pure []
-parse (Marked m@(File {line = lineNum}) l : xs) = m >? parseHeader l >>= \header -> 
+parse (ln@(Marked m@(File {line = lineNum}) l) : xs) = parseHeader ln >>= \header -> 
   case fmap words <$> listToMaybe xs of
     Nothing      -> Left $ Custom "Header is lacking a body" m
     Just (Marked d ["scr"]) -> d >? getDelimiter (tail xs) "rcs" >>= \(script, other) -> 
@@ -255,9 +256,15 @@ solve :: EpicGifData -> Header -> Notated [Marked String] -> OrError (Header, Gi
 solve _ header (Drawings x) =
   -- pure . (header,) . map concat . chunksOf h . map (parseColorLine . unwrap) $ x
   if mod (length x) h /= 0 
-  then Left . ReallyCustom $ 
-    "gif's number of lines should be divisible by the header's height.\n You have " 
-    <> show (length x) <> "lines." 
+  -- then Left . ReallyCustom $ 
+    -- "gif's number of lines should be divisible by the header's height.\n You have " 
+    -- <> show (length x) <> " lines." 
+  then Left $ Custom 
+    (
+      "A gif's number of lines should be divisible by the header's height.\nYou have "
+      <> show (length x) <> " lines." 
+    )
+    (mark header)
   else (header,) . concat <$> traverse validateStrings (chunksOf h x)
   where 
     validateStrings :: [Marked String] -> OrError [[Colored Char]]
@@ -416,7 +423,8 @@ chunksOf _ [] = []
 chunksOf n x  = uncurry ((. chunksOf n) . cons) $ splitAt n x
 
 renderer :: [[Colored Char]] -> String
-renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtraSpaces)
+renderer = helper Transp . concatMap (append (Colored Transp '\n'))
+-- renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtraSpaces)
   where
     helper :: Color -> [Colored Char] -> String
     helper _        []                        = "" --"\\n"
@@ -453,22 +461,23 @@ parseColorLine x = uncurry (zipWith Colored) . first (map charToColor) . swap $ 
       '.' -> Transp
       _   -> White
 
-parseHeader :: String -> OrToError Header
-parseHeader = parseHelper . words
+parseHeader :: Marked String -> OrError Header
+parseHeader (Marked m s) = parseHelper $ words s
   where
-    parseHelper :: [String] -> OrToError Header
+    parseHelper :: [String] -> OrError Header
     parseHelper [a,b,c,d] = 
-      parseInt a "header's width"       >>= \width  ->
-      parseInt b "header's height"      >>= \height ->
-      parseInt c "header's framecount"  >>= \frames ->
-      parseName d                       >>= \name   ->
+      m >? parseInt a "header's width"      >>= \width  ->
+      m >? parseInt b "header's height"     >>= \height ->
+      m >? parseInt c "header's framecount" >>= \frames ->
+      m >? parseName d                      >>= \name   ->
         pure Header {
             width  = width, 
             height = height,
             frames = frames,
-            name   = name
+            name   = name,
+            mark   = m
           }
-    parseHelper w = Left $ Value "header" 4 (length w) 
+    parseHelper w = Left $ Value "header" 4 (length w) m
 
 colorChar :: Colored Char -> String
 colorChar (Colored c s) = case c of
