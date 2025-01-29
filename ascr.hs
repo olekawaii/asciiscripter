@@ -25,6 +25,16 @@ import Types
 
 infix 8 ...
 
+defaultMods :: Modifiers
+defaultMods = Modifiers {
+  fps       = 0.2,
+  directory = ".",
+  message   = False,
+  quiet     = False,
+  check     = False,
+  text      = False
+}
+
 parseInt :: String -> String -> OrToError Int
 parseInt x y = case readMaybe x of
   Just x  -> pure x
@@ -39,31 +49,40 @@ unwrapNotated (Script x)   = x
 number :: FilePath -> String -> [Marked String]
 number f = zipWith (\x y -> Marked File {origin = f, line = x} y) [1..] . lines
 
-defaultMods :: Modifiers
-defaultMods = Modifiers {
-  fps       = 0.2,
-  directory = ".",
-  message   = False,
-  quiet     = False,
-  check     = False
-}
-
 exitWithError :: Error -> IO ()
 exitWithError = die . show
 
 main = flip parseArgs defaultMods <$> getArgs >>= \case
   Left e -> exitWithError e
   Right (mods,target,args) ->
-    (if message mods then getContents else pure "") >>= \stdIn ->
     concat . zipWith number args <$> mapM readFile args >>= (
       gigaParse target mods
       >>> \case 
         Left e -> exitWithError e
         Right (header,gif) -> 
+
+          (if message mods then getContents else pure "") >>= \messageIn ->
+
+          (
+            if text mods 
+            then fmap (
+              flip mappend (cycle [[ ]]) . 
+              map (map (Colored White)) . 
+              take (height header) . 
+              map (' ':) .
+              lines
+            ) getContents 
+            else pure $ cycle [[]]
+          ) >>= \textIn ->
+
           let 
             file = directory mods <> "/" <> target <> ".sh" 
-            x    = formatSh mods header stdIn $ map (renderer . chunksOf (width header)) gif 
+            x    = 
+              formatSh mods header messageIn . 
+              map renderer $ 
+              map (flip (zipWith mappend) textIn . chunksOf (width header)) gif
           in
+
           putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
           unless (check mods) (
             writeFile file x >> 
@@ -78,8 +97,8 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
 
 gigaParse :: Name -> Modifiers -> [Marked String] -> OrError (Header, Gif)
 gigaParse target mods = 
-  cutSpace >=> parse >=>                                                  \x -> 
-  (flip dependenciesOf target . map (name *** id)) x >>=
+  cutSpace >=> parse >=> \x -> 
+  flip dependenciesOf target (map (first name) x) >>=
   \d -> fromJust . find ((== target) . name . fst) <$> win [] d x
 
 maybeGuard :: (a -> Bool) -> a -> Maybe a
@@ -89,8 +108,9 @@ parseArgs ("-h":_)   _ = Left Help
 parseArgs (a:b:cs) m = case a of
   "-c"        -> parseArgs (b:cs) m {check     = True}
   "-q"        -> parseArgs (b:cs) m {quiet     = True}
-  "-m"        -> parseArgs (b:cs) m {message   = True}  
+  "-C"        -> parseArgs (b:cs) m {message   = True}  
   "-d"        -> parseArgs cs     m {directory = b   }  
+  "-s"        -> parseArgs (b:cs) m {text      = True}
   "-f"        -> case readMaybe b >>= maybeGuard (>= 0) of 
     Nothing -> Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m"
     Just x  -> parseArgs cs m {fps = 1 / x}
@@ -123,6 +143,7 @@ formatSh m h d s =
 (>?) x y = first ($ x) y
 
 cons = (:)
+
 append :: a -> [a] -> [a]
 append  x y = y <> [x]
 

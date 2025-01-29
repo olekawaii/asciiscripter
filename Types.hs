@@ -127,7 +127,8 @@ data Modifiers = Modifiers {
   directory   :: FilePath,
   message     :: Bool,
   quiet       :: Bool,
-  check       :: Bool
+  check       :: Bool,
+  text        :: Bool
 } deriving Show
 
 data Header = Header {
