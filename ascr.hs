@@ -61,25 +61,27 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
             writeFile file x >> 
             callCommand ("chmod +x " <> file) >>
             putStr ("Gif saved to " <> colour Cyan file <> ".\n") >>
-            unless (quiet mods) (callCommand $
-              case tp of 
-                Image ->
-                  file 
-                  <> "; sleep 4; printf \x1b[" 
-                  <> show (height header) 
-                  <> "A\r\x1b[0J\x1b[0m"
-                Gif   ->
-                  "timeout " 
-                  <> show (fps mods * fromIntegral (frames header) * 3.0)
-                  <> " " 
-                  <> file 
-                  <> " 2> /dev/null || true; "
-                  <> "printf \x1b[" 
-                  <> show (height header) 
-                  <> "A\r\x1b[0J\x1b[0m"
+            unless (quiet mods) (callCommand $ case tp of 
+              Image ->
+                file 
+                <> "; sleep 4; printf \x1b[" 
+                <> show (height header) 
+                <> "A\r\x1b[0J\x1b[0m"
+              Gif   ->
+                "timeout " 
+                <> show (fps mods * fromIntegral (frames header) * 3.0)
+                <> " " 
+                <> file 
+                <> " 2> /dev/null || true; "
+                <> "printf \x1b[" 
+                <> show (height header) 
+                <> "A\r\x1b[0J\x1b[0m"
             )
           )
     )
+
+getMark :: Marked x -> Mark
+getMark (Marked m _) = m
 
 defaultMods :: Modifiers
 defaultMods = Modifiers {
@@ -284,29 +286,47 @@ solve _ header (Drawings x) =
       <> show (length x) <> " lines." 
     )
     (mark header)
-  else (header,) . concat <$> traverse validateStrings (chunksOf h x)
+  -- else (header,) . concat <$> traverse validateStrings (chunksOf h x)
+  else concat <$> traverse validateStrings (chunksOf h x) >>= \gif -> 
+    if length gif == frames header
+          then pure $ (header,) gif
+          else Left $ Value "script's number of frames" "frames" (frames header) (length gif) (mark header) 
   where 
     validateStrings :: [Marked String] -> OrError [[Colored Char]]
     validateStrings [] = pure []
-    validateStrings (x:xs) = map concat . chunksOf h . map parseColorLine . rearange <$> helper (x:xs) 
+    validateStrings (x:xs) = firstStrLen >>= \lnlen -> 
+      map concat . chunksOf h . map parseColorLine . rearange <$> helper (x:xs) lnlen
       where
-        n = length . stripWhitespace $ unwrap x
+        firstStrLen = let lnlen = length . stripWhitespace $ unwrap x in
+          if lnlen `mod` w == 0
+          then pure lnlen
+          else Left $ Custom 
+            (
+              "A gif's chars per line should be divisible by the header's width.\nYou have "
+              <> show lnlen <> " chars." 
+            ) (getMark x)
 
         rearange :: [String] -> [String]
         rearange = concat . transpose . map (chunksOf (w * 2))
 
-        helper :: [Marked String] -> OrError [String]
-        helper [] = pure []
-        helper ((Marked m x):xs) = let len = length x in
+        helper :: [Marked String] -> Int -> OrError [String]
+        helper [] _ = pure []
+        helper ((Marked m x):xs) n = let len = length x in
           if len /= n
-          then Left $ Value "line" n len m
-          else cons x <$> helper xs
+          then Left $ Value "line" "characters" n len m
+          else cons x <$> helper xs n
 
     h = height header
     w = width  header
 
-solve e h (Script x) = 
-  formatFrames (fmap words <$> x) >>= traverse (traverse parse) >>= fmap (h,) . interpritCommands
+solve e header (Script x) = 
+  formatFrames (fmap words <$> x) >>= 
+  traverse (traverse parse)       >>=
+  -- >>= fmap (h,) . interpritCommands
+  interpritCommands               >>=
+  \gif -> if length gif == frames header
+          then pure $ (header,) gif
+          else Left $ Value "script's number of frames" "frames" (frames header) (length gif) (mark header) 
   where
     formatFrames :: [Marked [String]] -> OrError [[Marked [String]]]
     formatFrames []               = pure []
@@ -331,29 +351,29 @@ solve e h (Script x) =
           pure $ Draw layer (x,y) (case find ((== n) . name . fst) e of
             Nothing -> error (show . map (name . fst) $ e )
             Just x -> x)
-        x -> Left $ Value command 3 (length x)
+        x -> Left $ Value command "args" 3 (length x)
       "SHIFT" -> case xs of
         [x,y] ->
           parseInt x "x-coordinate" >>= \x ->
           parseInt y "y-coordinate" >>= \y ->
           pure $ Shift layer x y
-        x -> Left $ Value command 3 (length x)
+        x -> Left $ Value command "args" 3 (length x)
       "SLOW" -> case xs of
         [num] -> 
           parseInt num "length of frame" >>= \num ->
           pure $ Slow layer num  
-        x -> Left $ Value command 3 (length x)
+        x -> Left $ Value command "args" 3 (length x)
       "REVERSE" -> case xs of
         [] -> pure $ Reverse layer
-        x -> Left $ Value command 0 (length x)
+        x -> Left $ Value command "args" 0 (length x)
       "CLEAR" -> case xs of
         [] -> pure $ Clear layer
-        x -> Left $ Value command 0 (length x)
+        x -> Left $ Value command "args" 0 (length x)
       "SKIP" -> case xs of 
         [x] -> 
           parseInt x "number of frames" >>= \num ->
           pure $ Skip layer num
-        x -> Left $ Value command 1 (length x)
+        x -> Left $ Value command "args" 1 (length x)
       _ -> Left (Parse "command" "Command" "Idk")
 
     interpritCommands :: [[Command]] -> OrError Gif
@@ -400,7 +420,7 @@ solve e h (Script x) =
         toFrame :: Map Int Layer -> Frame
         toFrame = unite . concat . map render . reverse . map snd . sortOn fst
           where 
-            coords = liftA2 (flip (,))  [height h, height h -1 .. 1] [1..width h]
+            coords = liftA2 (flip (,))  [height header, height header -1 .. 1] [1..width header]
 
             render :: Layer -> Map Coordinate (Colored Char)
             render x = let (x_loc, y_loc) = coord x in 
@@ -525,7 +545,7 @@ parseHeader (Marked m s) = m >? parseHelper (words s)
             name   = name,
             mark   = m
           }
-    parseHelper w = Left $ Value "header" 4 (length w)
+    parseHelper w = Left $ Value "header" "values" 4 (length w)
 
 colorChar :: Colored Char -> String
 colorChar (Colored c s) = "\\033[3" <> case c of

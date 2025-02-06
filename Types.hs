@@ -36,7 +36,7 @@ data Error
   = Delimiter String Mark
   | BadDelimiter String Mark
   | Parse String String String Mark
-  | Value String Int Int Mark
+  | Value String String Int Int Mark
   | Custom String Mark
   | NoMatchingName Name Mark
   | Recursive Name
@@ -75,13 +75,15 @@ instance Show Error where
       <> expected 
       <> " but got " 
       <> colour Red ("'" <> got <> "'")
-    Value thing expected got m
+    Value thing name expected got m
       -> show m
       <> "Couldn't parse " 
       <> thing 
       <> ". Expected " 
       <> show expected
-      <> " values but got " 
+      <> " "
+      <> name
+      <> " but got " 
       <> colour Red (show got)
     Custom s m 
       -> show m
