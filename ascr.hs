@@ -79,7 +79,8 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
             file = directory mods <> "/" <> target <> ".sh" 
             x    = 
               formatSh mods header messageIn . 
-              map renderer $ 
+              map renderer .
+              reduce $
               map (flip (zipWith mappend) textIn . chunksOf (width header)) gif
           in
 
@@ -137,8 +138,15 @@ formatSh m h d s =
       <> "\n}\n"
       <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
       <> "while true\ndo\n"
-      <> concatMap (\x -> "  draw '" <> x <> "'\n") xs
-      <> "done\n"
+      -- <> concatMap (\x -> "  draw '" <> x <> "'\n") xs
+      <> (concat . rotate . init $ helper xs "" 1.0)
+      <> "done"
+    where 
+      helper :: [String] -> String -> Float -> [String]
+      helper [] _ i       = ["  sleep " <> show (fps m * i) <> " # empty case"]
+      helper (x:xs) old i = if x == old 
+                            then helper xs old (i + 1)
+                            else ["  sleep " <> show (fps m * i) <> "\n", "  draw '" <> x <> "'\n"] <> helper xs x 1.0
 
 (>?) :: Mark -> OrToError a -> OrError a
 (>?) x y = first ($ x) y
@@ -414,9 +422,9 @@ insertVal new val x = (new,val) : filter ((/= new) . fst) x
 
 shift :: Map Int Layer -> Map Int Layer
 shift = map (second (\b -> b {gif = rotate $ gif b})) 
-  where 
-    rotate [] = []
-    rotate (x:xs) = xs <> [x]
+
+rotate [] = []
+rotate (x:xs) = xs <> [x]
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
@@ -433,11 +441,11 @@ renderer = helper Transp . concatMap (append (Colored Black '\n'))
       | color == oldcolor || char == '\n'  -> clean char <> helper oldcolor xs
       | otherwise                          -> colorChar (Colored color char) <> helper color xs
     
-    removeExtraSpaces :: [Colored Char] -> [Colored Char]
-    removeExtraSpaces = reverse . remove . reverse
-      where
-        remove (Colored _ ' ' : as) = remove as
-        remove as = as
+removeExtraSpaces :: [Colored Char] -> [Colored Char]
+removeExtraSpaces = reverse . remove . reverse
+  where
+    remove (Colored _ ' ' : as) = remove as
+    remove as = as
 
 clean :: Char -> String
 clean '\\' = "\\134"
@@ -445,6 +453,11 @@ clean '\'' = "\\047"
 clean '\n' = "\\n"
 clean '%'  = "%%"
 clean a    = [a]
+
+reduce :: [[[Colored Char]]] -> [[[Colored Char]]]
+reduce []  = []
+reduce [x] = [map removeExtraSpaces x]
+reduce x   = (\ns -> map ((zipWith (\a b -> take a b) ns)) x) . map maximum . transpose . map (map (length . removeExtraSpaces)) $ x
 
 parseColorLine :: String -> [Colored Char]
 parseColorLine x = uncurry (zipWith Colored) . first (map charToColor) . swap $ splitAt (length x `quot` 2) x
