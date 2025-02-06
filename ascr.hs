@@ -423,15 +423,15 @@ chunksOf _ [] = []
 chunksOf n x  = uncurry ((. chunksOf n) . cons) $ splitAt n x
 
 renderer :: [[Colored Char]] -> String
-renderer = helper Transp . concatMap (append (Colored Transp '\n'))
+renderer = helper Transp . concatMap (append (Colored Black '\n'))
 -- renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtraSpaces)
   where
     helper :: Color -> [Colored Char] -> String
     helper _        []                        = "" --"\\n"
-    helper oldcolor (Colored color char : xs) = 
-      if color == oldcolor || elem char " \n" || color == Transp
-      then clean char <> helper oldcolor xs
-      else colorChar (Colored color char) <> helper color xs
+    helper oldcolor (Colored color char : xs) = if
+      | color == Transp || char == ' '     -> ' ' : helper oldcolor xs
+      | color == oldcolor || char == '\n'  -> clean char <> helper oldcolor xs
+      | otherwise                          -> colorChar (Colored color char) <> helper color xs
     
     removeExtraSpaces :: [Colored Char] -> [Colored Char]
     removeExtraSpaces = reverse . remove . reverse
