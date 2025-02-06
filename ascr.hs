@@ -25,6 +25,62 @@ import Types
 
 infix 8 ...
 
+main = flip parseArgs defaultMods <$> getArgs >>= \case
+  Left e -> exitWithError e
+  Right (mods,target,args) ->
+    concat . zipWith number args <$> mapM readFile args >>= (
+      gigaParse target mods
+      >>> \case 
+        Left e -> exitWithError e
+        Right (header,gif) -> 
+
+          (if message mods then getContents else pure "") >>= \messageIn ->
+
+          (
+            if text mods 
+            then fmap (
+              flip mappend (cycle [[]]) . 
+              map (map (Colored White)) . 
+              take (height header) . 
+              map (' ':) .
+              lines
+            ) getContents 
+            else pure $ cycle [[]]
+          ) >>= \textIn ->
+
+          let 
+            file = directory mods <> "/" <> target <> ".sh" 
+            (tp, x) = 
+              formatSh mods header messageIn . 
+              pipeline $
+              map (flip (zipWith mappend) textIn . chunksOf (width header)) gif
+          in
+
+          putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
+          unless (check mods) (
+            writeFile file x >> 
+            callCommand ("chmod +x " <> file) >>
+            putStr ("Gif saved to " <> colour Cyan file <> ".\n") >>
+            unless (quiet mods) (callCommand $
+              case tp of 
+                Image ->
+                  file 
+                  <> "; sleep 4; printf \x1b[" 
+                  <> show (height header) 
+                  <> "A\r\x1b[0J\x1b[0m"
+                Gif   ->
+                  "timeout " 
+                  <> show (fps mods * fromIntegral (frames header) * 3.0)
+                  <> " " 
+                  <> file 
+                  <> " 2> /dev/null || true; "
+                  <> "printf \x1b[" 
+                  <> show (height header) 
+                  <> "A\r\x1b[0J\x1b[0m"
+            )
+          )
+    )
+
 defaultMods :: Modifiers
 defaultMods = Modifiers {
   fps       = 0.2,
@@ -52,50 +108,6 @@ number f = zipWith (\x y -> Marked File {origin = f, line = x} y) [1..] . lines
 exitWithError :: Error -> IO ()
 exitWithError = die . show
 
-main = flip parseArgs defaultMods <$> getArgs >>= \case
-  Left e -> exitWithError e
-  Right (mods,target,args) ->
-    concat . zipWith number args <$> mapM readFile args >>= (
-      gigaParse target mods
-      >>> \case 
-        Left e -> exitWithError e
-        Right (header,gif) -> 
-
-          (if message mods then getContents else pure "") >>= \messageIn ->
-
-          (
-            if text mods 
-            then fmap (
-              flip mappend (cycle [[]]) . 
-              map (map (Colored White)) . 
-              take (height header) . 
-              map (' ':) .
-              lines
-            ) getContents 
-            else pure $ cycle [[]]
-          ) >>= \textIn ->
-
-          let 
-            file = directory mods <> "/" <> target <> ".sh" 
-            x    = 
-              formatSh mods header messageIn . 
-              map renderer .
-              reduce $
-              map (flip (zipWith mappend) textIn . chunksOf (width header)) gif
-          in
-
-          putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
-          unless (check mods) (
-            writeFile file x >> 
-            callCommand ("chmod +x " <> file) >>
-            putStr ("Gif saved to " <> colour Cyan file <> ".\n") >>
-            unless (quiet mods) (
-              putStr ("\r\x1b[0J" <> (if length gif > 1 then "\x1b[1A" else "") <> "\x1b[0m") >>
-              callCommand file
-            )
-          )
-    )
-
 gigaParse :: Name -> Modifiers -> [Marked String] -> OrError (Header, Gif)
 gigaParse target mods = 
   cutSpace >=> parse >=> \x -> 
@@ -105,7 +117,7 @@ gigaParse target mods =
 maybeGuard :: (a -> Bool) -> a -> Maybe a
 maybeGuard f a = if f a then pure a else Nothing
 
-parseArgs ("-h":_)   _ = Left Help 
+parseArgs ("-h":_) _ = Left Help 
 parseArgs (a:b:cs) m = case a of
   "-c"        -> parseArgs (b:cs) m {check     = True}
   "-q"        -> parseArgs (b:cs) m {quiet     = True}
@@ -124,29 +136,28 @@ parseArgs (a:b:cs) m = case a of
     else Left . ArgError $ "The target arg " <> colour Magenta name <> " is not a valid name"
 parseArgs _ _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
 
-formatSh :: Modifiers -> Header -> String -> [String] -> String
-formatSh m h d s = 
-  "#!/bin/sh\n\n"
-  <> (unlines . map ("# " <>) . lines) d
-  <> case s of
-    [x] ->
-      "\nprintf '" <> x <> "'\n"
-    xs  -> let ht = height h in
-      -- "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r\\033[0J$1\"\n  sleep " 
-      "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " 
+formatSh :: Modifiers -> Header -> String -> [String] -> (OutputFile, String)
+formatSh m h d [x] = (Image,) $
+      "#!/bin/sh\n\n"
+      <> (unlines . map ("# " <>) . lines) d
+      <> "\nprintf '" <> x <> "'\n"
+formatSh m h d xs = let ht = height h in (Gif,) $
+      "#!/bin/sh\n\n"
+      <> (unlines . map ("# " <>) . lines) d
+      <> "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " 
       <> show (fps m) 
       <> "\n}\n"
       <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
       <> "while true\ndo\n"
-      -- <> concatMap (\x -> "  draw '" <> x <> "'\n") xs
       <> (concat . rotate . init $ helper xs "" 1.0)
       <> "done"
     where 
       helper :: [String] -> String -> Float -> [String]
-      helper [] _ i       = ["  sleep " <> show (fps m * i) <> " # empty case"]
+      helper [] _ i       = ["  sleep " <> show (fps m * i) <> "\n # empty case"]
       helper (x:xs) old i = if x == old 
                             then helper xs old (i + 1)
-                            else ["  sleep " <> show (fps m * i) <> "\n", "  draw '" <> x <> "'\n"] <> helper xs x 1.0
+                            else ["  sleep " <> show (fps m * i) <> "\n", "  draw '" <> x <> "'\n"] 
+                                 <> helper xs x 1.0
 
 (>?) :: Mark -> OrToError a -> OrError a
 (>?) x y = first ($ x) y
@@ -454,10 +465,34 @@ clean '\n' = "\\n"
 clean '%'  = "%%"
 clean a    = [a]
 
-reduce :: [[[Colored Char]]] -> [[[Colored Char]]]
-reduce []  = []
-reduce [x] = [map removeExtraSpaces x]
-reduce x   = (\ns -> map ((zipWith (\a b -> take a b) ns)) x) . map maximum . transpose . map (map (length . removeExtraSpaces)) $ x
+
+pipeline :: [[[Colored Char]]] -> [String]
+pipeline = map renderer . reduce3 . reduce2 . reduce1
+
+-- turns all Transparent chars to spaces
+reduce1 :: [[[Colored Char]]] -> [[[Colored Char]]]
+reduce1 = map (map (map toSpace))
+  where 
+    toSpace x@(Colored color char) = 
+      if color == Transp || elem char " \n"
+      then Colored Black ' '
+      else x
+
+-- trims off unused space from the ends of lines. Only if doesn't break other frames
+reduce2 :: [[[Colored Char]]] -> [[[Colored Char]]]
+reduce2 []  = []
+reduce2 [x] = [map removeExtraSpaces x]
+reduce2 x   = 
+  (\ns -> map ((zipWith (\a b -> take a b) ns)) x) . 
+  map maximum . 
+  transpose . 
+  map (map (length . removeExtraSpaces)) $ 
+  x
+
+-- if all frames are the same, reduces it to an Image
+reduce3 :: [[[Colored Char]]] -> [[[Colored Char]]]
+reduce3 [] = []
+reduce3 (x:xs) = if all (== x) xs then [x] else (x:xs)
 
 parseColorLine :: String -> [Colored Char]
 parseColorLine x = uncurry (zipWith Colored) . first (map charToColor) . swap $ splitAt (length x `quot` 2) x
@@ -475,14 +510,14 @@ parseColorLine x = uncurry (zipWith Colored) . first (map charToColor) . swap $ 
       _   -> White
 
 parseHeader :: Marked String -> OrError Header
-parseHeader (Marked m s) = parseHelper $ words s
+parseHeader (Marked m s) = m >? parseHelper (words s)
   where
-    parseHelper :: [String] -> OrError Header
-    parseHelper [a,b,c,d] = 
-      m >? parseInt a "header's width"      >>= \width  ->
-      m >? parseInt b "header's height"     >>= \height ->
-      m >? parseInt c "header's framecount" >>= \frames ->
-      m >? parseName d                      >>= \name   ->
+    parseHelper :: [String] -> OrToError Header
+    parseHelper [a,b,c,d] =
+      parseInt a "header's width"      >>= \width  ->
+      parseInt b "header's height"     >>= \height ->
+      parseInt c "header's framecount" >>= \frames ->
+      parseName d                      >>= \name   ->
         pure Header {
             width  = width, 
             height = height,
@@ -490,16 +525,17 @@ parseHeader (Marked m s) = parseHelper $ words s
             name   = name,
             mark   = m
           }
-    parseHelper w = Left $ Value "header" 4 (length w) m
+    parseHelper w = Left $ Value "header" 4 (length w)
 
 colorChar :: Colored Char -> String
-colorChar (Colored c s) = case c of
-  Black   -> "\\033[30m" <> clean s
-  Red     -> "\\033[31m" <> clean s
-  Green   -> "\\033[32m" <> clean s
-  Yellow  -> "\\033[33m" <> clean s
-  Blue    -> "\\033[34m" <> clean s
-  Magenta -> "\\033[35m" <> clean s
-  Cyan    -> "\\033[36m" <> clean s
-  White   -> "\\033[37m" <> clean s
-  Transp  -> "\\033[30m" <> clean s
+colorChar (Colored c s) = "\\033[3" <> case c of
+    Black   -> "0"
+    Red     -> "1"
+    Green   -> "2"
+    Yellow  -> "3"
+    Blue    -> "4"
+    Magenta -> "5"
+    Cyan    -> "6"
+    White   -> "7"
+    Transp  -> "0"
+  <> "m" <> clean s

@@ -14,6 +14,8 @@ type Coordinate    = (Int,Int)
 type Line          = String
 type Lines         = [String] --Map LineNumber String
 
+data OutputFile = Gif | Image deriving Eq
+
 data Layer = Layer {
   header :: Header,
   coord  :: Coordinate,
@@ -153,7 +155,8 @@ instance Functor Notated where
   fmap f (Script a) = Script (f a)
   fmap f (Drawings a) = Drawings (f a)
 
-data Colored a = Colored Color a
+data Colored a = Colored Color a deriving Eq
+
 data Color  
   = Black    
   | Red      

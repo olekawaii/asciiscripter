@@ -140,11 +140,11 @@ com
      <
 moc
 
-13 11 24 robot_juggler
+13 11 48 robot_juggler
 scr
   frame 1 
     1 DRAW 1 1 juggling_balls
     2 DRAW 5 3 robot
     2 SLOW 2
-  frame 2 24
+  frame 2 48
 rcs
