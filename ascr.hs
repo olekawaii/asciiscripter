@@ -29,8 +29,7 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
   Left e -> exitWithError e
   Right (mods,target,args) ->
     concat . zipWith number args <$> mapM readFile args >>= (
-      gigaParse target mods
-      >>> \case 
+      gigaParse target mods >>> \case 
         Left e -> exitWithError e
         Right (header,gif) -> 
 
@@ -39,19 +38,19 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
           (
             if text mods 
             then fmap (
-              flip mappend (cycle [[]]) . 
-              map (map (Colored White)) . 
-              take (height header) . 
-              map (' ':) .
-              lines
-            ) getContents 
+                flip mappend (cycle [[]])
+              . map (map (Colored White))
+              . take (height header)
+              . map (' ':)
+              . lines
+            ) getContents
             else pure $ cycle [[]]
           ) >>= \textIn ->
 
-          let 
-            file = directory mods <> "/" <> target <> ".sh" 
-            (tp, x) = 
-              formatSh mods header messageIn . 
+          let
+            file = directory mods <> "/" <> target <> ".sh"
+            (tp, x) =
+              formatSh mods header messageIn .
               pipeline $
               map (flip (zipWith mappend) textIn . chunksOf (width header)) gif
           in
@@ -60,32 +59,32 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
           unless (check mods) (
             writeFile file x >> 
             callCommand ("chmod +x " <> file) >>
-            putStr ("Gif saved to " <> colour Cyan file <> ".\n") >>
-            unless (quiet mods) (callCommand $ case tp of 
-              Image ->
-                file 
-                <> "; sleep 4; printf \x1b[" 
-                <> show (height header) 
-                <> "A\r\x1b[0J\x1b[0m"
-              Gif   ->
-                "timeout " 
-                <> show (fps mods * fromIntegral (frames header) * 3.0)
-                <> " " 
-                <> file 
-                <> " 2> /dev/null || true; "
-                <> "printf \x1b[" 
-                <> show (height header) 
-                <> "A\r\x1b[0J\x1b[0m"
-            )
+            putStrLn ("Gif saved to " <> colour Cyan file <> ".") >>
+            unless (quiet mods) (successGif tp file (height header))
           )
     )
+
+successGif :: OutputFile -> FilePath -> Int -> IO ()
+successGif fileType file height = callCommand $ case fileType of
+  Image ->
+    file 
+    <> "&& sleep 5 && printf \x1b[" 
+    <> show height
+    <> "A\r\x1b[0J\x1b[0m"
+  Gif   ->
+    "cat " 
+    <> file
+    <> " | grep -v '\\\\\\\\' | sh && printf \x1b[" 
+    <> show height
+    <> "A\r\x1b[0J\x1b[0m"
+
 
 getMark :: Marked x -> Mark
 getMark (Marked m _) = m
 
 defaultMods :: Modifiers
 defaultMods = Modifiers {
-  fps       = 0.2,
+  frameTime       = 0.2,
   directory = ".",
   message   = False,
   quiet     = False,
@@ -128,7 +127,7 @@ parseArgs (a:b:cs) m = case a of
   "-s"        -> parseArgs (b:cs) m {text      = True}
   "-f"        -> case readMaybe b >>= maybeGuard (>= 0) of 
     Nothing -> Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m"
-    Just x  -> parseArgs cs m {fps = 1 / x}
+    Just x  -> parseArgs cs m {frameTime = 1 / x}
   ('-':'-':x) -> Left . ArgError $ "Unknown argument '" <> colour Yellow ('-':'-':x) <> "'"
   ['-',x]     -> Left . ArgError $ "Unknown argument '" <> colour Yellow ['-',x] <> "'"
   ('-':x)     -> parseArgs (map (cons '-' . pure) x <> (b:cs)) m
@@ -147,18 +146,18 @@ formatSh m h d xs = let ht = height h in (Gif,) $
       "#!/bin/sh\n\n"
       <> (unlines . map ("# " <>) . lines) d
       <> "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " 
-      <> show (fps m) 
+      <> show (frameTime m) 
       <> "\n}\n"
       <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
-      <> "while true\ndo\n"
+      <> "while true #\\\\\ndo #\\\\\n"
       <> (concat . rotate . init $ helper xs "" 1.0)
-      <> "done"
+      <> "done #\\\\"
     where 
       helper :: [String] -> String -> Float -> [String]
-      helper [] _ i       = ["  sleep " <> show (fps m * i) <> "\n # empty case"]
+      helper [] _ i       = ["  sleep " <> show (frameTime m * i) <> "\n # empty case"]
       helper (x:xs) old i = if x == old 
                             then helper xs old (i + 1)
-                            else ["  sleep " <> show (fps m * i) <> "\n", "  draw '" <> x <> "'\n"] 
+                            else ["  sleep " <> show (frameTime m * i) <> "\n", "  draw '" <> x <> "'\n"] 
                                  <> helper xs x 1.0
 
 (>?) :: Mark -> OrToError a -> OrError a
@@ -211,10 +210,7 @@ unwrap :: Marked a -> a
 unwrap (Marked _ a) = a  
     
 dependenciesOf :: Map Name (Notated [Marked String]) -> Name -> OrError (Map Name [Name])
-dependenciesOf table = 
-  fmap nub . 
-  getDependencies [] . 
-  Marked Arguments
+dependenciesOf table = fmap nub . getDependencies [] . Marked Arguments
   where
     getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
     getDependencies used (Marked m target) = 

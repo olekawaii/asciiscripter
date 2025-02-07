@@ -127,7 +127,7 @@ instance Show Mark where
     
 
 data Modifiers = Modifiers {
-  fps         :: Float,
+  frameTime         :: Float,
   directory   :: FilePath,
   message     :: Bool,
   quiet       :: Bool,
