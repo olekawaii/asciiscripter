@@ -6,7 +6,10 @@ try converting some files in the gifs directory
 
 ## Example
 
-To create a comment use the deliminators 'com' and 'moc'. Asciiscripter converts ascii art files into shell scripts that can be run anywhere. Let's create a simple gif of a colourful spinning robot head. First create a file named 'demo'. Paste this inside:
+To create a comment use the deliminators 'com' and 'moc'. Asciiscripter converts 
+ascii art files into shell scripts that can be run anywhere. Let's create a 
+simple gif of a colourful spinning robot head. First create a file named 'demo'. 
+Paste this inside:
 
 ```
 5 3 4 robot_head
@@ -17,7 +20,11 @@ gif
 fig
 ```
 
-Now run 'ascr robot_head example'. You should get a success message and the 
+Now run 
+```
+ascr robot_head example
+```
+You should get a success message and the 
 gif should play. Looking at ./robot_head.sh you should see:
 
 
@@ -92,7 +99,7 @@ scripts work:
 
 * There are numbered layers that can each hold one gif.
 * Every new frame, all the gifs advance by one frame.
-* Highter layers overshadow lower ones.
+* Higher layers overshadow lower ones.
 * Run commands on layers, the syntax being
   layer COMMAND [args]
 
