@@ -53,17 +53,17 @@ or 'scr'. The 'gif' block is made up of rectangles with the same height as the
 header's height and a width of 2x the header's width. The left side is the art 
 and the right are the colours. These are the colours:
 
-```
-. -> Transparent
-0 -> Black
-1 -> Red
-2 -> Green
-3 -> Yellow
-4 -> Blue
-5 -> Magenta
-6 -> Cyan
-7 -> White
-```
+| Symbol | Colour      |
+| ------ | ----------- |
+| .      | Transparent |
+| 0      | Black       |
+| 1      | Red         |
+| 2      | Green       |
+| 3      | Yellow      |
+| 4      | Blue        |
+| 5      | Magenta     |
+| 6      | Cyan        |
+| 7      | White       |
 
 You can arrange there rectangles vertically, horizontally, or both (read left
 right, up down). 
@@ -113,5 +113,5 @@ scr
 rcs
 ```
 
-this gif composed the two gif into one. You can later create a body script that
+This gif composed the two gif into one. You can later create a body script that
 will compose some other gif with the robot_upper gif to create a robot_body gif.
