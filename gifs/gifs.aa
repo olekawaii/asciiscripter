@@ -71,8 +71,8 @@ gif
 @)~,~'~~55222222
 fig
 
-com
 10 1 10 welcome
+gif
 welcome   1234567...
 elcome   w234567...1
 lcome   we34567...12
@@ -83,13 +83,7 @@ e   welcom7...123456
    welcome...1234567
   welcome ..1234567.
  welcome  .1234567..
-moc
-
-20 1 2 welcome
-gif
-welcome   welcome   1234567...1234567...
-welcome   welcome   2345671...2345671...
-fig
+ fig
 
 10 1 10 welcome_good
 scr

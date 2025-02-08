@@ -1,24 +1,18 @@
-{-# Language MultiWayIf #-}
-{-# Language TupleSections #-}
-{-# Language LambdaCase #-}
+{-# Language MultiWayIf, TupleSections, LambdaCase #-}
 
 module Main (main) where
 
--- import Lib
 import System.Exit
 import System.Process
 import System.Environment
-
 import Control.Applicative
 import Control.Monad ((<=<), (>=>), guard, unless, when)
 import Control.Arrow ((<<<), (>>>), (***), (&&&), (+++), (|||))
-
 import qualified Data.Map.Strict as Map
 import Data.Bifunctor (first, second)
 import Data.Maybe
 import Data.Tuple
 import Data.List
--- import System.IO
 import Text.Read (readMaybe) 
 
 import Types
@@ -28,41 +22,24 @@ infix 8 ...
 main = flip parseArgs defaultMods <$> getArgs >>= \case
   Left e -> exitWithError e
   Right (mods,target,args) ->
-    concat . zipWith number args <$> mapM readFile args >>= (
-      gigaParse target mods >>> \case 
-        Left e -> exitWithError e
-        Right (header,gif) -> 
+    gigaParse target mods . concat . zipWith number args <$> mapM readFile args >>= \case 
+      Left e -> exitWithError e
+      Right (header,gif) -> 
 
-          (if message mods then getContents else pure "") >>= \messageIn ->
+        (if message mods then getContents else pure "") >>= \messageIn ->
 
-          (
-            if text mods 
-            then fmap (
-                flip mappend (cycle [[]])
-              . map (map (Colored White))
-              . take (height header)
-              . map (' ':)
-              . lines
-            ) getContents
-            else pure $ cycle [[]]
-          ) >>= \textIn ->
+        let
+          file = directory mods <> "/" <> target <> ".sh"
+          (tp, x) = formatSh mods header messageIn . pipeline $ map (chunksOf $ width header) gif
+        in
 
-          let
-            file = directory mods <> "/" <> target <> ".sh"
-            (tp, x) =
-              formatSh mods header messageIn .
-              pipeline $
-              map (flip (zipWith mappend) textIn . chunksOf (width header)) gif
-          in
-
-          putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
-          unless (check mods) (
-            writeFile file x >> 
-            callCommand ("chmod +x " <> file) >>
-            putStrLn ("Gif saved to " <> colour Cyan file <> ".") >>
-            unless (quiet mods) (successGif tp file (height header))
-          )
-    )
+        putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
+        unless (check mods) (
+          writeFile file x >> 
+          callCommand ("chmod +x " <> file) >>
+          putStrLn ("Gif saved to " <> colour Cyan file <> ".") >>
+          unless (quiet mods) (successGif tp file (height header))
+        )
 
 successGif :: OutputFile -> FilePath -> Int -> IO ()
 successGif fileType file height = callCommand $ case fileType of
@@ -78,13 +55,12 @@ successGif fileType file height = callCommand $ case fileType of
     <> show height
     <> "A\r\x1b[0J\x1b[0m"
 
-
 getMark :: Marked x -> Mark
 getMark (Marked m _) = m
 
 defaultMods :: Modifiers
 defaultMods = Modifiers {
-  frameTime       = 0.2,
+  frameTime = 0.2,
   directory = ".",
   message   = False,
   quiet     = False,
