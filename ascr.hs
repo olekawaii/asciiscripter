@@ -126,15 +126,19 @@ formatSh m h d xs = let ht = height h in (Gif,) $
       <> "\n}\n"
       <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
       <> "while true #\\\\\ndo #\\\\\n"
-      <> (concat . rotate . init $ helper xs "" 1.0)
+      <> (concat . rotate . init $ helper xs "" 0.0)
       <> "done #\\\\"
     where 
       helper :: [String] -> String -> Float -> [String]
       helper [] _ i       = ["  sleep " <> show (frameTime m * i) <> "\n # empty case"]
-      helper (x:xs) old i = if x == old 
-                            then helper xs old (i + 1)
-                            else ["  sleep " <> show (frameTime m * i) <> "\n", "  draw '" <> x <> "'\n"] 
-                                 <> helper xs x 1.0
+      helper (x:xs) old i = 
+        if x == old 
+        then helper xs old (i + 1)
+        else let draw = "  draw '" <> x <> "'\n" in 
+          if i > 0 
+          then ("  sleep " <> show (frameTime m * i) <> "\n") : draw : helper xs x 0.0
+          else draw : helper xs x 0.0
+
 
 (>?) :: Mark -> OrToError a -> OrError a
 (>?) x y = first ($ x) y
