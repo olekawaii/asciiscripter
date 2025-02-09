@@ -126,11 +126,12 @@ formatSh m h d xs = let ht = height h in (Gif,) $
       <> "\n}\n"
       <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
       <> "while true #\\\\\ndo #\\\\\n"
-      <> (concat . rotate . init $ helper xs "" 0.0)
+      -- <> (concat . rotate . init $ helper xs "" 0.0)
+      <> (concat $ helper xs "" 0.0)
       <> "done #\\\\"
     where 
       helper :: [String] -> String -> Float -> [String]
-      helper [] _ i       = ["  sleep " <> show (frameTime m * i) <> "\n # empty case"]
+      helper [] _ i       = ["  sleep " <> show (frameTime m * i) <> "\n # empty case\n"]
       helper (x:xs) old i = 
         if x == old 
         then helper xs old (i + 1)
@@ -391,7 +392,7 @@ solve e header (Script x) =
             yourGif l = gif . fromJust $ lookup l sol
 
             toTake :: Int -> Int -> Int
-            toTake x y = if x <= y then y - x else toTake x (y - x)
+            toTake x y = if x <= y then x else toTake (x - y) y
 
         toFrame :: Map Int Layer -> Frame
         toFrame = unite . concat . map render . reverse . map snd . sortOn fst
