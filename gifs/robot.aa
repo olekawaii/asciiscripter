@@ -36,6 +36,31 @@ gif
   \  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
 fig
 
+com
+5 7 8 robot2
+scr
+  frame 1 
+    1 DRAW 2 1 robot_neck
+    2 DRAW 1 5 robot_face
+rcs
+moc
+
+com
+| 
+| macro robot 2
+| mcr
+| 5 7 8 $1
+| scr
+|   frame 1
+|     1 DRAW 2 1 robot_neck
+|     2 DRAW 1 5 $2
+| rcs
+| mcr
+| 
+rcm
+
+moc
+
 1 1 8 overlay
 gif
 (6 . .(5(5 . .(6
@@ -208,8 +233,10 @@ frame 1
   4 DRAW 5 6 balls_helper
   4 SKIP 3
 
+com
   5 DRAW 6 6 balls_helper
   5 SKIP 4
+moc
 
   6 DRAW 7 6 balls_helper
   6 SKIP 5
@@ -348,28 +375,17 @@ com
 body1
 moc
 
-1 1 7 testuwu
-gif
-#1
-#1
-$1
-$1
-$1
-#1
-#1
-fig
-
 13 11 20 start
 scr
   frame 1
     1 DRAW 5 2 body
     2 DRAW 9 3 stretch_right
     3 DRAW 1 3 stretch_left
-  frame 2 8
-  frame 9 
-    3 CLEAR
-    2 CLEAR
-  frame 10 20
+  frame 2 7
+  frame 8 
+    3 FREEZE
+    2 FREEZE
+  frame 9 20
 rcs
 
 
@@ -382,9 +398,11 @@ scr
     0 DRAW 5 2 body
     8 DRAW 9 3 arm
       8 SKIP 5
+com
     9 DRAW 6 6 overlay
       9 SKIP 2
       9 SLOW 2
+moc
     15 DRAW 1 3 arm2
       15 SLOW 1
       15 SKIP 3

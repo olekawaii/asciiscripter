@@ -351,6 +351,9 @@ solve e header (Script x) =
           parseInt x "number of frames" >>= \num ->
           pure $ Skip layer num
         x -> Left $ Value command "args" 1 (length x)
+      "FREEZE" -> case xs of
+        [] -> pure $ Freeze layer
+        x -> Left $ Value command "args" 0 (length x)
       _ -> Left (Parse "command" "Command" "Idk")
 
     interpritCommands :: [[Command]] -> OrError Gif
@@ -378,6 +381,11 @@ solve e header (Script x) =
             )
           Clear layer -> 
             helper (as:xs) (filter ((/= layer) . fst) sol)
+          Freeze layer -> 
+            helper (as:xs) (changeGif sol layer $ \case
+              [] -> []
+              (x:xs) -> [x]
+            )
           Skip layer num ->
             helper (as:xs) (changeGif sol layer (
                 \x -> let d = num `toTake` length x in uncurry mappend . swap . splitAt d $ x

@@ -150,6 +150,7 @@ data Command
   | Shift Int Int Int
   | Reverse Int
   | Skip Int Int
+  | Freeze Int
 
 data Notated a = Script a | Drawings a -- for parse
 
