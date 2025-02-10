@@ -1,5 +1,6 @@
 module Types where
 
+type ShellScript   = String
 type NumFrame      = Map Coordinate (Colored Char)
 type Map a b       = [(a,b)]
 type OrError       = Either Error

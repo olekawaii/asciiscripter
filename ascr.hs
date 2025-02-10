@@ -25,35 +25,45 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
     gigaParse target mods . concat . zipWith number args <$> mapM readFile args >>= \case 
       Left e -> exitWithError e
       Right (header,gif) -> 
-
-        (if message mods then getContents else pure "") >>= \messageIn ->
-
+        (if message mods then fmap pure getContents else pure Nothing) >>= \messageIn ->
         let
           file = directory mods <> "/" <> target <> ".sh"
-          (tp, x) = formatSh mods header messageIn . pipeline $ map (chunksOf $ width header) gif
+          (fileSh, command) = formatShell mods header messageIn . pipeline $ map (chunksOf $ width header) gif
         in
-
         putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
         unless (check mods) (
-          writeFile file x >> 
+          writeFile file fileSh >> 
           callCommand ("chmod +x " <> file) >>
-          putStrLn ("Gif saved to " <> colour Cyan file <> ".") >>
-          unless (quiet mods) (successGif tp file (height header))
-        )
+          putStrLn ("Gif saved to " <> colour Cyan file <> ".")
+        ) >> 
+        unless (quiet mods) (callCommand command)
 
-successGif :: OutputFile -> FilePath -> Int -> IO ()
-successGif fileType file height = callCommand $ case fileType of
-  Image ->
-    file 
-    <> "&& sleep 5 && printf \x1b[" 
-    <> show height
-    <> "A\r\x1b[0J\x1b[0m"
-  Gif   ->
-    "cat " 
-    <> file
-    <> " | grep -v '\\\\\\\\' | sh && printf \x1b[" 
-    <> show height
-    <> "A\r\x1b[0J\x1b[0m"
+formatShell :: Modifiers -> Header -> Maybe String -> [String] -> (ShellScript, ShellScript)
+formatShell mods header message renderedFrames = case renderedFrames of
+  [frame] -> (gif, gif <> "; sleep 3" <> clear)
+    where gif = comment <> "printf '" <> frame <> "'"
+  frames  -> (intro <> loop <> body <> done, intro <> body <> clear)
+    where 
+      helper :: [String] -> String -> Float -> [String]
+      helper [] _ i       = ["  sleep " <> show (frameTime mods * i) <> "\n # empty case\n"]
+      helper (x:xs) old i = 
+        if x == old 
+        then helper xs old (i + 1)
+        else let draw = "  draw '" <> x <> "'\n" in 
+          if i > 0 
+          then ("  sleep " <> show (frameTime mods * i) <> "\n") : draw : helper xs x 0.0
+          else draw : helper xs x 0.0
+      intro = comment <> "draw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " 
+        <> show (frameTime mods) <> "\n}\n" <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
+      loop = "while true\ndo\n"
+      body = concat (helper frames "" 0.0)
+      done = "done"
+  where 
+    ht = height header
+    comment = "#!/bin/sh\n" <> case message of
+      Nothing      -> "\n"
+      Just message -> "\n" <> (unlines . map ("# " <>) . lines) message <> "\n"
+    clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[0m"
 
 getMark :: Marked x -> Mark
 getMark (Marked m _) = m
@@ -112,34 +122,6 @@ parseArgs (a:b:cs) m = case a of
     then pure (m,name,(b:cs)) 
     else Left . ArgError $ "The target arg " <> colour Magenta name <> " is not a valid name"
 parseArgs _ _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
-
-formatSh :: Modifiers -> Header -> String -> [String] -> (OutputFile, String)
-formatSh m h d [x] = (Image,) $
-      "#!/bin/sh\n\n"
-      <> (unlines . map ("# " <>) . lines) d
-      <> "\nprintf '" <> x <> "'\n"
-formatSh m h d xs = let ht = height h in (Gif,) $
-      "#!/bin/sh\n\n"
-      <> (unlines . map ("# " <>) . lines) d
-      <> "\ndraw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " 
-      <> show (frameTime m) 
-      <> "\n}\n"
-      <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
-      <> "while true #\\\\\ndo #\\\\\n"
-      -- <> (concat . rotate . init $ helper xs "" 0.0)
-      <> (concat $ helper xs "" 0.0)
-      <> "done #\\\\"
-    where 
-      helper :: [String] -> String -> Float -> [String]
-      helper [] _ i       = ["  sleep " <> show (frameTime m * i) <> "\n # empty case\n"]
-      helper (x:xs) old i = 
-        if x == old 
-        then helper xs old (i + 1)
-        else let draw = "  draw '" <> x <> "'\n" in 
-          if i > 0 
-          then ("  sleep " <> show (frameTime m * i) <> "\n") : draw : helper xs x 0.0
-          else draw : helper xs x 0.0
-
 
 (>?) :: Mark -> OrToError a -> OrError a
 (>?) x y = first ($ x) y
