@@ -22,7 +22,7 @@ infix 8 ...
 main = flip parseArgs defaultMods <$> getArgs >>= \case
   Left e -> exitWithError e
   Right (mods,target,args) ->
-    gigaParse target mods . concat . zipWith number args <$> mapM readFile args >>= \case 
+    gigaParse (Marked Arguments target) mods . concat . zipWith number args <$> mapM readFile args >>= \case 
       Left e -> exitWithError e
       Right (header,gif) -> 
         (if message mods then fmap pure getContents else pure Nothing) >>= \messageIn ->
@@ -53,16 +53,17 @@ formatShell mods header message renderedFrames = case renderedFrames of
           if i > 0 
           then ("  sleep " <> show (frameTime mods * i) <> "\n") : draw : helper xs x 0.0
           else draw : helper xs x 0.0
-      intro = comment <> "draw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " 
-        <> show (frameTime mods) <> "\n}\n" <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
+      intro = comment <> "draw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " <> 
+        show (frameTime mods) <> "\n}\n" <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
       loop = "while true\ndo\n"
       body = concat (helper frames "" 0.0)
       done = "done"
   where 
     ht = height header
-    comment = "#!/bin/sh\n" <> case message of
-      Nothing      -> "\n"
-      Just message -> "\n" <> (unlines . map ("# " <>) . lines) message <> "\n"
+    -- comment = "#!/bin/sh\n" <> case message of
+    --   Nothing      -> "\n"
+    --   Just message -> "\n" <> (unlines . map ("# " <>) . lines) message <> "\n"
+    comment = "#!/bin/sh\n" <> maybe "" (unlines . map ("# " <>) . lines) message <> "\n"
     clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[0m"
 
 getMark :: Marked x -> Mark
@@ -90,16 +91,16 @@ unwrapNotated (Drawings x) = x
 unwrapNotated (Script x)   = x
 
 number :: FilePath -> String -> [Marked String]
-number f = zipWith (\x y -> Marked File {origin = f, line = x} y) [1..] . lines
+number f = zipWith (\x y -> Marked File {origin = f, line = x, block = Nothing} y) [1..] . lines
 
 exitWithError :: Error -> IO ()
 exitWithError = die . show
 
-gigaParse :: Name -> Modifiers -> [Marked String] -> OrError (Header, Gif)
-gigaParse target mods = 
+gigaParse :: Marked Name -> Modifiers -> [Marked String] -> OrError (Header, Gif)
+gigaParse target@(Marked m t) mods = 
   cutSpace >=> parse >=> \x -> 
   flip dependenciesOf target (map (first name) x) >>=
-  \d -> fromJust . find ((== target) . name . fst) <$> win [] d x
+  \d -> fromJust . find ((== t) . name . fst) <$> win [] d x
 
 maybeGuard :: (a -> Bool) -> a -> Maybe a
 maybeGuard f a = if f a then pure a else Nothing
@@ -134,14 +135,21 @@ append  x y = y <> [x]
 parse :: [Marked String] -> OrError (Map Header (Notated [Marked String])) 
 parse []                = pure []
 parse (ln@(Marked m@(File {line = lineNum}) l) : xs) = parseHeader ln >>= \header -> 
-  case fmap words <$> listToMaybe xs of
-    Nothing      -> Left $ Custom "Header is lacking a body" m
-    Just (Marked d ["scr"]) -> d >? getDelimiter (tail xs) "rcs" >>= \(script, other) -> 
-                    cons (header,(Script script)) <$> parse other
-    Just (Marked d ["gif"]) -> d >? getDelimiter (tail xs) "fig" >>= \(gif,    other) -> 
-                    cons (header,(Drawings gif)) <$> parse other
-    Just _       -> Left $ Custom "expected a delimiter but found nothing" m
-      where len = height header * frames header
+  let 
+    newMark = m {block = pure $ name header}
+    noDil = Custom "Expected an opening delimiter (such as '\x1b[34mscr\x1b[0m' or '\x1b[34mgif\x1b[0m')" newMark
+  in case fmap words <$> listToMaybe xs of
+    Nothing                   -> Left $ Custom "Header is lacking a body" newMark
+    Just (Marked mark2 [del]) -> 
+      let 
+        extract :: ([Marked String] -> Notated [Marked String]) -> OrError (Map Header (Notated [Marked String])) 
+        extract f = mark2 >? getDelimiter (tail xs) (reverse del) >>= \(gif, other) ->
+          cons (header, f $ map (\(Marked m s) -> Marked m {block = pure $ name header} s) gif) <$> parse other
+      in case del of
+        "scr" -> extract Script
+        "gif" -> extract Drawings
+        _     -> Left noDil
+    Just _    -> Left noDil
 
 -- if something has no dependencies it can be calculated
 win :: EpicGifData -> Dependencies -> Map Header (Notated [Marked String]) -> OrError EpicGifData
@@ -172,15 +180,15 @@ cutSpace (Marked m l : xs) = case words l of
 unwrap :: Marked a -> a
 unwrap (Marked _ a) = a  
     
-dependenciesOf :: Map Name (Notated [Marked String]) -> Name -> OrError (Map Name [Name])
-dependenciesOf table = fmap nub . getDependencies [] . Marked Arguments
+dependenciesOf :: Map Name (Notated [Marked String]) -> Marked Name -> OrError (Map Name [Name])
+dependenciesOf table = fmap nub . getDependencies []
   where
     getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
     getDependencies used (Marked m target) = 
       if elem target used 
       then Left $ Recursive target 
       else case extractDependencies <$> lookup target table of 
-        Nothing -> Left $ NoMatchingName target m
+        Nothing -> Left $ NoMatchingName target (findSimilarName target (map fst table)) m
         Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
 
 extractDependencies :: Notated [Marked String] -> [Marked Name]
@@ -526,3 +534,14 @@ colorChar (Colored c s) = "\\033[3" <> case c of
     White   -> "7"
     Transp  -> "0"
   <> "m" <> clean s
+
+findSimilarName :: Name -> [Name] -> Maybe Name
+findSimilarName name = listToMaybe <<< sortOn (cancel name)
+
+cancel :: Name -> Name -> Int
+cancel []     name = length name 
+cancel (n:ns) name = let cut = rm n name in cancel ns cut + if cut == name then 1 else -1
+  where 
+    rm x []     = []
+    rm x (y:ys) = if x == y then ys else y : rm x ys
+

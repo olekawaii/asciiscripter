@@ -24,7 +24,11 @@ data Layer = Layer {
 }
 
 data Mark 
-  = File {origin :: FilePath, line :: LineNumber}
+  = File {
+    origin :: FilePath, 
+    line   :: LineNumber, 
+    block  :: Maybe Name
+  }
   | Arguments
   | None
 
@@ -39,7 +43,7 @@ data Error
   | Parse String String String Mark
   | Value String String Int Int Mark
   | Custom String Mark
-  | NoMatchingName Name Mark
+  | NoMatchingName Name (Maybe Name) Mark 
   | Recursive Name
   | ArgError String
   | Help
@@ -89,11 +93,12 @@ instance Show Error where
     Custom s m 
       -> show m
       <> s 
-    NoMatchingName a m
+    NoMatchingName a suggestion m
       -> show m
-      <> "Could not find the gif "
+      <> "Could not find the gif '"
       <> colour Magenta a
-      <> " in the input files"
+      <> "' in the input files"
+      <> maybe "" (\name -> ". Did you mean " <> colour Magenta name <> "?") suggestion
     Recursive a
       -> show None
       <> "The script "
@@ -117,11 +122,12 @@ instance Show Error where
 instance Show Mark where
   show x = "\x1b[31;1mError\x1b[0m " <> (
     case x of
-      File {origin = o, line = l} -> 
-        "at line " <> 
-        show (Colored Cyan l) <> 
-        " in " <>
-        colour Cyan o
+      File {origin = o, line = l, block = b} 
+        -> "at line " 
+        <> show (Colored Cyan l) 
+        <> " in " 
+        <> colour Cyan o
+        <> maybe "" (\name -> " (in the gif " <> colour Magenta name <> ")") b
       Arguments -> "in the \x1b[33marguments\x1b[0m"
       None      -> ""
     ) <> ":\n"
