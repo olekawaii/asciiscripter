@@ -135,3 +135,21 @@ gif
                     ....................
                     ....................
 fig
+
+1 1 1 f1
+scr
+ frame 1
+ 1 DRA 1 1 cube_big
+rcs
+
+1 1 1 f2
+scr
+frame 1
+1 DRAW 1 1 f3
+rcs
+
+1 1 1 f3
+scr
+frame 1
+1 DRAW 1 1 f1
+rcs

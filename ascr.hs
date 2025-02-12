@@ -186,7 +186,7 @@ dependenciesOf table = fmap nub . getDependencies []
     getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
     getDependencies used (Marked m target) = 
       if elem target used 
-      then Left $ Recursive target 
+      then Left $ Recursive target (reverse $ target : used) 
       else case extractDependencies <$> lookup target table of 
         Nothing -> Left $ NoMatchingName target (findSimilarName target (map fst table)) m
         Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
@@ -344,7 +344,8 @@ solve e header (Script x) =
       "FREEZE" -> case xs of
         [] -> pure $ Freeze layer
         x -> Left $ Value command "args" 0 (length x)
-      _ -> Left (Parse "command" "Command" "Idk")
+      command -> Left $ BadCommand command (findSimilarName command legalCommands) -- Left (Parse "command" "Command" "Idk")
+        where legalCommands = ["SHIFT","DRAW","SLOW","SKIP","FREEZE","REVERSE","CLEAR"]
 
     interpritCommands :: [[Command]] -> OrError Gif
     interpritCommands coms = pure . map toFrame $ helper coms []
@@ -535,8 +536,8 @@ colorChar (Colored c s) = "\\033[3" <> case c of
     Transp  -> "0"
   <> "m" <> clean s
 
-findSimilarName :: Name -> [Name] -> Maybe Name
-findSimilarName name = listToMaybe <<< sortOn (cancel name)
+findSimilarName :: Name -> [Name] -> Suggestion
+findSimilarName name = Suggestion . listToMaybe . sortOn (cancel name)
 
 cancel :: Name -> Name -> Int
 cancel []     name = length name 

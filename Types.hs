@@ -23,6 +23,12 @@ data Layer = Layer {
   gif    :: [Map Coordinate (Colored Char)]
 }
 
+data Suggestion = Suggestion (Maybe String) 
+
+instance Show Suggestion where
+  show (Suggestion Nothing) = ""
+  show (Suggestion (Just x)) = " Did you mean " <> colour Green x <> "?"
+
 data Mark 
   = File {
     origin :: FilePath, 
@@ -43,12 +49,13 @@ data Error
   | Parse String String String Mark
   | Value String String Int Int Mark
   | Custom String Mark
-  | NoMatchingName Name (Maybe Name) Mark 
-  | Recursive Name
+  | NoMatchingName Name Suggestion Mark 
+  | Recursive Name [Name]
   | ArgError String
   | Help
   | CommandArg String Int Int Mark
   | ReallyCustom String
+  | BadCommand String Suggestion Mark
 
 instance Show Error where 
   show Help =
@@ -60,6 +67,12 @@ instance Show Error where
     <> "  \x1b[33m-m\x1b[0m        Past StdIn as a comment into the output script\n"
     <> "  \x1b[33m-q\x1b[0m        Suppress success gif"
   show err = case err of
+    BadCommand s suggestion m
+      -> show m
+      <> "The command '"
+      <> s
+      <> "' doesn't exist."
+      <> show suggestion
     Delimiter s m 
       -> show m 
       <> "The delimiter "
@@ -98,12 +111,13 @@ instance Show Error where
       <> "Could not find the gif '"
       <> colour Magenta a
       <> "' in the input files"
-      <> maybe "" (\name -> ". Did you mean " <> colour Magenta name <> "?") suggestion
-    Recursive a
+      <> show suggestion
+    Recursive a l
       -> show None
       <> "The script "
       <> colour Magenta a
-      <> " called itself recursively"
+      <> " called itself recursively.\n"
+      <> foldr1 (\x y -> colour Magenta x <> " -> " <> colour Magenta y) l
     ArgError s
       -> show Arguments
       <> s
@@ -120,15 +134,15 @@ instance Show Error where
       -> x
 
 instance Show Mark where
-  show x = "\x1b[31;1mError\x1b[0m " <> (
+  show x = "\x1b[31;1mError\x1b[0m" <> (
     case x of
       File {origin = o, line = l, block = b} 
-        -> "at line " 
+        -> " at line " 
         <> show (Colored Cyan l) 
         <> " in " 
         <> colour Cyan o
         <> maybe "" (\name -> " (in the gif " <> colour Magenta name <> ")") b
-      Arguments -> "in the \x1b[33marguments\x1b[0m"
+      Arguments -> " in the \x1b[33marguments\x1b[0m"
       None      -> ""
     ) <> ":\n"
     
