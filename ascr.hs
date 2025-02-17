@@ -19,6 +19,8 @@ import Types
 
 infix 8 ...
 
+legalCommands = ["SHIFT", "DRAW", "SLOW", "SKIP", "FREEZE", "REVERSE", "CLEAR"]
+
 main = flip parseArgs defaultMods <$> getArgs >>= \case
   Left e -> exitWithError e
   Right (mods,target,args) ->
@@ -40,7 +42,7 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
 
 formatShell :: Modifiers -> Header -> Maybe String -> [String] -> (ShellScript, ShellScript)
 formatShell mods header message renderedFrames = case renderedFrames of
-  [frame] -> (gif, gif <> "; sleep 3" <> clear)
+  [frame] -> (gif, gif <> "; sleep 2" <> clear)
     where gif = comment <> "printf '" <> frame <> "'"
   frames  -> (intro <> loop <> body <> done, intro <> body <> clear)
     where 
@@ -345,7 +347,6 @@ solve e header (Script x) =
         [] -> pure $ Freeze layer
         x -> Left $ Value command "args" 0 (length x)
       command -> Left $ BadCommand command (findSimilarName command legalCommands) -- Left (Parse "command" "Command" "Idk")
-        where legalCommands = ["SHIFT","DRAW","SLOW","SKIP","FREEZE","REVERSE","CLEAR"]
 
     interpritCommands :: [[Command]] -> OrError Gif
     interpritCommands coms = pure . map toFrame $ helper coms []
@@ -359,7 +360,7 @@ solve e header (Script x) =
             helper (as:xs) $ 
             insertVal 
               layer 
-              (Layer {coord = coord, gif = map (formatFrame header) gif, header = header}) 
+              (Layer {coord = coord, gif = map (formatFrame header) gif}) 
               sol
           Shift layer x y -> 
             helper (as:xs) (changeGif sol layer (shiftAll x y <$>))
@@ -371,7 +372,8 @@ solve e header (Script x) =
               (x:xs) -> x : reverse xs
             )
           Clear layer -> 
-            helper (as:xs) (filter ((/= layer) . fst) sol)
+            -- helper (as:xs) (filter ((/= layer) . fst) sol)
+            helper (as:xs) (Map.toList . Map.delete layer . Map.fromList $ sol)
           Freeze layer -> 
             helper (as:xs) (changeGif sol layer $ \case
               [] -> []
@@ -546,3 +548,36 @@ cancel (n:ns) name = let cut = rm n name in cancel ns cut + if cut == name then 
     rm x []     = []
     rm x (y:ys) = if x == y then ys else y : rm x ys
 
+{-
+ - funcion taken x ammount of args
+ - args are called with $x syntax and it gets replaced with the word
+ - functions are expanded before calculating dependencies
+ - compilation done in one step with normal scripts
+-}
+
+parseLine :: Marked [String] -> Map Name Fn -> OrError (Map Name (Block (Notated [Marked String])))
+parseLine ("DRW":xs) fns = parseInto [Val, Val] xs fns >>= \(line, blocks)
+
+parse :: [String] -> Map -> FnVal
+parse (x:xs) map = lookup x map >>= \arglist -> helper arglist xs
+  where 
+    helper :: [Int] -> [String] -> [Name]
+    helper [] _ = []
+    helper (argnum:other) lst = 
+      let (want, leftover) = grab argnum lst in 
+      FnVals want : helper other leftover
+      where 
+        grab 0 []         = []
+        grab x (lst:lsts) = 
+          if argnum == 0 
+          then lst : grab (pred x) lsts 
+          else concat (take (argnum (lst:lsts))) : grab (pred x) (drop argnum (lst:lsts))
+
+
+data FnArg = Val String | Args
+
+uwu :: Map Name H -> [String] -> FnArg
+uwu map = uwu_real 1
+  where
+    uwu_real :: Int -> [String] -> FnArg
+    uwu_real 0 leftover = ([] ,leftover)

@@ -153,3 +153,171 @@ scr
 frame 1
 1 DRAW 1 1 f1
 rcs
+
+
+
+
+com
+
+bird_idle -> 5 8 1
+gif
+...
+fig
+
+bird_on_tree gif -> 10 4 3
+scr
+frame 1
+  2 1 1 < $1
+  1 2 5 < rose
+frame 2 3
+rcs
+
+---
+main -> 10 4 3
+scr
+<o>
+1
+bird = bird_on_tree(4, bird_on_tree(bird_idle))
+bird = bird_on_tree 4 bird_on_tree bird_idle
+render 2 1 2 bird_on_tree bird bird_on_tree bird_idle
+2 3
+
+13 11 48 robot_juggler
+scr
+  frame 1 
+    69 DRAW 12 1 signiture
+    7 DRAW 1 1 uwu
+    2 DRAW 5 4 robot2
+      2 SLOW 2
+    0 DRAW 5 2 body
+    8 DRAW 9 3 arm
+      8 SKIP 5
+    15 DRAW 1 3 arm2
+      15 SLOW 1
+      15 SKIP 3
+    10 DRAW 6 1 legs
+      10 SLOW 6
+  frame 2 48
+rcs
+
+13 11 48 robot_juggler
+scr
+1 
+draw ^69 12 1 signiture
+draw ^7  1  1 uwu
+draw ^2  5  4 slow 2 robot2 
+draw ^0  5  2 body
+draw ^8  9  3 skip 5 arm
+draw ^15 1  3 skip 3 slow 1 arm 2
+draw ^10 6  1 slow 6 legs
+slow 7 ^1
+2 48
+rcs
+
+robo_juggler : int gif (gif -> gif) -> gif
+scr robot_juggler a b f -> 13 11 48 {
+
+scr robot_juggler 0 0 2 -> 13 11 48 {
+
+robot_juggler -> 13 11 48 {
+scr
+1 
+DRW 69 mov 12 1  signiture
+DRW 2  mov 5  4  slow      2 robot2 
+DRW 0  mov 5  2  body
+DRW 8  mov 9  3  skip      5 arm
+DRW 15 mov 1  3  skip      3 slow   1 arm2
+DRW 10 mov 6  1  slow      6 legs
+DRW 1  slw 7  *1
+DRW 7  uwu
+MOV 1 1 1
+2 48
+}
+  
+rcs
+
+mov INT GIF ->`` $2 $2 ($2 * $1) {}
+
+
+sk
+
+TARGET:
+moc
+
+18 7 1 test_uwu 
+gif
+bird_idle -> 9 5 1777777777777777777
+    ,,   ....11...777777777777711777
+  <')    ..371....777777777773717777
+   ( \   ...171...777777777777171777
+---YY----222332222777777777222332222
+     |\  .....11..777777777777771177
+end               777777777777777777
+fig
+
+com
+on_tree 0 -> 10 10 2
+
+
+uwu {
+draw move 2 2 on_tree slow 2 bird
+}
+
+becomes fn {
+draw move$2$2$bird
+}
+
+slow$2$bird -> 9 5 2 {
+1
+1 dRAW bird
+1 SLOW
+2 
+}
+
+---
+hi there
+<o>
+
+move :: int -> int -> gif -> gif
+
+draw :: gif -> gif
+
+rndr :: gif -> gif // with IO
+
+slow :: int -> gif -> gif
+
+skip :: int -> gif -> int
+
+robot_juggler -> 13 11 48 {
+scr
+1 
+DRW 69 mov 12 1  signiture
+DRW 2  mov 5  4  slow      2 robot2 
+DRW 0  mov 5  2  body
+DRW 8  mov 9  3  skip      5 arm
+DRW 15 mov 1  3  skip      3 slow   1 arm2
+DRW 10 mov 6  1  slow      6 legs
+DRW 1  slw 7  *1
+DRW 7  uwu
+MOV 1 1 1
+2 48
+
+parallel
+  
+  xxx
+ yxxx
+zyxxx
+zyyy
+zzz
+
+}
+
+cmp bird 
+cmp slow 2 robot 
+    mv 5 1 robot
+
+evaluate locally
+
+1 DRAW uwu other third
+       ^^^^^^^^^^^^^^^
+moc

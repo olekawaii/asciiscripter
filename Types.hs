@@ -15,10 +15,24 @@ type Coordinate    = (Int,Int)
 type Line          = String
 type Lines         = [String] --Map LineNumber String
 
+-- data Fn = Fn {
+--   h      :: Header,
+--   fn     :: [Value]
+-- }
+
+-- data FnVal = Func [FnVal] | Val String
+
+data FnArg = Fn | Val 
+  deriving Show
+
+data Block a = Block {
+  header :: Header,
+  code   :: a
+}
+
 data OutputFile = Gif | Image deriving Eq
 
 data Layer = Layer {
-  header :: Header,
   coord  :: Coordinate,
   gif    :: [Map Coordinate (Colored Char)]
 }
@@ -148,7 +162,7 @@ instance Show Mark where
     
 
 data Modifiers = Modifiers {
-  frameTime         :: Float,
+  frameTime   :: Float,
   directory   :: FilePath,
   message     :: Bool,
   quiet       :: Bool,
@@ -157,6 +171,7 @@ data Modifiers = Modifiers {
 } deriving Show
 
 data Header = Header {
+  fnArg   :: [FnArg],
   width   :: Int,
   height  :: Int,
   frames  :: Int,
@@ -209,3 +224,4 @@ colorCode Magenta = "\x1b[35m"
 colorCode Cyan    = "\x1b[36m"
 colorCode White   = "\x1b[37m"
 colorCode Transp  = "\x1b[30m"
+
