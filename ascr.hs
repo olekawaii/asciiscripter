@@ -548,40 +548,6 @@ cancel (n:ns) name = let cut = rm n name in cancel ns cut + if cut == name then 
     rm x []     = []
     rm x (y:ys) = if x == y then ys else y : rm x ys
 
-{-
- - funcion taken x ammount of args
- - args are called with $x syntax and it gets replaced with the word
- - functions are expanded before calculating dependencies
- - compilation done in one step with normal scripts
--}
-
--- parseLine :: Marked [String] -> Map Name Fn -> OrError (Map Name (Block (Notated [Marked String])))
--- parseLine ("DRW":xs) fns = parseInto [Val, Val] xs fns >>= \(line, blocks) -> undefined
-
--- parse :: [String] -> Map -> FnVal
--- parse (x:xs) map = lookup x map >>= \arglist -> helper arglist xs
---   where 
---     helper :: [Int] -> [String] -> [Name]
---     helper [] _ = []
---     helper (argnum:other) lst = 
---       let (want, leftover) = grab argnum lst in 
---       FnVals want : helper other leftover
---       where 
---         grab 0 []         = []
---         grab x (lst:lsts) = 
---           if argnum == 0 
---           then lst : grab (pred x) lsts 
---           else concat (take (argnum (lst:lsts))) : grab (pred x) (drop argnum (lst:lsts))
-
-
--- data FnArg = Val String | Args
---
--- uwu :: Map Name H -> [String] -> FnArg
--- uwu map = uwu_real 1
---   where
---     uwu_real :: Int -> [String] -> FnArg
---     uwu_real 0 leftover = ([] ,leftover)
-
 applyFn :: Data -> Data -> Maybe Data
 applyFn Data {typeSigniture = Type _} _ = Nothing
 applyFn Data {typeSigniture = Fn a b, currentArgs = args, function = f} arg = 
@@ -591,37 +557,25 @@ applyFn Data {typeSigniture = Fn a b, currentArgs = args, function = f} arg =
     currentArgs    = args <> [arg],
     function       = f
   } 
-  else error (show (Fn a b) <> " against " <> show arg)
+  else Nothing -- error (show (Fn a b) <> " against " <> show arg)
 
 
 evaluate :: Data -> Maybe ReturnType
 evaluate Data {typeSigniture = Fn _ _} = Nothing
 evaluate Data {currentArgs = args, function = f} = pure $ f args
 
-
--- parseExpression :: Type -> [Data] -> Maybe (Data, [Data])
--- -- parseExpression t [x] = fromJust $ applyFn 
--- parseExpression t (current@Data {typeSigniture = Type a} : other) = 
---   if t == Type a then pure (current, other) else Nothing
--- parseExpression t (current@Data {typeSigniture = Fn a b} : other) = 
---   if t == Fn a b then pure (current, other) else
---   parseExpression a (other) >>= \(arg, leftover) -> 
---   parseExpression b (fromJust (applyFn current arg):leftover)
-
 parseRealExpression want x = case parseExpression want x of
   Nothing -> Nothing
   Just (x,[]) -> Just x
   _ -> Nothing
   
-
 parseExpression :: Type -> [Data] -> Maybe (Data, [Data])
 parseExpression want (x@Data {typeSigniture = tp} : xs) = 
   if tp == want then pure (x,xs) else case tp of
-    Type a -> pure (x,xs)-- error "here"
-    Fn a b -> parseExpression a xs >>= \(arg@Data {typeSigniture = s}, leftover) -> 
-      let target = if s == a then Fn a b else b in
-      applyFn x arg >>= 
-      parseExpression target . (:leftover) 
+    Type a -> pure (x,xs)
+    Fn a b -> parseExpression a xs >>= \(arg, leftover) -> 
+      let target = if typeSigniture arg == a then Fn a b else b in
+      applyFn x arg >>= parseExpression target . (:leftover) 
 
 add :: Data
 add = Data {
@@ -635,3 +589,13 @@ five = Data {
   currentArgs = [],
   function = const (I 5)
 }
+
+parseTypeSigniture :: [String] -> Maybe (Type, [String])
+parseTypeSigniture ("gif":xs) = pure (Type Giff, xs)
+parseTypeSigniture ("int":xs) = pure (Type Int,  xs)
+parseTypeSigniture ("fn":xs)  = 
+  parseTypeSigniture xs >>= \(a,b) ->
+  parseTypeSigniture b  >>= \(c,d) ->
+  pure (Fn a c, d)
+parseTypeSigniture _ = Nothing
+
