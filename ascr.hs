@@ -597,3 +597,19 @@ applyFn Data {typeSigniture = Fn a b, currentArgs = args, function = f} arg =
 evaluate :: Data -> Maybe ReturnType
 evaluate Data {typeSigniture = Fn _ _} = Nothing
 evaluate Data {currentArgs = args, function = f} = pure $ f args
+
+
+-- parseExpression :: Type -> [Data] -> Maybe (Data, [Data])
+-- -- parseExpression t [x] = fromJust $ applyFn 
+-- parseExpression t (current@Data {typeSigniture = Type a} : other) = 
+--   if t == Type a then pure (current, other) else Nothing
+-- parseExpression t (current@Data {typeSigniture = Fn a b} : other) = 
+--   if t == Fn a b then pure (current, other) else
+--   parseExpression a (other) >>= \(arg, leftover) -> 
+--   parseExpression b (fromJust (applyFn current arg):leftover)
+
+parseExpression want (x@Data {typeSigniture = tp} : xs) = 
+  if tp == want then pure (x,xs) else case tp of
+    Type a -> Nothing
+    Fn a b -> parseExpression a xs >>= \(arg, leftover) ->
+      applyFn x arg >>= parseExpression b . (:leftover)
