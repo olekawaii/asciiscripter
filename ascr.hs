@@ -591,7 +591,7 @@ applyFn Data {typeSigniture = Fn a b, currentArgs = args, function = f} arg =
     currentArgs    = args <> [arg],
     function       = f
   } 
-  else Nothing
+  else error (show (Fn a b) <> " against " <> show arg)
 
 
 evaluate :: Data -> Maybe ReturnType
@@ -608,8 +608,30 @@ evaluate Data {currentArgs = args, function = f} = pure $ f args
 --   parseExpression a (other) >>= \(arg, leftover) -> 
 --   parseExpression b (fromJust (applyFn current arg):leftover)
 
+parseRealExpression want x = case parseExpression want x of
+  Nothing -> Nothing
+  Just (x,[]) -> Just x
+  _ -> Nothing
+  
+
+parseExpression :: Type -> [Data] -> Maybe (Data, [Data])
 parseExpression want (x@Data {typeSigniture = tp} : xs) = 
   if tp == want then pure (x,xs) else case tp of
-    Type a -> Nothing
-    Fn a b -> parseExpression a xs >>= \(arg, leftover) ->
-      applyFn x arg >>= parseExpression b . (:leftover)
+    Type a -> pure (x,xs)-- error "here"
+    Fn a b -> parseExpression a xs >>= \(arg@Data {typeSigniture = s}, leftover) -> 
+      let target = if s == a then Fn a b else b in
+      applyFn x arg >>= 
+      parseExpression target . (:leftover) 
+
+add :: Data
+add = Data {
+  typeSigniture = Fn (Type Int) (Fn (Type Int) (Type Int)),
+  currentArgs = [],
+  function = I . sum . map (\(I x) -> x) . map (fromJust . evaluate)
+}
+
+five = Data {
+  typeSigniture = Type Int,
+  currentArgs = [],
+  function = const (I 5)
+}
