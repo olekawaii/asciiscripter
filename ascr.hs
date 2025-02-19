@@ -555,29 +555,45 @@ cancel (n:ns) name = let cut = rm n name in cancel ns cut + if cut == name then 
  - compilation done in one step with normal scripts
 -}
 
-parseLine :: Marked [String] -> Map Name Fn -> OrError (Map Name (Block (Notated [Marked String])))
-parseLine ("DRW":xs) fns = parseInto [Val, Val] xs fns >>= \(line, blocks)
+-- parseLine :: Marked [String] -> Map Name Fn -> OrError (Map Name (Block (Notated [Marked String])))
+-- parseLine ("DRW":xs) fns = parseInto [Val, Val] xs fns >>= \(line, blocks) -> undefined
 
-parse :: [String] -> Map -> FnVal
-parse (x:xs) map = lookup x map >>= \arglist -> helper arglist xs
-  where 
-    helper :: [Int] -> [String] -> [Name]
-    helper [] _ = []
-    helper (argnum:other) lst = 
-      let (want, leftover) = grab argnum lst in 
-      FnVals want : helper other leftover
-      where 
-        grab 0 []         = []
-        grab x (lst:lsts) = 
-          if argnum == 0 
-          then lst : grab (pred x) lsts 
-          else concat (take (argnum (lst:lsts))) : grab (pred x) (drop argnum (lst:lsts))
+-- parse :: [String] -> Map -> FnVal
+-- parse (x:xs) map = lookup x map >>= \arglist -> helper arglist xs
+--   where 
+--     helper :: [Int] -> [String] -> [Name]
+--     helper [] _ = []
+--     helper (argnum:other) lst = 
+--       let (want, leftover) = grab argnum lst in 
+--       FnVals want : helper other leftover
+--       where 
+--         grab 0 []         = []
+--         grab x (lst:lsts) = 
+--           if argnum == 0 
+--           then lst : grab (pred x) lsts 
+--           else concat (take (argnum (lst:lsts))) : grab (pred x) (drop argnum (lst:lsts))
 
 
-data FnArg = Val String | Args
+-- data FnArg = Val String | Args
+--
+-- uwu :: Map Name H -> [String] -> FnArg
+-- uwu map = uwu_real 1
+--   where
+--     uwu_real :: Int -> [String] -> FnArg
+--     uwu_real 0 leftover = ([] ,leftover)
 
-uwu :: Map Name H -> [String] -> FnArg
-uwu map = uwu_real 1
-  where
-    uwu_real :: Int -> [String] -> FnArg
-    uwu_real 0 leftover = ([] ,leftover)
+applyFn :: Data -> Data -> Maybe Data
+applyFn Data {typeSigniture = Type _} _ = Nothing
+applyFn Data {typeSigniture = Fn a b, currentArgs = args, function = f} arg = 
+  if a == typeSigniture arg 
+  then pure Data {
+    typeSigniture  = b,
+    currentArgs    = args <> [arg],
+    function       = f
+  } 
+  else Nothing
+
+
+evaluate :: Data -> Maybe ReturnType
+evaluate Data {typeSigniture = Fn _ _} = Nothing
+evaluate Data {currentArgs = args, function = f} = pure $ f args

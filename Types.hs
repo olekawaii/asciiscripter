@@ -15,15 +15,40 @@ type Coordinate    = (Int,Int)
 type Line          = String
 type Lines         = [String] --Map LineNumber String
 
+data Type = Type SimpleType | Fn Type Type deriving Eq
+
+instance Show Type where
+  show (Type x) = show x
+  show (Fn a b) = wrap a <> " -> " <> show b
+    where 
+      wrap x = let fin = show x in case x of 
+        Fn f j -> "(" <> fin <> ")"
+        _      -> fin
+
+
+data SimpleType = Int | Giff deriving Eq
+
+instance Show SimpleType where
+  show Int  = "int"
+  show Giff = "gif"
+
+data Data = Data {
+  typeSigniture :: Type,
+  currentArgs   :: [Data],
+  function      :: [Data] -> ReturnType
+}
+
+data ReturnType = I Int | G Gif deriving Show
+
+instance Show Data where
+  show Data {typeSigniture = t, currentArgs = c} = "fn " <> show (length c) <> " :: " <> show t
+
 -- data Fn = Fn {
 --   h      :: Header,
 --   fn     :: [Value]
 -- }
 
 -- data FnVal = Func [FnVal] | Val String
-
-data FnArg = Fn | Val 
-  deriving Show
 
 data Block a = Block {
   header :: Header,
@@ -171,7 +196,6 @@ data Modifiers = Modifiers {
 } deriving Show
 
 data Header = Header {
-  fnArg   :: [FnArg],
   width   :: Int,
   height  :: Int,
   frames  :: Int,
