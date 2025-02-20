@@ -15,7 +15,14 @@ type Coordinate    = (Int,Int)
 type Line          = String
 type Lines         = [String] --Map LineNumber String
 
+type RealGif = Map Coordinate (Colored Char)
+
 data Type = Type SimpleType | Fn Type Type deriving Eq
+
+data NewHeader = NewHeader {
+  new_name :: String,
+  typeSig  :: Type
+} deriving Show
 
 instance Show Type where
   show (Type x) = show x
@@ -33,15 +40,16 @@ instance Show SimpleType where
   show Giff = "gif"
 
 data Data = Data {
+  currentName   :: String,
   typeSigniture :: Type,
   currentArgs   :: [Data],
   function      :: [Data] -> ReturnType
 }
 
-data ReturnType = I Int | G Gif deriving Show
+data ReturnType = I Int | G RealGif deriving Show
 
 instance Show Data where
-  show Data {typeSigniture = t, currentArgs = c} = "fn " <> show (length c) <> " :: " <> show t
+  show Data {typeSigniture = t, currentArgs = c, currentName = n} = n <> " : " <> show t
 
 -- data Fn = Fn {
 --   h      :: Header,
@@ -95,6 +103,7 @@ data Error
   | CommandArg String Int Int Mark
   | ReallyCustom String
   | BadCommand String Suggestion Mark
+  | TypeMismatch Name Type Mark
 
 instance Show Error where 
   show Help =
@@ -106,6 +115,12 @@ instance Show Error where
     <> "  \x1b[33m-m\x1b[0m        Past StdIn as a comment into the output script\n"
     <> "  \x1b[33m-q\x1b[0m        Suppress success gif"
   show err = case err of
+    TypeMismatch n1 t1 m
+      -> show m
+      <> colour Cyan n1
+      <> ": "
+      <> colour Yellow (show t1)
+      <> " was passed an argument of the wrong type"
     BadCommand s suggestion m
       -> show m
       <> "The command '"

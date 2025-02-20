@@ -548,16 +548,20 @@ cancel (n:ns) name = let cut = rm n name in cancel ns cut + if cut == name then 
     rm x []     = []
     rm x (y:ys) = if x == y then ys else y : rm x ys
 
-applyFn :: Data -> Data -> Maybe Data
-applyFn Data {typeSigniture = Type _} _ = Nothing
-applyFn Data {typeSigniture = Fn a b, currentArgs = args, function = f} arg = 
-  if a == typeSigniture arg 
+applyFn :: Data -> Data -> OrError Data
+applyFn Data {typeSigniture = Type t, currentName = name} _ = Left $ TypeMismatch name (Type t) None
+applyFn 
+  Data {typeSigniture = Fn a b, currentArgs = args, function = f, currentName = name} 
+  arg@Data {typeSigniture = s, currentName = name2} = 
+  if a == s
   then pure Data {
+    currentName    = 
+      name <> " " <> if length (words name2) > 1 then "(" <> name2 <> ")" else name2,
     typeSigniture  = b,
     currentArgs    = args <> [arg],
     function       = f
   } 
-  else Nothing -- error (show (Fn a b) <> " against " <> show arg)
+  else Left $ TypeMismatch name (Fn a b) None
 
 
 evaluate :: Data -> Maybe ReturnType
@@ -565,26 +569,30 @@ evaluate Data {typeSigniture = Fn _ _} = Nothing
 evaluate Data {currentArgs = args, function = f} = pure $ f args
 
 parseRealExpression want x = case parseExpression want x of
-  Nothing -> Nothing
-  Just (x,[]) -> Just x
-  _ -> Nothing
+  Left x -> Left x
+  Right (x,[]) -> Right x
+  Right (Data {currentName = name, typeSigniture = t} ,_) -> Left $ TypeMismatch name t None
   
-parseExpression :: Type -> [Data] -> Maybe (Data, [Data])
+parseExpression :: Type -> [Data] -> OrError (Data, [Data])
+parseExpression want [] = Left $ Custom "Missing arguments" None
 parseExpression want (x@Data {typeSigniture = tp} : xs) = 
   if tp == want then pure (x,xs) else case tp of
-    Type a -> pure (x,xs)
+    Type a -> Left $ TypeMismatch "your mom" (tp) None -- pure (x,xs)
     Fn a b -> parseExpression a xs >>= \(arg, leftover) -> 
-      let target = if typeSigniture arg == a then Fn a b else b in
+      -- let target = if typeSigniture arg == a then Fn a b else b in
+      let target = if typeSigniture arg == a then a else b in
       applyFn x arg >>= parseExpression target . (:leftover) 
 
 add :: Data
 add = Data {
+  currentName  = "add",
   typeSigniture = Fn (Type Int) (Fn (Type Int) (Type Int)),
   currentArgs = [],
   function = I . sum . map (\(I x) -> x) . map (fromJust . evaluate)
 }
 
 five = Data {
+  currentName = "five",
   typeSigniture = Type Int,
   currentArgs = [],
   function = const (I 5)
@@ -599,3 +607,54 @@ parseTypeSigniture ("fn":xs)  =
   pure (Fn a c, d)
 parseTypeSigniture _ = Nothing
 
+-- uwu : fn int fn int int
+
+newMain :: String -> IO ()
+newMain = readFile >=> print . new_parse . lines
+
+new_parse :: [String] -> Map NewHeader [String]
+new_parse [] = []
+new_parse x  = let (inside, other) = find_leftover x in (parse_header (words $ head x), inside) : new_parse other
+  where 
+    find_leftover :: [String] -> ([String],[String])
+    find_leftover (a:as) = case words a of
+      ["end"] -> ([],as)
+      other   -> first (<> [a]) $ find_leftover as
+    parse_header (x:xs) = NewHeader {
+      new_name = x,
+      typeSig  = fst $ fromJust $ parseTypeSigniture xs
+    }
+
+
+builtinFns :: Map Name Data 
+builtinFns = [
+  ("move", Data {
+      currentName   = "move",
+      typeSigniture = Fn (Type Int) (Fn (Type Int) (Fn (Type Giff) (Type Giff))),
+      currentArgs   = [],
+      function      = \[a, b, c] -> 
+        let 
+          Just (I x) = evaluate a 
+          Just (I y) = evaluate b
+          Just (G z) = evaluate c
+        in
+        G $ map (\((f,g),thing) -> ((f + x, g + y), thing)) z
+  }),
+
+  ("reverse", Data {
+      currentName   = "reverse",
+      typeSigniture = Fn (Type Giff) (Type Giff),
+      currentArgs   = [],
+      function      = \[a] ->
+        let Just (G x) = evaluate a in
+        G $ reverse x
+  })
+ ]
+
+testVal :: Data 
+testVal = Data  {
+ currentName     = "testVal",
+  typeSigniture  = Type Giff,
+  currentArgs    = [],
+  function = undefined
+}
