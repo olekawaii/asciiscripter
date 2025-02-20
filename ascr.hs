@@ -669,8 +669,8 @@ parseScript name tp table xs =
       parseScript (('$':num):xs) = case readMaybe num of
         Nothing -> Left $ Custom "$ must be preceded by a number" None
         Just x  -> 
-          if x > numArgs 
-          then Left $ Custom "index is greater then the number of arguments" None 
+          if x > numArgs || x < 1
+          then Left $ Custom "index is greater than the number of arguments" None 
           else (Left x :) <$> parseScript xs
       parseScript (x:xs) = 
         if all (`elem` ['0'..'9']) x 
@@ -686,9 +686,10 @@ parseScript name tp table xs =
           
         else
           case lookup x table of
-            Nothing -> Left $ Custom "variable not in scome" None
+            Nothing -> Left $ Custom "variable not in scope" None
             Just x  -> (Right x :) <$> parseScript xs
     in
+    -- TODO test if argument types match up
     parseScript xs >>= \newTable -> pure Data {
       currentName   = name,
       typeSigniture = tp,
@@ -696,7 +697,7 @@ parseScript name tp table xs =
       function      = \args -> 
         let 
         matcher x = case x of
-          Left i  -> args !! i
+          Left i  -> args !! (i - 1)
           Right x -> x
         in
         case parseRealExpression (result tp) $ map matcher newTable of
