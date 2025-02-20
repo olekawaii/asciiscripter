@@ -658,3 +658,59 @@ testVal = Data  {
   currentArgs    = [],
   function = undefined
 }
+
+parseScript :: Name -> Type -> Map Name Data -> [String] -> OrError Data
+parseScript name tp table xs = 
+    let
+      numArgs = numberOfArgs tp
+
+      parseScript :: [String] -> OrError [Either Int Data]
+      parseScript [] = pure []
+      parseScript (('$':num):xs) = case readMaybe num of
+        Nothing -> Left $ Custom "$ must be preceded by a number" None
+        Just x  -> 
+          if x > numArgs 
+          then Left $ Custom "index is greater then the number of arguments" None 
+          else (Left x :) <$> parseScript xs
+      parseScript (x:xs) = 
+        if all (`elem` ['0'..'9']) x 
+        then 
+          let 
+            d = Data {
+              currentName   = x,
+              typeSigniture = Type Int,
+              currentArgs   = [],
+              function      = const (I (read x))
+            }
+          in (Right d :) <$> parseScript xs
+          
+        else
+          case lookup x table of
+            Nothing -> Left $ Custom "variable not in scome" None
+            Just x  -> (Right x :) <$> parseScript xs
+    in
+    parseScript xs >>= \newTable -> pure Data {
+      currentName   = name,
+      typeSigniture = tp,
+      currentArgs   = [],
+      function      = \args -> 
+        let 
+        matcher x = case x of
+          Left i  -> args !! i
+          Right x -> x
+        in
+        case parseRealExpression (result tp) $ map matcher newTable of
+          Left e  -> error (show e)
+          Right e -> case evaluate e of
+            Nothing  -> error "f"
+            Just x -> x
+    }
+
+
+numberOfArgs :: Type -> Int
+numberOfArgs (Type _) = 0
+numberOfArgs (Fn _ b) = 1 + numberOfArgs b
+
+result :: Type -> Type
+result (Type x) = Type x
+result (Fn _ b) = result b
