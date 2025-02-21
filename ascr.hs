@@ -564,8 +564,8 @@ applyFn
   else Left $ TypeMismatch name (Fn a b) None
 
 
-evaluate :: Data -> Maybe ReturnType
-evaluate Data {typeSigniture = Fn _ _} = Nothing
+evaluate :: Data -> OrError ReturnType
+evaluate Data {typeSigniture = Fn _ _} = Left $ Custom "can't evaluate a function" None
 evaluate Data {currentArgs = args, function = f} = pure $ f args
 
 parseRealExpression want x = case parseExpression want x of
@@ -588,8 +588,10 @@ add = Data {
   currentName  = "add",
   typeSigniture = Fn (Type Int) (Fn (Type Int) (Type Int)),
   currentArgs = [],
-  function = I . sum . map (\(I x) -> x) . map (fromJust . evaluate)
+  function = I . sum . map (\(I x) -> x) . map (fromRight . evaluate)
 }
+
+fromRight (Right x) = x
 
 five = Data {
   currentName = "five",
@@ -628,28 +630,50 @@ new_parse x  = let (inside, other) = find_leftover x in (parse_header (words $ h
 
 builtinFns :: Map Name Data 
 builtinFns = [
-  ("move", Data {
+    ("move"    , movef    ),
+    ("reverse" , reversef ),
+    ("skip"    , skipf    )
+  ]
+  where 
+    movef = Data {
       currentName   = "move",
       typeSigniture = Fn (Type Int) (Fn (Type Int) (Fn (Type Giff) (Type Giff))),
       currentArgs   = [],
       function      = \[a, b, c] -> 
         let 
-          Just (I x) = evaluate a 
-          Just (I y) = evaluate b
-          Just (G z) = evaluate c
+          Right (I x) = evaluate a 
+          Right (I y) = evaluate b
+          Right (G z) = evaluate c
         in
         G $ map (\((f,g),thing) -> ((f + x, g + y), thing)) z
-  }),
+    }
 
-  ("reverse", Data {
+    reversef = Data {
       currentName   = "reverse",
       typeSigniture = Fn (Type Giff) (Type Giff),
       currentArgs   = [],
       function      = \[a] ->
-        let Just (G x) = evaluate a in
+        let Right (G x) = evaluate a in
         G $ reverse x
-  })
- ]
+    }
+
+    skipf = Data {
+      currentName   = "skip",
+      typeSigniture = Fn (Type Int) (Fn (Type Giff) (Type Giff)),
+      currentArgs   = [],
+      function      = \[a,b] ->
+        let 
+          Right (I x) = evaluate a 
+          Right (G y) = evaluate b
+          
+          toTake :: Int -> Int -> Int
+          toTake x y = if x <= y then x else toTake (x - y) y
+          
+          (fst, snd)  = splitAt (toTake x (length y)) y
+        in
+        G $ snd <> fst
+         
+    }
 
 testVal :: Data 
 testVal = Data  {
@@ -661,15 +685,30 @@ testVal = Data  {
 
 parseScript :: Name -> Type -> Map Name Data -> [String] -> OrError Data
 parseScript name tp table xs = 
-    let
-      numArgs = numberOfArgs tp
-
+  -- TODO test if argument types match up
+  parseScript xs >>= \newTable -> pure Data {
+    currentName   = name,
+    typeSigniture = tp,
+    currentArgs   = [],
+    function      = \args -> 
+      let 
+      matcher x = case x of
+        Left i  -> args !! (i - 1)
+        Right x -> x
+      in
+      case parseRealExpression (result tp) $ map matcher newTable of
+        Left e  -> error (show e)
+        Right e -> case evaluate e of
+          Left  e -> error (show e)
+          Right x -> x
+  }
+    where
       parseScript :: [String] -> OrError [Either Int Data]
       parseScript [] = pure []
       parseScript (('$':num):xs) = case readMaybe num of
         Nothing -> Left $ Custom "$ must be preceded by a number" None
         Just x  -> 
-          if x > numArgs || x < 1
+          if x > numberOfArgs tp || x < 1
           then Left $ Custom "index is greater than the number of arguments" None 
           else (Left x :) <$> parseScript xs
       parseScript (x:xs) = 
@@ -688,24 +727,6 @@ parseScript name tp table xs =
           case lookup x table of
             Nothing -> Left $ Custom "variable not in scope" None
             Just x  -> (Right x :) <$> parseScript xs
-    in
-    -- TODO test if argument types match up
-    parseScript xs >>= \newTable -> pure Data {
-      currentName   = name,
-      typeSigniture = tp,
-      currentArgs   = [],
-      function      = \args -> 
-        let 
-        matcher x = case x of
-          Left i  -> args !! (i - 1)
-          Right x -> x
-        in
-        case parseRealExpression (result tp) $ map matcher newTable of
-          Left e  -> error (show e)
-          Right e -> case evaluate e of
-            Nothing  -> error "f"
-            Just x -> x
-    }
 
 
 numberOfArgs :: Type -> Int
