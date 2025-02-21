@@ -20,8 +20,9 @@ type RealGif = Map Coordinate (Colored Char)
 data Type = Type SimpleType | Fn Type Type deriving Eq
 
 data NewHeader = NewHeader {
-  new_name :: String,
-  typeSig  :: Type
+  new_name    :: String,
+  typeSig     :: Type,
+  block_mark  :: Mark
 } deriving Show
 
 instance Show Type where

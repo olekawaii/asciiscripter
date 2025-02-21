@@ -568,20 +568,20 @@ evaluate :: Data -> OrError ReturnType
 evaluate Data {typeSigniture = Fn _ _} = Left $ Custom "can't evaluate a function" None
 evaluate Data {currentArgs = args, function = f} = pure $ f args
 
-parseRealExpression want x = case parseExpression want x of
+parseRealExpression want x = case evaluateExpression want x of
   Left x -> Left x
   Right (x,[]) -> Right x
   Right (Data {currentName = name, typeSigniture = t} ,_) -> Left $ TypeMismatch name t None
   
-parseExpression :: Type -> [Data] -> OrError (Data, [Data])
-parseExpression want [] = Left $ Custom "Missing arguments" None
-parseExpression want (x@Data {typeSigniture = tp} : xs) = 
+evaluateExpression :: Type -> [Data] -> OrError (Data, [Data])
+evaluateExpression want [] = Left $ Custom "Missing arguments" None
+evaluateExpression want (x@Data {typeSigniture = tp} : xs) = 
   if tp == want then pure (x,xs) else case tp of
     Type a -> Left $ TypeMismatch "your mom" (tp) None -- pure (x,xs)
-    Fn a b -> parseExpression a xs >>= \(arg, leftover) -> 
+    Fn a b -> evaluateExpression a xs >>= \(arg, leftover) -> 
       -- let target = if typeSigniture arg == a then Fn a b else b in
       let target = if typeSigniture arg == a then a else b in
-      applyFn x arg >>= parseExpression target . (:leftover) 
+      applyFn x arg >>= evaluateExpression target . (:leftover) 
 
 add :: Data
 add = Data {
@@ -611,22 +611,32 @@ parseTypeSigniture _ = Nothing
 
 -- uwu : fn int fn int int
 
-newMain :: String -> IO ()
-newMain = readFile >=> print . new_parse . lines
+-- newMain :: String -> IO ()
+-- newMain = readFile >=> print . new_parse . lines
 
-new_parse :: [String] -> Map NewHeader [String]
+new_parse :: [Marked String] -> Map Name (NewHeader, [Marked String])
 new_parse [] = []
-new_parse x  = let (inside, other) = find_leftover x in (parse_header (words $ head x), inside) : new_parse other
+new_parse all@(Marked m x : xs) = (new_name header, (header, inside)) : new_parse other
   where 
-    find_leftover :: [String] -> ([String],[String])
-    find_leftover (a:as) = case words a of
-      ["end"] -> ([],as)
-      other   -> first (<> [a]) $ find_leftover as
+    (inside, other) = find_leftover all 
+
+    header = parse_header $ words x
+
+    find_leftover :: [Marked String] -> ([Marked String],[Marked String])
+    find_leftover (Marked m a : as) = case trim a of
+      "end" -> ([],as)
+      _     -> first (<> [Marked m a]) $ find_leftover as
+
     parse_header (x:xs) = NewHeader {
-      new_name = x,
+      new_name = init x,
       typeSig  = fst $ fromJust $ parseTypeSigniture xs
     }
 
+trim :: String -> String
+trim = reverse . trimhelper . reverse . trimhelper
+  where
+    trimhelper [] = []
+    trimhelper (' ':xs) = trimhelper xs
 
 builtinFns :: Map Name Data 
 builtinFns = [
@@ -670,9 +680,7 @@ builtinFns = [
           toTake x y = if x <= y then x else toTake (x - y) y
           
           (fst, snd)  = splitAt (toTake x (length y)) y
-        in
-        G $ snd <> fst
-         
+        in G $ snd <> fst
     }
 
 testVal :: Data 
@@ -683,14 +691,63 @@ testVal = Data  {
   function = undefined
 }
 
-parseScript :: Name -> Type -> Map Name Data -> [String] -> OrError Data
-parseScript name tp table xs = 
+parseBlock :: NewHeader -> [Marked String] -> Map Name Data-> OrError Data
+parseBlock header all@(x:xs) table = 
+  let 
+    fun = case traverse readMaybe (words (unwrap x)) of
+      Just [a, b, c] -> parseGif header a b c xs
+      Nothing        -> parseScript header table (concat . map (words . unwrap) $ all) 
+  in fun >>= \fn -> pure Data {
+    currentName = new_name header,
+    typeSigniture = typeSig header,
+    currentArgs = [],
+    function = fn
+  }
+
+
+parseGif :: NewHeader -> Int -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
+parseGif header w h f lns = 
+  if mod (length lns) h /= 0 
+  then Left $ Custom 
+    (
+      "A gif's number of lines should be divisible by the header's height.\nYou have "
+      <> show (length lns) <> " lines." 
+    )
+    (block_mark header)
+  else concat <$> traverse validateStrings (chunksOf h lns) >>= \gif -> 
+    if length gif == f
+      then pure $ \_ -> G $ 
+            liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip` concat gif
+      else Left $ Value "script's number of frames" "frames" f (length gif) (block_mark header) 
+  where 
+    validateStrings :: [Marked String] -> OrError [[Colored Char]]
+    validateStrings [] = pure []
+    validateStrings (x:xs) = firstStrLen >>= \lnlen -> 
+      map concat . chunksOf h . map parseColorLine . rearange <$> helper (x:xs) lnlen
+      where
+        firstStrLen = let lnlen = length . stripWhitespace $ unwrap x in
+          if lnlen `mod` w == 0
+          then pure lnlen
+          else Left $ Custom 
+            (
+              "A gif's chars per line should be divisible by the header's width.\nYou have "
+              <> show lnlen <> " chars." 
+            ) (getMark x)
+
+        rearange :: [String] -> [String]
+        rearange = concat . transpose . map (chunksOf (w * 2))
+
+        helper :: [Marked String] -> Int -> OrError [String]
+        helper [] _ = pure []
+        helper ((Marked m x):xs) n = let len = length x in
+          if len /= n
+          then Left $ Value "line" "characters" n len m
+          else cons x <$> helper xs n
+
+parseScript :: NewHeader -> Map Name Data -> [String] -> OrError ([Data] -> ReturnType)
+parseScript NewHeader {typeSig = tp} table xs = 
   -- TODO test if argument types match up
-  parseScript xs >>= \newTable -> pure Data {
-    currentName   = name,
-    typeSigniture = tp,
-    currentArgs   = [],
-    function      = \args -> 
+  helperParseScript xs >>= \newTable -> pure $ \args -> 
       let 
       matcher x = case x of
         Left i  -> args !! (i - 1)
@@ -701,17 +758,16 @@ parseScript name tp table xs =
         Right e -> case evaluate e of
           Left  e -> error (show e)
           Right x -> x
-  }
     where
-      parseScript :: [String] -> OrError [Either Int Data]
-      parseScript [] = pure []
-      parseScript (('$':num):xs) = case readMaybe num of
+      helperParseScript :: [String] -> OrError [Either Int Data]
+      helperParseScript [] = pure []
+      helperParseScript (('$':num):xs) = case readMaybe num of
         Nothing -> Left $ Custom "$ must be preceded by a number" None
         Just x  -> 
           if x > numberOfArgs tp || x < 1
           then Left $ Custom "index is greater than the number of arguments" None 
-          else (Left x :) <$> parseScript xs
-      parseScript (x:xs) = 
+          else (Left x :) <$> helperParseScript xs
+      helperParseScript (x:xs) = 
         if all (`elem` ['0'..'9']) x 
         then 
           let 
@@ -721,12 +777,12 @@ parseScript name tp table xs =
               currentArgs   = [],
               function      = const (I (read x))
             }
-          in (Right d :) <$> parseScript xs
+          in (Right d :) <$> helperParseScript xs
           
         else
           case lookup x table of
             Nothing -> Left $ Custom "variable not in scope" None
-            Just x  -> (Right x :) <$> parseScript xs
+            Just x  -> (Right x :) <$> helperParseScript xs
 
 
 numberOfArgs :: Type -> Int
