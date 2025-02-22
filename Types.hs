@@ -15,7 +15,7 @@ type Coordinate    = (Int,Int)
 type Line          = String
 type Lines         = [String] --Map LineNumber String
 
-type RealGif = Map Coordinate (Colored Char)
+type RealGif = [Map Coordinate (Colored Char)]
 
 data Type = Type SimpleType | Fn Type Type deriving Eq
 

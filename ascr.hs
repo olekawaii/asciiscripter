@@ -21,16 +21,37 @@ infix 8 ...
 
 legalCommands = ["SHIFT", "DRAW", "SLOW", "SKIP", "FREEZE", "REVERSE", "CLEAR"]
 
+-- main = flip parseArgs defaultMods <$> getArgs >>= \case
+--   Left e -> exitWithError e
+--   Right (mods,target,args) ->
+--     gigaParse (Marked Arguments target) mods . concat . zipWith number args <$> mapM readFile args >>= \case 
+--       Left e -> exitWithError e
+--       Right (header,gif) -> 
+--         (if message mods then fmap pure getContents else pure Nothing) >>= \messageIn ->
+--         let
+--           file = directory mods <> "/" <> target <> ".sh"
+--           (fileSh, command) = new_formatShell mods header messageIn . pipeline $ map (chunksOf $ width header) gif
+--         in
+--         putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
+--         unless (check mods) (
+--           writeFile file fileSh >> 
+--           callCommand ("chmod +x " <> file) >>
+--           putStrLn ("Gif saved to " <> colour Cyan file <> ".")
+--         ) >> 
+--         unless (quiet mods) (callCommand command)
+
 main = flip parseArgs defaultMods <$> getArgs >>= \case
   Left e -> exitWithError e
   Right (mods,target,args) ->
-    gigaParse (Marked Arguments target) mods . concat . zipWith number args <$> mapM readFile args >>= \case 
+    (>>= evaluate) . newGiga (Marked Arguments target) mods . concat . zipWith number args <$> mapM readFile args >>= \case 
       Left e -> exitWithError e
-      Right (header,gif) -> 
+      Right (I int) -> print int
+      Right (G gif) -> 
         (if message mods then fmap pure getContents else pure Nothing) >>= \messageIn ->
         let
           file = directory mods <> "/" <> target <> ".sh"
-          (fileSh, command) = formatShell mods header messageIn . pipeline $ map (chunksOf $ width header) gif
+          (int, newGif) = changeFormat gif
+          (fileSh, command) = new_formatShell mods int messageIn . pipeline $ newGif
         in
         putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
         unless (check mods) (
@@ -39,7 +60,7 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
           putStrLn ("Gif saved to " <> colour Cyan file <> ".")
         ) >> 
         unless (quiet mods) (callCommand command)
-
+        
 formatShell :: Modifiers -> Header -> Maybe String -> [String] -> (ShellScript, ShellScript)
 formatShell mods header message renderedFrames = case renderedFrames of
   [frame] -> (gif, gif <> "; sleep 2" <> clear)
@@ -68,6 +89,30 @@ formatShell mods header message renderedFrames = case renderedFrames of
     comment = "#!/bin/sh\n" <> maybe "" (unlines . map ("# " <>) . lines) message <> "\n"
     clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[0m"
 
+new_formatShell :: Modifiers -> Int  -> Maybe String -> [String] -> (ShellScript, ShellScript)
+new_formatShell mods ht message renderedFrames = case renderedFrames of
+  [frame] -> (gif, gif <> "; sleep 2" <> clear)
+    where gif = comment <> "printf '" <> frame <> "'"
+  frames  -> (intro <> loop <> body <> done, intro <> body <> clear)
+    where 
+      helper :: [String] -> String -> Float -> [String]
+      helper [] _ i       = ["  sleep " <> show (frameTime mods * i) <> "\n # empty case\n"]
+      helper (x:xs) old i = 
+        if x == old 
+        then helper xs old (i + 1)
+        else let draw = "  draw '" <> x <> "'\n" in 
+          if i > 0 
+          then ("  sleep " <> show (frameTime mods * i) <> "\n") : draw : helper xs x 0.0
+          else draw : helper xs x 0.0
+      intro = comment <> "draw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " <> 
+        show (frameTime mods) <> "\n}\n" <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
+      loop = "while true\ndo\n"
+      body = concat (helper frames "" 0.0)
+      done = "done"
+  where
+    comment = "#!/bin/sh\n" <> maybe "" (unlines . map ("# " <>) . lines) message <> "\n"
+    clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[0m"
+    
 getMark :: Marked x -> Mark
 getMark (Marked m _) = m
 
@@ -80,6 +125,26 @@ defaultMods = Modifiers {
   check     = False,
   text      = False
 }
+
+-- TODO
+changeFormat :: RealGif -> (Int, [[[Colored Char]]])
+changeFormat x = (y_max - y_min + 1, map convertFrame x) 
+  where 
+    (xx,yy) = unzip $ map fst (head x)
+    x_min = minimum xx
+    x_max = maximum xx
+    y_min = minimum yy
+    y_max = maximum yy 
+    chart = liftA2 (flip (,))  [y_max, y_max -1 .. y_min] [x_min..x_max]
+    convertFrame :: Map Coordinate (Colored Char) -> [[Colored Char]]
+    -- convertFrame a =  chunksOf (y_max - y_min) $ map lookupChar chart
+    convertFrame a =  chunksOf (x_max - x_min + 1) $ map lookupChar chart
+      where
+        lookupChar want = case lookup want a of
+          Just a  -> a
+          Nothing -> Colored Transp ' '
+
+    
 
 parseInt :: String -> String -> OrToError Int
 parseInt x y = case readMaybe x of
@@ -103,6 +168,12 @@ gigaParse target@(Marked m t) mods =
   cutSpace >=> parse >=> \x -> 
   flip dependenciesOf target (map (first name) x) >>=
   \d -> fromJust . find ((== t) . name . fst) <$> win [] d x
+
+newGiga target mods =
+  cleanInput >=> new_parse >=> \x ->
+  findDependencies x target >>=
+  \d -> fromJust . lookup (unwrap target) <$> new_win builtinFns d x  
+
 
 maybeGuard :: (a -> Bool) -> a -> Maybe a
 maybeGuard f a = if f a then pure a else Nothing
@@ -159,6 +230,15 @@ win uwu []          _ = pure uwu
 win uwu ((n,[]):xs) d = solve uwu `uncurry` (fromJust . find ((== n) . name . fst)) d >>= \s -> 
                         win (s:uwu) (second (filter (/= n)) <$> xs) d
 win uwu (x:xs)      d = win uwu (append x xs) d
+
+new_win :: Map Name Data -> Dependencies -> Map Name (NewHeader, [Marked String]) -> OrError (Map Name Data)
+new_win uwu []          _ = pure uwu
+new_win uwu ((n,[]):xs) d = 
+  let (header@NewHeader {new_name = name}, str) = fromJust $ lookup n d in
+  parseBlock header str uwu >>= \s -> 
+  new_win ((name,s):uwu) (second (filter (/= n)) <$> xs) d
+new_win uwu (x:xs)      d = new_win uwu (append x xs) d
+
 
 -- finds closing delimiter and returs up to and after it
 -- getDelimiter :: Lines -> good -> OrError (inside, outside)
@@ -614,29 +694,27 @@ parseTypeSigniture _ = Nothing
 -- newMain :: String -> IO ()
 -- newMain = readFile >=> print . new_parse . lines
 
-new_parse :: [Marked String] -> Map Name (NewHeader, [Marked String])
-new_parse [] = []
-new_parse all@(Marked m x : xs) = (new_name header, (header, inside)) : new_parse other
-  where 
-    (inside, other) = find_leftover all 
-
-    header = parse_header $ words x
-
-    find_leftover :: [Marked String] -> ([Marked String],[Marked String])
-    find_leftover (Marked m a : as) = case trim a of
-      "end" -> ([],as)
-      _     -> first (<> [Marked m a]) $ find_leftover as
-
-    parse_header (x:xs) = NewHeader {
-      new_name = init x,
-      typeSig  = fst $ fromJust $ parseTypeSigniture xs
-    }
+cleanInput :: [Marked String] -> OrError [Marked String]
+cleanInput [] = pure []
+cleanInput (Marked m s : xs) = case trim s of
+  ""    -> cleanInput xs
+  "---" -> findClosing xs >>= cleanInput
+  "<o>" -> Left $ BadDelimiter "<o>" m
+  _     -> (Marked m (stripWhitespace s) :) <$> cleanInput xs
+  where
+    findClosing [] = pure []
+    findClosing (Marked m a : as) = case trim a of
+      "<o>" -> pure as
+      "---" -> Left $ BadDelimiter "---" m
+      _     -> findClosing as
+    
 
 trim :: String -> String
 trim = reverse . trimhelper . reverse . trimhelper
   where
     trimhelper [] = []
     trimhelper (' ':xs) = trimhelper xs
+    trimhelper x = x
 
 builtinFns :: Map Name Data 
 builtinFns = [
@@ -655,7 +733,7 @@ builtinFns = [
           Right (I y) = evaluate b
           Right (G z) = evaluate c
         in
-        G $ map (\((f,g),thing) -> ((f + x, g + y), thing)) z
+        G $ map (map (\((f,g),thing) -> ((f + x, g + y), thing))) z
     }
 
     reversef = Data {
@@ -691,11 +769,12 @@ testVal = Data  {
   function = undefined
 }
 
-parseBlock :: NewHeader -> [Marked String] -> Map Name Data-> OrError Data
+parseBlock :: NewHeader -> [Marked String] -> Map Name Data -> OrError Data
 parseBlock header all@(x:xs) table = 
   let 
     fun = case traverse readMaybe (words (unwrap x)) of
       Just [a, b, c] -> parseGif header a b c xs
+      Just _         -> Left $ Custom "incorrect art header" (block_mark header)
       Nothing        -> parseScript header table (concat . map (words . unwrap) $ all) 
   in fun >>= \fn -> pure Data {
     currentName = new_name header,
@@ -717,7 +796,7 @@ parseGif header w h f lns =
   else concat <$> traverse validateStrings (chunksOf h lns) >>= \gif -> 
     if length gif == f
       then pure $ \_ -> G $ 
-            liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip` concat gif
+            map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) gif
       else Left $ Value "script's number of frames" "frames" f (length gif) (block_mark header) 
   where 
     validateStrings :: [Marked String] -> OrError [[Colored Char]]
@@ -768,7 +847,7 @@ parseScript NewHeader {typeSig = tp} table xs =
           then Left $ Custom "index is greater than the number of arguments" None 
           else (Left x :) <$> helperParseScript xs
       helperParseScript (x:xs) = 
-        if all (`elem` ['0'..'9']) x 
+        if all (`elem` nums) x 
         then 
           let 
             d = Data {
@@ -792,3 +871,57 @@ numberOfArgs (Fn _ b) = 1 + numberOfArgs b
 result :: Type -> Type
 result (Type x) = Type x
 result (Fn _ b) = result b
+
+-- dependenciesOf :: Map Name (Notated [Marked String]) -> Marked Name -> OrError (Map Name [Name])
+-- dependenciesOf table = fmap nub . getDependencies []
+--   where
+--     getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
+--     getDependencies used (Marked m target) = 
+--       if elem target used 
+--       then Left $ Recursive target (reverse $ target : used) 
+--       else case extractDependencies <$> lookup target table of 
+--         Nothing -> Left $ NoMatchingName target (findSimilarName target (map fst table)) m
+--         Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
+
+findDependencies :: Map Name (NewHeader, [Marked String]) -> Marked Name -> OrError (Map Name [Name])
+findDependencies table = fmap nub . getDependencies []
+  where 
+    getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
+    getDependencies used (Marked m target) =
+      if elem target (map fst builtinFns) then pure [] else
+      if elem target used
+      then Left $ Recursive target (reverse $ target : used) 
+      else case extract . snd <$> lookup target table :: Maybe [Marked String] of 
+        Nothing -> Left $ NoMatchingName target (findSimilarName target (map fst table)) m
+        Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
+        
+    extract :: [Marked String] -> [Marked Name]
+    extract allah@(Marked m x : xs) = 
+      if head x `elem` nums
+      then [] 
+      else helper . concat . map (\(Marked m x) -> map (Marked m) (words x)) $ allah
+        where
+          helper :: [Marked String] -> [Marked String]
+          helper = filter (\(Marked m x) -> (x `notElem` map fst builtinFns) && not (all (`elem` ('$':nums)) x))
+
+new_parse :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
+new_parse [] = pure []
+new_parse all@(Marked m x : xs) = 
+  find_leftover xs >>= \(inside, other) -> ((new_name header, (header, inside)) :) <$> new_parse other
+  where 
+
+    header = parse_header $ words x
+
+    find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
+    find_leftover (Marked m a : as) = case trim a of
+      "end" -> pure ([],as)
+      _     -> fmap (first (Marked m a :)) $ find_leftover as
+
+    parse_header (x:xs) = NewHeader {
+      new_name   = init x,
+      typeSig    = fst $ fromJust $ parseTypeSigniture xs,
+      block_mark = m
+    }
+
+
+nums = ['0'..'9']
