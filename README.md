@@ -3,6 +3,8 @@
 ASCR is a pure lazy statically-typed functional language to generate colorful
 ascii animations from text files. Check out some examples in the gifs/ directory.
 
+There is an example output at `gifs/new.aa` `./main.sh` and a linux binary at `./ascr`
+
 Let's start with a demonstration. Create a file named `bird.ascr` and inside 
 paste:
 
