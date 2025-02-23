@@ -34,11 +34,12 @@ instance Show Type where
         _      -> fin
 
 
-data SimpleType = Int | Giff deriving Eq
+data SimpleType = Int | Giff | Colour deriving Eq
 
 instance Show SimpleType where
-  show Int  = "int"
-  show Giff = "gif"
+  show Int   = "int"
+  show Giff  = "gif"
+  show Colour = "color"
 
 data Data = Data {
   currentName   :: String,
@@ -47,7 +48,7 @@ data Data = Data {
   function      :: [Data] -> ReturnType
 }
 
-data ReturnType = I Int | G RealGif deriving Show
+data ReturnType = I Int | G RealGif | C Color deriving Show
 
 instance Show Data where
   show Data {typeSigniture = t, currentArgs = c, currentName = n} = n <> " : " <> show t
@@ -203,6 +204,7 @@ instance Show Mark where
     
 
 data Modifiers = Modifiers {
+  target      :: String,
   frameTime   :: Float,
   directory   :: FilePath,
   message     :: Bool,
@@ -246,7 +248,7 @@ data Color
   | Cyan     
   | White    
   | Transp
-  deriving Eq
+  deriving (Show, Eq)
 
 instance Show a => Show (Colored a) where
   show (Colored color c) = colour color (show c)
