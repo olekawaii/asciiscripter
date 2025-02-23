@@ -50,14 +50,14 @@ red   111...green 22222.
 yellow333333blue  4444..
 end
 ```
-
+```
 name:              colors
 type:              gif
 width:             6
 height:            1
 number of frames:  4
 the first frame:   "red   " colored red
-
+```
 The three numbers representing width, height, and frames, are followed by <frames>
 rectangles of size (width * 2, height). The left half is the art and the right
 are the corresponding ansi colours, the colors being:
@@ -170,39 +170,37 @@ This concludes the intro. Here's a juggling_robot animation. Use
 `ascr -n <name> <path to this file>` to browse and tinker with it.
 
 ````
-<o>
-
 robot: gif
 5 7 8 
-c O .6.5.  O  ..5.. O o .5.6.o   o5...6
-V  ..5..  |  ..5..  V  ..5.. \./ .526.
+ c O .6.5.  O  ..5.. O o .5.6.o   o5...6
+  V  ..5..  |  ..5..  V  ..5.. \./ .526.
 [_ ]]77072 [ ] .702.[[_ ]72202[__ ]22202
-( ) .5.6.  \  ..6..  \  ..6.. \ / .6.5.
-\  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
-( ) .6.5.  \  ..5..  \  ..5.. ( ) .5.6.
-\  ..6.. ( ) .6.5. ( ) .6.5.  \  ..5..
+ ( ) .5.6.  \  ..6..  \  ..6.. \ / .6.5.
+  \  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
+ ( ) .6.5.  \  ..5..  \  ..5.. ( ) .5.6.
+  \  ..6.. ( ) .6.5. ( ) .6.5.  \  ..5..
 
-c O .5.6.  O  ..6.. O o .6.5.o   o6...5
-V  ..6..  |  ..6..  V  ..6.. \./ .675.
+ c O .5.6.  O  ..6.. O o .6.5.o   o6...5
+  V  ..6..  |  ..6..  V  ..6.. \./ .675.
 [_ ]]22027 [ ] .207.[[_ ]27707[__ ]77707
-( ) .6.5.  \  ..5..  \  ..5.. \ / .5.6.
-\  ..6.. ( ) .6.5. ( ) .6.5.  \  ..5..
-( ) .5.6.  \  ..6..  \  ..6.. ( ) .6.5.
-\  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
+ ( ) .6.5.  \  ..5..  \  ..5.. \ / .5.6.
+  \  ..6.. ( ) .6.5. ( ) .6.5.  \  ..5..
+ ( ) .5.6.  \  ..6..  \  ..6.. ( ) .6.5.
+  \  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
 end
 
 dress_white: gif
 5 4 2
-._. .777. ._. .777.
-) ( .777. ) ( .777.
+ ._. .777. ._. .777.
+ ) ( .777. ) ( .777.
 //..\77777/,.\\77777
 /,|\\77777//|.\77777
 end
 
 dress_red: gif
 5 4 1
-._. .111.
-| | .111.
+ ._. .111.
+ | | .111.
 //W\\11111
 .....
 end
@@ -214,27 +212,27 @@ gifs are spawened with the bottom left corner at (1, 1)
 
 right_arm: gif
 5 2 8 
-|   .7...  /  ..7..    /....7    /....7
+ |   .7...  /  ..7..    /....7    /....7
 W    2....VV   22...\/\/ 2222.\/\/ 2222.
 
-/....7  /  ..70. /   .700. |   .7...
+/    ....7  /  ..70. /   .700. |   .7...
 \/\/ 2222.VV   22...W    2....W    2....
 end
 
 left_arm: gif
 5 3 8 
-.....     .....__   77...__   77...
-__  .77.. __  .77..  \__..222  \__..222
-\/...22   \/...22     .....     .....
+     .....     .....__   77...__   77...
+ __  .77.. __  .77..  \__..222  \__..222
+   \/...22   \/...22     .....     .....
 
-|   07...  /  007..     .....     .....
-\__.0222  \__..222  |  ..7..  \  ..7..
-.....     .....   \/...22   \/...22
+ |   07...  /  007..     .....     .....
+  \__.0222  \__..222  |  ..7..  \  ..7..
+     .....     .....   \/...22   \/...22
 end
 
 legs: gif
 3 1 4
-)\.22
+ )\.22
 ( )2.2
 /( 22.
 ( )2.2
@@ -251,7 +249,7 @@ seq take 5 null
 seq dye blue ball
 seq take 5 null
 seq dye yellow ball 
-take 5 null
+  take 5 null
 end
 
 ---
@@ -294,7 +292,7 @@ join skip 5 move 9 3 right_arm
 join slow 2 move 5 4 robot
 join wheel
 join move 5 1 slow 4 $1
-slow 6 move 6 1 legs
+     slow 6 move 6 1 legs
 end
 
 ---
