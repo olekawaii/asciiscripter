@@ -29,8 +29,8 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
         (if m then fmap pure getContents else pure Nothing) >>= \messageIn ->
         let
           file = d <> "/" <> t <> ".sh"
-          (int, newGif) = changeFormat gif
-          (fileSh, command) = new_formatShell mods int messageIn . pipeline $ newGif
+          (height, newGif) = changeFormat gif
+          (fileSh, command) = new_formatShell mods height messageIn . pipeline $ newGif
         in
         putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
         unless c (
@@ -40,7 +40,7 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
           putStrLn ("Gif saved to " <> colour Cyan file <> ".")
         ) >> 
         unless q (callCommand command)-- (callCommand command)
-        
+
 new_formatShell :: Modifiers -> Int  -> Maybe String -> [String] -> (ShellScript, ShellScript)
 new_formatShell mods ht message renderedFrames = case renderedFrames of
   [frame] -> (gif, gif <> "; sleep 2" <> clear)
@@ -64,7 +64,7 @@ new_formatShell mods ht message renderedFrames = case renderedFrames of
   where
     comment = "#!/bin/sh\n" <> maybe "" (unlines . map ("# " <>) . lines) message <> "\n"
     clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[0m"
-    
+
 getMark :: Marked x -> Mark
 getMark (Marked m _) = m
 
@@ -685,3 +685,111 @@ new_parse all@(Marked m x : xs) =
     }
 
 nums = ['0'..'9']
+
+checkTypes :: Mark -> Name -> Type -> Map Type Name -> OrError (Name, Map Type Name)
+--    x     mark currentName currentType [next]
+checkTypes m name (Type a) idc = pure (name, idc) 
+checkTypes m name f@(Fn a b) other@((t,n):xs) = 
+  if f == t then pure (name <> surround n, xs) else case t of
+    Type _ -> Left $ TypeMismatch name a m
+    Fn x y -> 
+        if not (isPossible a t) then Left $ TypeMismatch name a m else
+        checkTypes m name a other >>= \(arg, leftover) -> 
+        checkTypes m (name <> surround arg) b leftover 
+  -- if t == want then pure (xs) else case t of
+  --   Type a -> Left $ TypeMismatch name want m
+  --   Fn a b -> 
+
+surround :: String -> String
+surround x = case words x of
+  [_] -> x
+  _   -> " (" <> x <> ")"
+
+isPossible :: Type -> Type -> Bool
+isPossible w f@(Fn a b) = w == f || isPossible w b
+isPossible w got        = w == got
+  
+-- checkTypes want [] = Left $ Custom "Missing arguments" None
+-- checkTypes want (x@Data {typeSigniture = tp} : xs) = 
+--   if tp == want then pure (x,xs) else case tp of
+--     Type a -> pure (x,xs) --Left $ TypeMismatch "your mom" (tp) None -- pure (x,xs)
+--     Fn a b -> checkTypes a xs >>= \(arg, leftover) -> 
+--       -- let target = if typeSigniture arg == a then Fn a b else b in
+--       let target = if typeSigniture arg == a then a else b in
+--       applyFn x arg >>= checkTypes target . (:leftover) 
+
+
+
+new_evaluate :: Data -> OrToError ReturnType
+new_evaluate Data {typeSigniture = Fn _ _} = Left $ Custom "can't new_evaluate a function"
+new_evaluate Data {currentArgs = args, function = f} = pure $ f args
+
+new_parseRealExpression want x = case new_evaluateExpression want x of
+  RealError x -> Left x
+  Success (x,[]) -> Right x
+  Func f -> Left $ Custom "TypeMismatch in the first argument"
+
+data ComplexError = RealError (Mark -> Error) | Func (Name -> Mark -> Error) | Success (Data, [Data]) 
+
+-- new_evaluateExpression :: Type -> [Data] -> ComplexError
+-- new_evaluateExpression want [] = Func (\name -> TypeMismatch name want)
+-- new_evaluateExpression (Type a) (x@Data {typeSigniture = Type b} : xs) = 
+--   if a == b then Success (x,xs) else Func (\name -> TypeMismatch name (Type a))  
+-- new_evaluateExpression want (x@Data {typeSigniture = tp} : xs) = 
+--   if tp == want then Success (x,xs) else case tp of
+--     Type a -> Func (flip TypeMismatch want) -- pure (x,xs)
+--     Fn a b -> case new_evaluateExpression a xs of
+--       RealError x             -> RealError x
+--       Func f                  -> RealError (f $ currentName x)
+--       Success (arg, leftover) -> 
+--       -- let target = if typeSigniture arg == a then Fn a b else b in
+--         let target = if typeSigniture arg == a then a else b in
+--         case applyFn x arg of
+--           Left x -> error "new_eval"
+--           Right d -> case new_evaluateExpression target (d:leftover) of 
+--             RealError x             -> RealError x
+--             Func f                  -> RealError (f $ currentName d)
+--             Success (arg, leftover) -> Success (arg, leftover)
+new_evaluateExpression :: Type -> [Data] -> ComplexError
+new_evaluateExpression want [] = Func (\name -> TypeMismatch name want)
+new_evaluateExpression (Type a) (x@Data {typeSigniture = Type b} : xs) = 
+  if a == b then Success (x,xs) else Func (\name -> TypeMismatch name (Type a))  
+new_evaluateExpression want (x@Data {typeSigniture = tp} : xs) = 
+  if tp == want then Success (x,xs) else case tp of
+    Type a -> Func (flip TypeMismatch want) -- pure (x,xs)
+    Fn a b -> case new_evaluateExpression a xs of
+      RealError x             -> RealError x
+      Func f                  -> RealError (f $ currentName x)
+      Success (arg, leftover) -> 
+        case applyFn x arg of
+          Left x -> error "new_eval"
+          Right d -> case new_evaluateExpression want (d:leftover) of 
+            RealError x             -> RealError x
+            Func f                  -> RealError (f $ currentName d)
+            Success (arg, leftover) -> Success (arg, leftover)
+
+dangerous_evaluateExpression :: Type -> [Data] -> (Data, [Data])
+dangerous_evaluateExpression (Type a) (x@Data {typeSigniture = Type _} :xs) = (x,xs)  
+dangerous_evaluateExpression want (x@Data {typeSigniture = tp} : xs) = 
+  if tp == want then (x,xs) else
+    let 
+      (arg, leftover ) = dangerous_evaluateExpression a xs 
+      (Fn a _)         = tp
+    in
+        dangerous_evaluateExpression want (dangerous_applyFn x arg : leftover) 
+        
+dangerous_applyFn :: Data -> Data -> Data
+dangerous_applyFn 
+  Data {typeSigniture = Fn a b, currentArgs = args, function = f, currentName = name} 
+  arg@Data {currentName = name2} = 
+  Data {
+    currentName    = 
+      name <> " " <> if length (words name2) > 1 then "(" <> name2 <> ")" else name2,
+    typeSigniture  = b,
+    currentArgs    = args <> [arg],
+    function       = f
+  } 
+  
+-- new_parseRealExpression want x = case new_evaluateExpression want x of
+--   Success (x,[]) -> Right x
+--   Func f -> Left $ Custom "TypeMismatch in the first argument"
