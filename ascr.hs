@@ -22,7 +22,7 @@ infix 8 ...
 main = flip parseArgs defaultMods <$> getArgs >>= \case
   Left e -> exitWithError e
   Right (mods@Modifiers {target = t, directory = d, quiet = q, check = c, message = m}, files) ->
-    (>>= evaluate) . newGiga (Marked Arguments t) mods . concat . zipWith number files <$> mapM readFile files >>= \case 
+    (evaluate <=< newGiga (Marked Arguments t) mods . concat . zipWith number files) <$> mapM readFile files >>= \case 
       Left e -> exitWithError e
       Right (I int) -> print int
       Right (G gif) -> 
@@ -34,7 +34,6 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
         in
         putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
         unless c (
-          print file >>
           writeFile file fileSh >> 
           callCommand ("chmod +x " <> file) >>
           putStrLn ("Gif saved to " <> colour Cyan file <> ".")
@@ -48,7 +47,8 @@ new_formatShell mods ht message renderedFrames = case renderedFrames of
   frames  -> (intro <> loop <> body <> done, intro <> body <> clear)
     where 
       helper :: [String] -> String -> Float -> [String]
-      helper [] _ i       = ["  sleep " <> show (frameTime mods * i) <> "\n # empty case\n"]
+      helper [] _ 0.0     = [""]    
+      helper [] _ i       = ["  sleep " <> show (frameTime mods * i)]
       helper (x:xs) old i = 
         if x == old 
         then helper xs old (i + 1)
@@ -595,46 +595,9 @@ parseGif header w h f lns =
           then Left $ Value "line" "characters" n len m
           else cons x <$> helper xs n
 
-parseScript :: NewHeader -> Map Name Data -> [String] -> OrError ([Data] -> ReturnType)
-parseScript NewHeader {typeSig = tp} table xs = 
-  -- TODO test if argument types match up
-  helperParseScript xs >>= \newTable -> pure $ \args -> 
-      let 
-      matcher x = case x of
-        Left i  -> args !! (i - 1)
-        Right x -> x
-      in
-      case parseRealExpression (result tp) $ map matcher newTable of
-        Left e  -> error (show e)
-        Right e -> case evaluate e of
-          Left  e -> error (show e)
-          Right x -> x
-    where
-      helperParseScript :: [String] -> OrError [Either Int Data]
-      helperParseScript [] = pure []
-      helperParseScript (('$':num):xs) = case readMaybe num of
-        Nothing -> Left $ Custom "$ must be preceded by a number" None
-        Just x  -> 
-          if x > numberOfArgs tp || x < 1
-          then Left $ Custom "index is greater than the number of arguments" None 
-          else (Left x :) <$> helperParseScript xs
-      helperParseScript (x:xs) = 
-        if all (`elem` nums) x 
-        then 
-          let 
-            d = Data {
-              currentName   = x,
-              typeSigniture = Type Int,
-              currentArgs   = [],
-              function      = const (I (read x))
-            }
-          in (Right d :) <$> helperParseScript xs
-          
-        else
-          case lookup x table of
-            Nothing -> Left $ Custom "variable not in scope" None
-            Just x  -> (Right x :) <$> helperParseScript xs
-
+argTypes :: Type -> [Type]
+argTypes (Fn a b) = a : argTypes b
+argTypes _        = []
 
 numberOfArgs :: Type -> Int
 numberOfArgs (Type _) = 0
@@ -709,28 +672,19 @@ isPossible :: Type -> Type -> Bool
 isPossible w f@(Fn a b) = w == f || isPossible w b
 isPossible w got        = w == got
   
--- checkTypes want [] = Left $ Custom "Missing arguments" None
--- checkTypes want (x@Data {typeSigniture = tp} : xs) = 
---   if tp == want then pure (x,xs) else case tp of
---     Type a -> pure (x,xs) --Left $ TypeMismatch "your mom" (tp) None -- pure (x,xs)
---     Fn a b -> checkTypes a xs >>= \(arg, leftover) -> 
---       -- let target = if typeSigniture arg == a then Fn a b else b in
---       let target = if typeSigniture arg == a then a else b in
---       applyFn x arg >>= checkTypes target . (:leftover) 
-
-
-
 new_evaluate :: Data -> OrToError ReturnType
 new_evaluate Data {typeSigniture = Fn _ _} = Left $ Custom "can't new_evaluate a function"
 new_evaluate Data {currentArgs = args, function = f} = pure $ f args
 
-new_parseRealExpression want x = case new_evaluateExpression want x of
+evaluateRealTypes :: Type -> [DummyData] -> OrToError DummyData
+evaluateRealTypes want x = case evaluateTypes want x of
   RealError x -> Left x
   Success (x,[]) -> Right x
   Func f -> Left $ Custom "TypeMismatch in the first argument"
 
-data ComplexError = RealError (Mark -> Error) | Func (Name -> Mark -> Error) | Success (Data, [Data]) 
+data ComplexError = RealError (Mark -> Error) | Func (Name -> Mark -> Error) | Success (DummyData, [DummyData]) 
 
+-- doing too much
 -- new_evaluateExpression :: Type -> [Data] -> ComplexError
 -- new_evaluateExpression want [] = Func (\name -> TypeMismatch name want)
 -- new_evaluateExpression (Type a) (x@Data {typeSigniture = Type b} : xs) = 
@@ -742,54 +696,121 @@ data ComplexError = RealError (Mark -> Error) | Func (Name -> Mark -> Error) | S
 --       RealError x             -> RealError x
 --       Func f                  -> RealError (f $ currentName x)
 --       Success (arg, leftover) -> 
---       -- let target = if typeSigniture arg == a then Fn a b else b in
---         let target = if typeSigniture arg == a then a else b in
 --         case applyFn x arg of
 --           Left x -> error "new_eval"
---           Right d -> case new_evaluateExpression target (d:leftover) of 
+--           Right d -> case new_evaluateExpression want (d:leftover) of 
 --             RealError x             -> RealError x
 --             Func f                  -> RealError (f $ currentName d)
 --             Success (arg, leftover) -> Success (arg, leftover)
-new_evaluateExpression :: Type -> [Data] -> ComplexError
-new_evaluateExpression want [] = Func (\name -> TypeMismatch name want)
-new_evaluateExpression (Type a) (x@Data {typeSigniture = Type b} : xs) = 
+
+evaluateTypes :: Type -> [DummyData] -> ComplexError
+evaluateTypes want [] = Func (\name -> TypeMismatch name want)
+evaluateTypes (Type a) (x@Dummy {type_sig = Type b} : xs) = 
   if a == b then Success (x,xs) else Func (\name -> TypeMismatch name (Type a))  
-new_evaluateExpression want (x@Data {typeSigniture = tp} : xs) = 
-  if tp == want then Success (x,xs) else case tp of
-    Type a -> Func (flip TypeMismatch want) -- pure (x,xs)
-    Fn a b -> case new_evaluateExpression a xs of
+evaluateTypes want (x@Dummy {type_sig = tp} : xs) = if
+  | tp == want -> Success (x,xs)
+  | not (isPossible want tp) -> Func (\name -> Custom (name <> " could never evaluate to " <> show want))
+  | otherwise  -> case tp of
+    Type a -> error (show want) --Func (flip TypeMismatch want) -- pure (x,xs)
+    Fn a b -> case evaluateTypes a xs of
       RealError x             -> RealError x
-      Func f                  -> RealError (f $ currentName x)
+      Func f                  -> RealError (f $ current_name x)
       Success (arg, leftover) -> 
-        case applyFn x arg of
-          Left x -> error "new_eval"
-          Right d -> case new_evaluateExpression want (d:leftover) of 
+        case applyDummy x arg of
+          Left x -> error "evaluateTypes "
+          Right d -> case evaluateTypes want (d:leftover) of 
             RealError x             -> RealError x
-            Func f                  -> RealError (f $ currentName d)
+            Func f                  -> RealError (f $ current_name d)
             Success (arg, leftover) -> Success (arg, leftover)
 
-dangerous_evaluateExpression :: Type -> [Data] -> (Data, [Data])
-dangerous_evaluateExpression (Type a) (x@Data {typeSigniture = Type _} :xs) = (x,xs)  
-dangerous_evaluateExpression want (x@Data {typeSigniture = tp} : xs) = 
-  if tp == want then (x,xs) else
-    let 
-      (arg, leftover ) = dangerous_evaluateExpression a xs 
-      (Fn a _)         = tp
-    in
+applyDummy :: DummyData -> DummyData -> OrError DummyData
+applyDummy Dummy {type_sig = Type _} _ = Left $ Custom "applied value to non-function" None
+applyDummy 
+  Dummy {type_sig = Fn a b, current_name = name1} 
+  Dummy {type_sig = x, current_name = name2} =
+    if x /= a 
+    then Left $ Custom "applied value to non-function" None
+    else pure Dummy {
+      current_name = name1 <> surround name2,
+      type_sig = b
+    }
+
+unsafe_eval :: Type -> [Data] -> Data
+unsafe_eval = fst ... dangerous_evaluateExpression
+  where
+    dangerous_evaluateExpression :: Type -> [Data] -> (Data, [Data])
+    dangerous_evaluateExpression (Type a) (x@Data {typeSigniture = Type _} :xs) = (x,xs)  
+    dangerous_evaluateExpression want (x@Data {typeSigniture = Fn a b} : xs) = 
+      if Fn a b == want then (x,xs) else
+        let (arg, leftover) = dangerous_evaluateExpression a xs in
         dangerous_evaluateExpression want (dangerous_applyFn x arg : leftover) 
-        
+
+
 dangerous_applyFn :: Data -> Data -> Data
 dangerous_applyFn 
   Data {typeSigniture = Fn a b, currentArgs = args, function = f, currentName = name} 
   arg@Data {currentName = name2} = 
   Data {
-    currentName    = 
-      name <> " " <> if length (words name2) > 1 then "(" <> name2 <> ")" else name2,
+    currentName    =  name <> " " <> 
+      if length (words name2) > 1 
+      then "(" <> name2 <> ")" 
+      else name2,
     typeSigniture  = b,
     currentArgs    = args <> [arg],
     function       = f
   } 
   
--- new_parseRealExpression want x = case new_evaluateExpression want x of
---   Success (x,[]) -> Right x
---   Func f -> Left $ Custom "TypeMismatch in the first argument"
+parseScript :: NewHeader -> Map Name Data -> [String] -> OrError ([Data] -> ReturnType)
+parseScript NewHeader {typeSig = tp, block_mark = m} table xs = 
+  -- TODO test if argument types match up
+  helperParseScript xs >>= \newTable -> 
+  first ($ m) (evaluateRealTypes (result tp) (map getDummy newTable) :: OrToError DummyData) >>
+  pure (\args -> 
+      let
+        matcher x = case x of
+          Left (i,_)  -> args !! (i - 1)
+          Right x -> x
+      in
+      fromRight . evaluate . unsafe_eval (result tp) $ map matcher newTable 
+    )
+    where
+      arguments = argTypes tp
+      
+      helperParseScript :: [String] -> OrError [Either (Int, Type) Data]
+      helperParseScript [] = pure []
+      helperParseScript (('$':num):xs) = case readMaybe num of
+        Nothing -> Left $ Custom "$ must be preceded by a number" m
+        Just x  -> case arguments !? x  of
+          Nothing -> 
+            Left $ Custom "index is greater than the number of arguments" m 
+          Just t ->
+            (Left (x,t) :) <$> helperParseScript xs
+      helperParseScript (x:xs) = 
+        case readMaybe x of  -- all (`elem` nums) x 
+          Just num ->             
+            let 
+              d = Data {
+                currentName   = x,
+                typeSigniture = Type Int,
+                currentArgs   = [],
+                function      = const (I num)
+              }
+            in (Right d :) <$> helperParseScript xs
+          Nothing -> case lookup x table of
+            Nothing -> Left $ Custom "variable not in scope" m
+            Just x  -> (Right x :) <$> helperParseScript xs
+
+      getDummy :: Either (Int, Type) Data -> DummyData
+      getDummy (Left (i, t)) = Dummy {
+        current_name = '$' : show i,
+        type_sig     = t
+      }
+      getDummy (Right Data {currentName = name, typeSigniture = t}) = Dummy {
+        current_name = name,
+        type_sig     = t
+      }
+
+(!?) :: [a] -> Int -> Maybe a
+(!?) y x = if x > length y 
+           then Nothing 
+           else pure $ y !! (x - 1)

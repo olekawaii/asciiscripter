@@ -48,6 +48,11 @@ data Data = Data {
   function      :: [Data] -> ReturnType
 }
 
+data DummyData = Dummy {
+  current_name   :: String,
+  type_sig       :: Type
+}
+
 data ReturnType = I Int | G RealGif | C Color deriving Show
 
 instance Show Data where
