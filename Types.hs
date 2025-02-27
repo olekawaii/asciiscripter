@@ -25,13 +25,17 @@ data NewHeader = NewHeader {
   block_mark  :: Mark
 } deriving Show
 
+-- instance Show Type where
+--   show (Type x) = show x
+--   show (Fn a b) = wrap a <> " -> " <> show b
+--     where 
+--       wrap x = let fin = show x in case x of 
+--         Fn f j -> "(" <> fin <> ")"
+--         _      -> fin
+
 instance Show Type where
-  show (Type x) = show x
-  show (Fn a b) = wrap a <> " -> " <> show b
-    where 
-      wrap x = let fin = show x in case x of 
-        Fn f j -> "(" <> fin <> ")"
-        _      -> fin
+  show (Type x) = colour Yellow (show x)
+  show (Fn a b) = colour Yellow "fn " <> show a <> " " <> show b
 
 
 data SimpleType = Int | Giff | Colour deriving Eq
@@ -52,6 +56,10 @@ data DummyData = Dummy {
   current_name   :: String,
   type_sig       :: Type
 }
+
+instance Show DummyData where
+  show Dummy {current_name = name, type_sig = tp} = 
+    colour Magenta name <> " : " <> show tp
 
 data ReturnType = I Int | G RealGif | C Color deriving Show
 
@@ -81,7 +89,7 @@ data Suggestion = Suggestion (Maybe String)
 
 instance Show Suggestion where
   show (Suggestion Nothing) = ""
-  show (Suggestion (Just x)) = " Did you mean " <> colour Green x <> "?"
+  show (Suggestion (Just x)) = ". Did you mean " <> colour Green x <> "?"
 
 data Mark 
   = File {
@@ -110,7 +118,9 @@ data Error
   | CommandArg String Int Int Mark
   | ReallyCustom String
   | BadCommand String Suggestion Mark
-  | TypeMismatch Name Type Mark
+  | TypeMismatch DummyData DummyData Mark
+
+getArg (Fn a _) = a
 
 instance Show Error where 
   show Help =
@@ -122,12 +132,15 @@ instance Show Error where
     <> "  \x1b[33m-m\x1b[0m        Past StdIn as a comment into the output script\n"
     <> "  \x1b[33m-q\x1b[0m        Suppress success gif"
   show err = case err of
-    TypeMismatch n1 t1 m
+    TypeMismatch a b m
       -> show m
-      <> colour Cyan n1
-      <> ": "
-      <> colour Yellow (show t1)
-      <> " was passed an argument of the wrong type"
+      <> show a
+      <> " expected a value of type "
+      <> (show . getArg . type_sig) a
+      <> ".\nHowever, "
+      <> show b
+      <> " could never evaluate to "
+      <> (show . getArg . type_sig) a
     BadCommand s suggestion m
       -> show m
       <> "The command '"
@@ -202,7 +215,7 @@ instance Show Mark where
         <> show (Colored Cyan l) 
         <> " in " 
         <> colour Cyan o
-        <> maybe "" (\name -> " (in the gif " <> colour Magenta name <> ")") b
+        <> maybe "" (\name -> " (in the definition of " <> colour Magenta name <> ")") b
       Arguments -> " in the \x1b[33marguments\x1b[0m"
       None      -> ""
     ) <> ":\n"
