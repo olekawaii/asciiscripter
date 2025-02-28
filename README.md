@@ -1,6 +1,6 @@
 # asciiscripter tutorial
 
-ASCR is a pure lazy statically-typed functional language to generate colorful
+ASCR is a pure statically-typed functional language to generate colorful
 ascii animations from text files. Check out some examples in the gifs/ directory.
 
 There is an example input output at `gifs/new.aa` `./main.sh` 
@@ -9,7 +9,7 @@ Let's start with a demonstration. Create a file named `bird.ascr` and inside
 paste:
 
 ```
-bird: gif
+bird : gif
 9 5 2
     ,,   ....11...
   <')    ..381....
@@ -36,7 +36,7 @@ Comments start with `---` and end with `<o>`. The eye closes and reopens again.
 Syntax of a code block:
 
 ```
-<name>: <type>
+<name> : <type>
 <content>
 end
 ```
@@ -46,7 +46,7 @@ The order of code blocks doesn't matter.
 `content` is either art or code. Here is an example of an art block:
 
 ```
-colors: gif
+colors : gif
 6 1 4
 red   111...green 22222.
 yellow333333blue  4444..
@@ -99,16 +99,16 @@ paranthesies :)
 
 Example:
 ```
-slow_and_move_up: fn gif gif
+slow_and_move_up : fn gif gif
 slow 2 move 0 1 $1  
 end
 ```
 Type signiturens:
 ```
-slow: fn int fn gif gif
-2: int
-move: fn int fn int fn gif gif
-$1: gif
+slow : fn int fn gif gif
+2 : int
+move : fn int fn int fn gif gif
+$1 : gif
 ```
 What this really is is 
 ```
@@ -133,38 +133,38 @@ add add 1 1 1        aka        add (add 1 1) 1
 ```
 ## Builtins
 ```
-move: fn int fn int fn gif gif
+move : fn int fn int fn gif gif
   Takes three inputs, an x, y, and a gif. It offsets the entire gif by the x and y
 
-slow: fn int fn gif gif
+slow : fn int fn gif gif
   Takes an int and gif. Replicates every frame in a gif by the int. `slow 2 x` 
   would double every frame and will produce a gif of x2 framecount
 
-join: fn gif fn gif gif
+join : fn gif fn gif gif
   Takes two gifs and layers them on top of each other, the first argument being
   on top. Transparent squares will be replaced by the lower layer. It will also 
   make the gif loopable; joing two gifs of lengths 3 and 4 will produce a gif 
   of length 12 frames. That way after 12 frames both will be at the start again.
 
-seq: fn gif fn gif gif
+seq : fn gif fn gif gif
   Takes two gifs and sequences them one after the other
 
-null: gif
+null : gif
   A gif with one transparent frame. Useful for sequencing
 
-take: fn int fn gif gif
+take : fn int fn gif gif
   Takes the first $1 frames of the looping gif
 
-dye: fn color fn gif gif
+dye : fn color fn gif gif
   takes a color and dyes the entire gif to that color, excluding transparency
 
-skip: fn int fn gif gif
+skip : fn int fn gif gif
   puts the first frame at the end $1 times
 
-reverse: fn gif gif
+reverse : fn gif gif
   reverses the gif
 
-frame_count: fn gif int
+frame_count : fn gif int
   returns the gif's number of frames. Useful for debugging
 ```
 
@@ -172,7 +172,7 @@ This concludes the intro. Here's a juggling_robot animation. Use
 `ascr -n <name> <path to this file>` to browse and tinker with it.
 
 ````
-robot: gif
+robot : gif
 5 7 8 
  c O .6.5.  O  ..5.. O o .5.6.o   o5...6
   V  ..5..  |  ..5..  V  ..5.. \./ .526.
@@ -191,7 +191,7 @@ robot: gif
   \  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
 end
 
-dress_white: gif
+dress_white : gif
 5 4 2
  ._. .777. ._. .777.
  ) ( .777. ) ( .777.
@@ -199,7 +199,7 @@ dress_white: gif
 /,|\\77777//|.\77777
 end
 
-dress_red: gif
+dress_red : gif
 5 4 1
  ._. .111.
  | | .111.
@@ -212,7 +212,7 @@ adding an empty row to `dress_red` so it's a drop in replacement for `dress_whit
 gifs are spawened with the bottom left corner at (1, 1) 
 <o>
 
-right_arm: gif
+right_arm : gif
 5 2 8 
  |   .7...  /  ..7..    /....7    /....7
 W    2....VV   22...\/\/ 2222.\/\/ 2222.
@@ -221,7 +221,7 @@ W    2....VV   22...\/\/ 2222.\/\/ 2222.
 \/\/ 2222.VV   22...W    2....W    2....
 end
 
-left_arm: gif
+left_arm : gif
 5 3 8 
      .....     .....__   77...__   77...
  __  .77.. __  .77..  \__..222  \__..222
@@ -232,7 +232,7 @@ left_arm: gif
      .....     .....   \/...22   \/...22
 end
 
-legs: gif
+legs : gif
 3 1 4
  )\.22
 ( )2.2
@@ -240,12 +240,12 @@ legs: gif
 ( )2.2
 end
 
-ball: gif
+ball : gif
 1 1 3
 O7c7.7
 end
 
-ball_cycle: gif
+ball_cycle : gif
 seq dye red ball 
 seq take 5 null
 seq dye blue ball
@@ -257,14 +257,14 @@ end
 ---
 I could have also written `ball_cycle` as 
 
-ball_cycle: gif
+ball_cycle : gif
 seq dye red ball seq take 5 null seq dye blue ball seq take 5 null seq dye yellow ball take 5 null
 end
 
 It's the same thing
 <o>
 
-wheel: gif
+wheel : gif
 join helper 0  2  5  join helper 1  3  5 
 join helper 2  4  5  join helper 3  5  6 
 join helper 5  7  6  join helper 6  8  6 
@@ -279,7 +279,7 @@ join helper 21 1  8  join helper 22 1  7
 helper 23 1  6 
 end
 
-helper: fn int fn int fn int gif
+helper : fn int fn int fn int gif
 skip $1 move $2 $3 ball_cycle
 end
 
@@ -287,7 +287,7 @@ end
 Lots of repetition. I made it into a function.
 <o>
 
-robot_juggler: fn gif gif
+robot_juggler : fn gif gif
 join move 12 1 signiture
 join skip 3 move 1 3 left_arm
 join skip 5 move 9 3 right_arm
@@ -346,7 +346,7 @@ join
 
 <o>
 
-main: gif
+main : gif
 robot_juggler dye red dress_white
 end
 
@@ -354,7 +354,7 @@ end
 Try changing the dress to `dress_red` or changing the color
 <o>
 
-signiture: gif
+signiture : gif
 2 1 1
 OB77
 end

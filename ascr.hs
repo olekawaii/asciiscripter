@@ -304,14 +304,18 @@ evaluate Data {currentArgs = args, function = f} = pure $ f args
 
 fromRight (Right x) = x
 
-parseTypeSigniture :: [String] -> Maybe (Type, [String])
+parseType :: [String] -> OrToError Type
+parseType x = parseTypeSigniture x >>= \case
+  (t,[]) -> pure t
+  _      -> Left $ Custom "Trailing words after the type signiture"
+parseTypeSigniture :: [String] -> OrToError (Type, [String])
 parseTypeSigniture ("gif":xs) = pure (Type Giff, xs)
 parseTypeSigniture ("int":xs) = pure (Type Int,  xs)
 parseTypeSigniture ("fn":xs)  = 
   parseTypeSigniture xs >>= \(a,b) ->
   parseTypeSigniture b  >>= \(c,d) ->
   pure (Fn a c, d)
-parseTypeSigniture _ = Nothing
+parseTypeSigniture x = Left $ Custom ("Unknown type: " <> show x) 
 
 cleanInput :: [Marked String] -> OrError [Marked String]
 cleanInput [] = pure []
@@ -425,7 +429,7 @@ builtinFns = [
         let 
           Right (I x) = evaluate a
           Right (G y) = evaluate b
-        in G . concat . map (replicate x) $ y
+        in G . concatMap (replicate x) $ y
     }    
 
     seqf = Data {
@@ -494,19 +498,15 @@ parseBlock :: NewHeader -> [Marked String] -> Map Name Data -> OrError Data
 parseBlock header all@(x:xs) table = 
   let 
     fun = case traverse readMaybe (words (unwrap x)) of
-      Just [a, b, c] -> parseGif header a b c $ map (`addMarkBlock` new_name header) xs
+      Just [a, b, c] -> parseGif header a b c xs -- $ map (`addMarkBlock` new_name header) xs
       Just _         -> Left $ Custom "incorrect art header" (block_mark header)
-      Nothing        -> parseScript header table (concat . map (words . unwrap) $ all) 
+      Nothing        -> parseScript header table (concatMap (words . unwrap) $ all) 
   in fun >>= \fn -> pure Data {
     currentName   = new_name header,
     typeSigniture = typeSig header,
     currentArgs   = [],
     function      = fn
   }
-
-addMarkBlock :: Marked a -> Name -> Marked a
-addMarkBlock (Marked m s) name = Marked m {block = pure name} s
-
 
 parseGif :: NewHeader -> Int -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
 parseGif header w h f lns = 
@@ -575,7 +575,7 @@ findDependencies table = fmap nub . getDependencies []
     extract allah@(Marked m x : xs) = 
       if head x `elem` nums
       then [] 
-      else helper . concat . map (\(Marked m x) -> map (Marked m) (words x)) $ allah
+      else helper . concatMap (\(Marked m x) -> map (Marked m) (words x)) $ allah
         where
           helper :: [Marked String] -> [Marked String]
           helper = filter (\(Marked m x) -> (x `notElem` map fst builtinFns) && not (all (`elem` ('$':nums)) x))
@@ -583,21 +583,34 @@ findDependencies table = fmap nub . getDependencies []
 new_parse :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
 new_parse [] = pure []
 new_parse all@(Marked m x : xs) = 
-  find_leftover xs >>= \(inside, other) -> ((new_name header, (header, inside)) :) <$> new_parse other
+  parse_header (Marked m x)  >>= \header -> 
+  find_leftover xs           >>= \(inside, other) -> 
+  ((new_name header, (header, map (`addMarkBlock` new_name header) inside)) :) <$> new_parse other
   where 
-    header = parse_header $ words x
-
     find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
     find_leftover [] = Left $ Parse "code block" "end" "EOF" m
     find_leftover (Marked m a : as) = case trim a of
       "end" -> pure ([],as)
       _     -> fmap (first (Marked m a :)) $ find_leftover as
 
-    parse_header (x:xs) = NewHeader {
-      new_name   = init x,
-      typeSig    = fst $ fromJust $ parseTypeSigniture xs,
+addMarkBlock :: Marked a -> Name -> Marked a
+addMarkBlock (Marked m s) name = Marked m {block = pure name} s
+
+parse_header :: Marked String -> OrError NewHeader
+parse_header (Marked m s) = case words s of 
+  (name:":":t) -> (m ?>) $ 
+    parseName name  >>= \name -> 
+    parseType t     >>= \sig -> 
+    pure NewHeader {
+      new_name   = name,
+      typeSig    = sig,
       block_mark = m
     }
+  _ -> Left $ Custom "A header has the syntax `name : type`" m
+
+(?>) :: Mark -> OrToError a -> OrError a
+(?>) m (Left f)  = Left (f m)
+(?>) _ (Right x) = Right x
 
 nums = ['0'..'9']
 
