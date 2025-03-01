@@ -6,7 +6,7 @@ type Map a b       = [(a,b)]
 type OrError       = Either Error
 type OrToError     = Either (Mark -> Error)
 type LineNumber    = Int
-type EpicGifData   = Map Header Gif
+-- type EpicGifData   = Map Header Gif
 type Dependencies  = Map Name [Name]
 type Name          = String
 type Frame         = [Colored Char]
@@ -36,7 +36,6 @@ data NewHeader = NewHeader {
 instance Show Type where
   show (Type x) = colour Yellow (show x)
   show (Fn a b) = colour Yellow "fn " <> show a <> " " <> show b
-
 
 data SimpleType = Int | Giff | Colour deriving Eq
 
@@ -73,17 +72,17 @@ instance Show Data where
 
 -- data FnVal = Func [FnVal] | Val String
 
-data Block a = Block {
-  header :: Header,
-  code   :: a
-}
+-- data Block a = Block {
+--   header :: Header,
+--   code   :: a
+-- }
 
 data OutputFile = Gif | Image deriving Eq
 
-data Layer = Layer {
-  coord  :: Coordinate,
-  gif    :: [Map Coordinate (Colored Char)]
-}
+-- data Layer = Layer {
+--   coord  :: Coordinate,
+--   gif    :: [Map Coordinate (Colored Char)]
+-- }
 
 newtype Suggestion = Suggestion (Maybe String) 
 
@@ -231,28 +230,28 @@ data Modifiers = Modifiers {
   text        :: Bool
 } deriving Show
 
-data Header = Header {
-  width   :: Int,
-  height  :: Int,
-  frames  :: Int,
-  name    :: String,
-  mark    :: Mark
-} deriving Show
+-- data Header = Header {
+--   width   :: Int,
+--   height  :: Int,
+--   frames  :: Int,
+--   name    :: String,
+--   mark    :: Mark
+-- } deriving Show
 
-data Command 
-  = Draw  Int (Int,Int) (Header, Gif) 
-  | Clear Int
-  | Slow Int Int
-  | Shift Int Int Int
-  | Reverse Int
-  | Skip Int Int
-  | Freeze Int
+-- data Command 
+--   = Draw  Int (Int,Int) (Header, Gif) 
+--   | Clear Int
+--   | Slow Int Int
+--   | Shift Int Int Int
+--   | Reverse Int
+--   | Skip Int Int
+--   | Freeze Int
 
-data Notated a = Script a | Drawings a -- for parse
+-- data Notated a = Script a | Drawings a -- for parse
 
-instance Functor Notated where
-  fmap f (Script a) = Script (f a)
-  fmap f (Drawings a) = Drawings (f a)
+-- instance Functor Notated where
+--   fmap f (Script a) = Script (f a)
+--   fmap f (Drawings a) = Drawings (f a)
 
 data Colored a = Colored Color a deriving Eq
 

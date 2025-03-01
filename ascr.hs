@@ -197,8 +197,8 @@ shiftAll x y = map (first ((+ x) *** (+ y)))
 insertVal :: Eq a => a -> b -> Map a b -> Map a b
 insertVal new val x = (new,val) : filter ((/= new) . fst) x
 
-shift :: Map Int Layer -> Map Int Layer
-shift = map (second (\b -> b {gif = rotate $ gif b})) 
+-- shift :: Map Int Layer -> Map Int Layer
+-- shift = map (second (\b -> b {gif = rotate $ gif b})) 
 
 rotate [] = []
 rotate (x:xs) = xs <> [x]
@@ -584,7 +584,7 @@ findDependencies table = fmap nub . getDependencies []
 parseChunks :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
 parseChunks [] = pure []
 parseChunks all@(Marked m x : xs) = 
-  parse_header (Marked m x)  >>= \header -> 
+  parseHeader (Marked m x)  >>= \header -> 
   find_leftover xs           >>= \(inside, other) -> 
   ((new_name header, (header, map (`addMarkBlock` new_name header) inside)) :) <$> parseChunks other
   where 
@@ -597,8 +597,8 @@ parseChunks all@(Marked m x : xs) =
 addMarkBlock :: Marked a -> Name -> Marked a
 addMarkBlock (Marked m s) name = Marked m {block = pure name} s
 
-parse_header :: Marked String -> OrError NewHeader
-parse_header (Marked m s) = case words s of 
+parseHeader :: Marked String -> OrError NewHeader
+parseHeader (Marked m s) = case words s of 
   (name:":":t) -> (m ?>) $ 
     parseName name  >>= \name -> 
     parseType t     >>= \sig -> 
@@ -624,10 +624,6 @@ isPossible :: Type -> Type -> Bool
 isPossible w f@(Fn a b) = w == f || isPossible w b
 isPossible w got        = w == got
   
-new_evaluate :: Data -> OrToError ReturnType
-new_evaluate Data {typeSigniture = Fn _ _} = Left $ Custom "can't new_evaluate a function"
-new_evaluate Data {currentArgs = args, function = f} = pure $ f args
-
 evaluateRealTypes :: Type -> [DummyData] -> OrToError DummyData
 evaluateRealTypes want x = case evaluateTypes want x of
   RealError x -> Left x
@@ -639,10 +635,10 @@ data ComplexError = RealError (Mark -> Error) | Func (DummyData -> Mark -> Error
 evaluateTypes :: Type -> [DummyData] -> ComplexError
 evaluateTypes want [] = Func (\name -> Custom (show name <> " is missing arguments"))
 evaluateTypes (Type a) (x@Dummy {type_sig = Type b} : xs) = 
-  if a == b then Success (x,xs) else Func (\name -> TypeMismatch name x)  
+  if a == b then Success (x,xs) else Func $ flip TypeMismatch x  
 evaluateTypes want (x@Dummy {type_sig = tp} : xs) = if
   | tp == want -> Success (x,xs)
-  | not (isPossible want tp) -> Func (\name -> TypeMismatch name x)
+  | not (isPossible want tp) -> Func $ flip TypeMismatch x
   | otherwise  -> case tp of
     Type a -> error (show want) --Func (flip TypeMismatch want) -- pure (x,xs)
     Fn a b -> case evaluateTypes a xs of
@@ -668,19 +664,19 @@ applyDummy
       type_sig = b
     }
 
-unsafe_eval :: Type -> [Data] -> Data
-unsafe_eval = fst ... dangerous_evaluateExpression
+unsafeEval :: Type -> [Data] -> Data
+unsafeEval = fst ... unsafeEvaluateExpression
   where
-    dangerous_evaluateExpression :: Type -> [Data] -> (Data, [Data])
-    dangerous_evaluateExpression (Type a) (x@Data {typeSigniture = Type _} :xs) = (x,xs)  
-    dangerous_evaluateExpression want (x@Data {typeSigniture = Fn a b} : xs) = 
+    unsafeEvaluateExpression :: Type -> [Data] -> (Data, [Data])
+    unsafeEvaluateExpression (Type a) (x@Data {typeSigniture = Type _} :xs) = (x,xs)  
+    unsafeEvaluateExpression want (x@Data {typeSigniture = Fn a b} : xs) = 
       if Fn a b == want then (x,xs) else
-        let (arg, leftover) = dangerous_evaluateExpression a xs in
-        dangerous_evaluateExpression want (dangerous_applyFn x arg : leftover) 
+        let (arg, leftover) = unsafeEvaluateExpression a xs in
+        unsafeEvaluateExpression want (unsafeApplyFn x arg : leftover) 
 
 
-dangerous_applyFn :: Data -> Data -> Data
-dangerous_applyFn 
+unsafeApplyFn :: Data -> Data -> Data
+unsafeApplyFn 
   Data {typeSigniture = Fn a b, currentArgs = args, function = f, currentName = name} 
   arg@Data {currentName = name2} = 
   Data {
@@ -704,7 +700,7 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
           Left (i,_)  -> args !! (i - 1)
           Right x -> x
       in
-      fromRight . evaluate . unsafe_eval (result tp) $ map matcher newTable 
+      fromRight . evaluate . unsafeEval (result tp) $ map matcher newTable 
     )
     where
       arguments = argTypes tp
