@@ -85,7 +85,7 @@ data Layer = Layer {
   gif    :: [Map Coordinate (Colored Char)]
 }
 
-data Suggestion = Suggestion (Maybe String) 
+newtype Suggestion = Suggestion (Maybe String) 
 
 instance Show Suggestion where
   show (Suggestion Nothing) = ""

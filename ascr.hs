@@ -112,9 +112,9 @@ exitWithError :: Error -> IO ()
 exitWithError = die . show
 
 newGiga target mods =
-  cleanInput >=> new_parse >=> \x ->
+  cleanInput >=> parseChunks >=> \x ->
   findDependencies x target >>=
-  \d -> fromJust . lookup (unwrap target) <$> new_win builtinFns d x  
+  \d -> fromJust . lookup (unwrap target) <$> win builtinFns d x  
 
 maybeGuard :: (a -> Bool) -> a -> Maybe a
 maybeGuard f a = if f a then pure a else Nothing
@@ -123,40 +123,40 @@ parseArgs :: [String] -> Modifiers -> OrError (Modifiers, [FilePath])
 parseArgs (a:as) m = case a of
   "-h"        -> Left Help 
   "-n"        -> getNext a as >>= \(b,cs) -> parseArgs cs     m {target    = b   }
-  "-c"        -> parseArgs (as) m {check     = True}
-  "-q"        -> parseArgs (as) m {quiet     = True}
-  "-C"        -> parseArgs (as) m {message   = True}  
+  "-c"        -> parseArgs as m {check     = True}
+  "-q"        -> parseArgs as m {quiet     = True}
+  "-C"        -> parseArgs as m {message   = True}  
   "-d"        -> getNext a as >>= \(b,cs) -> parseArgs cs     m {directory = b   }  
-  "-s"        -> parseArgs (as) m {text      = True}
+  "-s"        -> parseArgs as m {text      = True}
   "-f"        -> getNext a as >>= \(b,cs) -> case readMaybe b >>= maybeGuard (>= 0) of 
     Nothing -> Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m"
     Just x  -> parseArgs cs m {frameTime = 1 / x}
   ('-':'-':x) -> Left . ArgError $ "Unknown argument '" <> colour Yellow ('-':'-':x) <> "'"
   ['-',x]     -> Left . ArgError $ "Unknown argument '" <> colour Yellow ['-',x] <> "'"
-  ('-':x)     -> parseArgs (map (cons '-' . pure) x <> (as)) m
+  ('-':x)     -> parseArgs (map (cons '-' . pure) x <> as) m
   _           -> pure (m, a:as)
   where 
     getNext :: String -> [String] -> OrError (String, [String])
     getNext s []   = Left $ Custom (s <> " expected an argument") Arguments
-    getNext _ [_]  = Left $ Custom ("Expected a list of files at the end") Arguments
+    getNext _ [_]  = Left $ Custom "Expected a list of files at the end" Arguments
     getNext _ (x:xs)    = pure (x, xs)
 parseArgs _ _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
 
 (>?) :: Mark -> OrToError a -> OrError a
-(>?) x y = first ($ x) y
+(>?) x = first ($ x)
 
 cons = (:)
 
 append :: a -> [a] -> [a]
 append  x y = y <> [x]
 
-new_win :: Map Name Data -> Dependencies -> Map Name (NewHeader, [Marked String]) -> OrError (Map Name Data)
-new_win uwu []          _ = pure uwu
-new_win uwu ((n,[]):xs) d = 
+win :: Map Name Data -> Dependencies -> Map Name (NewHeader, [Marked String]) -> OrError (Map Name Data)
+win uwu []          _ = pure uwu
+win uwu ((n,[]):xs) d = 
   let (header@NewHeader {new_name = name}, str) = fromJust $ lookup n d in
   parseBlock header str uwu >>= \s -> 
-  new_win ((name,s):uwu) (second (filter (/= n)) <$> xs) d
-new_win uwu (x:xs)      d = new_win uwu (append x xs) d
+  win ((name,s):uwu) (second (filter (/= n)) <$> xs) d
+win uwu (x:xs)      d = win uwu (append x xs) d
 
 unwrap :: Marked a -> a
 unwrap (Marked _ a) = a  
@@ -192,7 +192,7 @@ stripWhitespace = reverse . helper . reverse
 
 
 shiftAll :: Int -> Int -> Map Coordinate a -> Map Coordinate a
-shiftAll x y = map (first ((+ (x)) *** (+ (y))))
+shiftAll x y = map (first ((+ x) *** (+ y)))
 
 insertVal :: Eq a => a -> b -> Map a b -> Map a b
 insertVal new val x = (new,val) : filter ((/= new) . fst) x
@@ -249,7 +249,7 @@ reduce2 :: [[[Colored Char]]] -> [[[Colored Char]]]
 reduce2 []  = []
 reduce2 [x] = [map removeExtraSpaces x]
 reduce2 x   = 
-  (\ns -> map ((zipWith (\a b -> take a b) ns)) x) . 
+  (\ns -> map (zipWith take ns) x) . 
   map maximum . 
   transpose . 
   map (map (length . removeExtraSpaces)) $ 
@@ -500,7 +500,7 @@ parseBlock header all@(x:xs) table =
     fun = case traverse readMaybe (words (unwrap x)) of
       Just [a, b, c] -> parseGif header a b c xs -- $ map (`addMarkBlock` new_name header) xs
       Just _         -> Left $ Custom "incorrect art header" (block_mark header)
-      Nothing        -> parseScript header table (concatMap (words . unwrap) $ all) 
+      Nothing        -> parseScript header table (concatMap (words . unwrap) all) 
   in fun >>= \fn -> pure Data {
     currentName   = new_name header,
     typeSigniture = typeSig header,
@@ -517,16 +517,17 @@ parseGif header w h f lns =
       <> show (length lns) <> " lines." 
     )
     (block_mark header)
-  else concat <$> traverse validateStrings (chunksOf h lns) >>= \gif -> 
-    if length gif == f
+  else traverse validateStrings (chunksOf h lns) >>= \gif -> 
+    if length (concat gif) == f
       then pure $ \_ -> G $ 
-            map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) gif
+            map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) (concat gif)
       else Left $ Value "script's number of frames" "frames" f (length gif) (block_mark header) 
   where 
     validateStrings :: [Marked String] -> OrError [[Colored Char]]
     validateStrings [] = pure []
-    validateStrings (x:xs) = firstStrLen >>= \lnlen -> 
-      map concat . chunksOf h . map parseColorLine . rearange <$> helper (x:xs) lnlen
+    validateStrings (x:xs) = firstStrLen >>= -- \lnlen -> 
+      -- map concat . chunksOf h . map parseColorLine . rearange <$> helper (x:xs) lnlen
+      fmap (map concat . chunksOf h . map parseColorLine . rearange) . helper (x:xs)
       where
         firstStrLen = let lnlen = length . stripWhitespace $ unwrap x in
           if lnlen `mod` w == 0
@@ -580,18 +581,18 @@ findDependencies table = fmap nub . getDependencies []
           helper :: [Marked String] -> [Marked String]
           helper = filter (\(Marked m x) -> (x `notElem` map fst builtinFns) && not (all (`elem` ('$':nums)) x))
 
-new_parse :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
-new_parse [] = pure []
-new_parse all@(Marked m x : xs) = 
+parseChunks :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
+parseChunks [] = pure []
+parseChunks all@(Marked m x : xs) = 
   parse_header (Marked m x)  >>= \header -> 
   find_leftover xs           >>= \(inside, other) -> 
-  ((new_name header, (header, map (`addMarkBlock` new_name header) inside)) :) <$> new_parse other
+  ((new_name header, (header, map (`addMarkBlock` new_name header) inside)) :) <$> parseChunks other
   where 
     find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
     find_leftover [] = Left $ Parse "code block" "end" "EOF" m
     find_leftover (Marked m a : as) = case trim a of
       "end" -> pure ([],as)
-      _     -> fmap (first (Marked m a :)) $ find_leftover as
+      _     -> first (Marked m a :) <$> find_leftover as
 
 addMarkBlock :: Marked a -> Name -> Marked a
 addMarkBlock (Marked m s) name = Marked m {block = pure name} s
