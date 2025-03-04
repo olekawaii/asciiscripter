@@ -296,7 +296,7 @@ cancel (n:ns) name = let cut = rm n name in cancel ns cut + if cut == name then 
     rm x (y:ys) = if x == y then ys else y : rm x ys
 
 evaluate :: Data -> OrError ReturnType
-evaluate Data {typeSigniture = Fn _ _} = Left $ Custom "can't evaluate a function" None
+evaluate Data {dummy = Dummy {type_sig = Fn _ _}} = Left $ Custom "can't evaluate a function" None
 evaluate Data {currentArgs = args, function = f} = pure $ f args
 
 fromRight (Right x) = x
@@ -360,8 +360,10 @@ builtinFns = [
   where 
     
     movef = Data {
-      currentName   = "move",
-      typeSigniture = Fn (Type Int) (Fn (Type Int) (Fn (Type Giff) (Type Giff))),
+      dummy = Dummy {
+        current_name   = "move",
+        type_sig = Fn (Type Int) (Fn (Type Int) (Fn (Type Giff) (Type Giff)))
+      },
       currentArgs   = [],
       function      = \[a, b, c] -> 
         let 
@@ -373,8 +375,10 @@ builtinFns = [
     }
 
     reversef = Data {
-      currentName   = "reverse",
-      typeSigniture = Fn (Type Giff) (Type Giff),
+      dummy = Dummy {
+        current_name   = "reverse",
+        type_sig = Fn (Type Giff) (Type Giff)
+      },
       currentArgs   = [],
       function      = \[a] ->
         let Right (G x) = evaluate a in
@@ -382,8 +386,10 @@ builtinFns = [
     }
 
     skipf = Data {
-      currentName   = "skip",
-      typeSigniture = Fn (Type Int) (Fn (Type Giff) (Type Giff)),
+      dummy = Dummy {
+        current_name   = "skip",
+        type_sig = Fn (Type Int) (Fn (Type Giff) (Type Giff))
+      },
       currentArgs   = [],
       function      = \[a,b] ->
         let 
@@ -398,8 +404,10 @@ builtinFns = [
     }
 
     joinf = Data {
-      currentName   = "skip",
-      typeSigniture = Fn (Type Giff) (Fn (Type Giff) (Type Giff)),
+      dummy = Dummy {
+        current_name   = "skip",
+        type_sig = Fn (Type Giff) (Fn (Type Giff) (Type Giff))
+      },
       currentArgs   = [],
       function      = \[a,b] ->
         let
@@ -411,16 +419,20 @@ builtinFns = [
     }
 
     nullf = Data {
-      currentName   = "null",
-      typeSigniture = Type Giff,
+      dummy = Dummy {
+        current_name   = "null",
+        type_sig = Type Giff
+      },
       currentArgs   = [],
       function      = \_ ->
         G [[((1,1), Colored Transp ' ')]]
     }
 
     slowf = Data {
-      currentName   = "slow",
-      typeSigniture = Fn (Type Int) (Fn (Type Giff) (Type Giff)),
+      dummy = Dummy {
+        current_name   = "slow",
+        type_sig = Fn (Type Int) (Fn (Type Giff) (Type Giff))
+      },
       currentArgs   = [],
       function      = \[a,b] ->
         let 
@@ -430,8 +442,10 @@ builtinFns = [
     }    
 
     seqf = Data {
-      currentName   = "seq",
-      typeSigniture = Fn (Type Giff) (Fn (Type Giff) (Type Giff)),
+      dummy = Dummy {
+        current_name   = "seq",
+        type_sig = Fn (Type Giff) (Fn (Type Giff) (Type Giff))
+      },
       currentArgs   = [],
       function      = \[a,b] ->
         let
@@ -442,8 +456,10 @@ builtinFns = [
     }
 
     takef = Data {
-      currentName   = "take",
-      typeSigniture = Fn (Type Int) (Fn (Type Giff) (Type Giff)),
+      dummy = Dummy {
+        current_name   = "take",
+        type_sig = Fn (Type Int) (Fn (Type Giff) (Type Giff))
+      },
       currentArgs   = [],
       function      = \[a,b] ->
         let 
@@ -454,8 +470,10 @@ builtinFns = [
     }
 
     frame_countf = Data {
-      currentName   = "frame_count",
-      typeSigniture = Fn (Type Giff) (Type Int),
+      dummy = Dummy {
+        current_name   = "frame_count",
+        type_sig = Fn (Type Giff) (Type Int)
+      },
       currentArgs   = [],
       function      = \[a] ->
         let
@@ -464,8 +482,10 @@ builtinFns = [
     }
 
     dyef = Data {
-      currentName   = "dye",
-      typeSigniture = Fn (Type Colour) (Fn (Type Giff) (Type Giff)),
+      dummy = Dummy {
+        current_name   = "dye",
+        type_sig = Fn (Type Colour) (Fn (Type Giff) (Type Giff))
+      },
       currentArgs   = [],
       function      = \[a,b] ->
         let 
@@ -476,8 +496,10 @@ builtinFns = [
 
     createColor :: Color -> Data
     createColor x = Data {
-      currentName   = show x,
-      typeSigniture = Type Colour,
+      dummy = Dummy {
+        current_name   = show x,
+        type_sig = Type Colour
+      },
       currentArgs   = [],
       function      = const (C x)
     }
@@ -498,8 +520,10 @@ parseBlock header all@(x:xs) table =
       Just [a, b] -> parseGif header a b xs -- $ map (`addMarkBlock` new_name header) xs
       _           -> parseScript header table (concatMap (words . unwrap) all) 
   in fun >>= \fn -> pure Data {
-    currentName   = new_name header,
-    typeSigniture = typeSig header,
+    dummy = Dummy {
+      current_name = new_name header,
+      type_sig     = typeSig header
+    },
     currentArgs   = [],
     function      = fn
   }
@@ -514,10 +538,6 @@ parseGif header w h lns =
     )
     (block_mark header)
   else traverse validateStrings (chunksOf h lns) >>= \gif -> 
-    -- if length (concat gif) == f
-    --   then pure $ \_ -> G $ 
-    --         map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) (concat gif)
-    --   else Left $ Value "script's number of frames" "frames" f (length gif) (block_mark header) 
       pure $ \_ -> G $ 
             map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) (concat gif)
   where 
@@ -666,8 +686,8 @@ unsafeEval :: Type -> [Data] -> Data
 unsafeEval = fst ... unsafeEvaluateExpression
   where
     unsafeEvaluateExpression :: Type -> [Data] -> (Data, [Data])
-    unsafeEvaluateExpression (Type a) (x@Data {typeSigniture = Type _} :xs) = (x,xs)  
-    unsafeEvaluateExpression want (x@Data {typeSigniture = Fn a b} : xs) = 
+    unsafeEvaluateExpression (Type a) (x@Data {dummy = Dummy {type_sig = Type _}} :xs) = (x,xs)  
+    unsafeEvaluateExpression want (x@Data {dummy = Dummy {type_sig = Fn a b}} : xs) = 
       if Fn a b == want then (x,xs) else
         let (arg, leftover) = unsafeEvaluateExpression a xs in
         unsafeEvaluateExpression want (unsafeApplyFn x arg : leftover) 
@@ -675,14 +695,10 @@ unsafeEval = fst ... unsafeEvaluateExpression
 
 unsafeApplyFn :: Data -> Data -> Data
 unsafeApplyFn 
-  Data {typeSigniture = Fn a b, currentArgs = args, function = f, currentName = name} 
-  arg@Data {currentName = name2} = 
+  Data {dummy = d@Dummy {type_sig = Fn a b}, currentArgs = args, function = f} 
+  arg@Data {dummy = d2} = 
   Data {
-    currentName    =  name <> " " <> 
-      if length (words name2) > 1 
-      then "(" <> name2 <> ")" 
-      else name2,
-    typeSigniture  = b,
+    dummy = fromRight $ applyDummy d d2,
     currentArgs    = args <> [arg],
     function       = f
   } 
@@ -717,8 +733,10 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
           Just num ->             
             let 
               d = Data {
-                currentName   = x,
-                typeSigniture = Type Int,
+                dummy = Dummy {
+                  current_name   = x,
+                  type_sig = Type Int
+                },
                 currentArgs   = [],
                 function      = const (I num)
               }
@@ -732,10 +750,11 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
         current_name = '$' : show i,
         type_sig     = t
       }
-      getDummy (Right Data {currentName = name, typeSigniture = t}) = Dummy {
-        current_name = name,
-        type_sig     = t
-      }
+      -- getDummy (Right Data {currentName = name, typeSigniture = t}) = Dummy {
+      --   current_name = name,
+      --   type_sig     = t
+      -- }
+      getDummy (Right x) = dummy x
 
 (!?) :: [a] -> Int -> Maybe a
 (!?) y x = if x > length y 

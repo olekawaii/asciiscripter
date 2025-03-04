@@ -36,8 +36,7 @@ instance Show SimpleType where
   show Colour = "color"
 
 data Data = Data {
-  currentName   :: String,
-  typeSigniture :: Type,
+  dummy         :: DummyData,
   currentArgs   :: [Data],
   function      :: [Data] -> ReturnType
 }
@@ -53,8 +52,8 @@ instance Show DummyData where
 
 data ReturnType = I Int | G RealGif | C Color deriving Show
 
-instance Show Data where
-  show Data {typeSigniture = t, currentArgs = c, currentName = n} = n <> " : " <> show t
+-- instance Show Data where
+--   show Data {typeSigniture = t, currentArgs = c, currentName = n} = n <> " : " <> show t
 
 data OutputFile = Gif | Image deriving Eq
 
