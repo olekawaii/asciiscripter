@@ -1,12 +1,11 @@
 module Types where
 
 type ShellScript   = String
-type NumFrame      = Map Coordinate (Colored Char)
+-- type NumFrame      = Map Coordinate (Colored Char)
 type Map a b       = [(a,b)]
 type OrError       = Either Error
 type OrToError     = Either (Mark -> Error)
 type LineNumber    = Int
--- type EpicGifData   = Map Header Gif
 type Dependencies  = Map Name [Name]
 type Name          = String
 type Frame         = [Colored Char]
@@ -24,14 +23,6 @@ data NewHeader = NewHeader {
   typeSig     :: Type,
   block_mark  :: Mark
 } deriving Show
-
--- instance Show Type where
---   show (Type x) = show x
---   show (Fn a b) = wrap a <> " -> " <> show b
---     where 
---       wrap x = let fin = show x in case x of 
---         Fn f j -> "(" <> fin <> ")"
---         _      -> fin
 
 instance Show Type where
   show (Type x) = colour Yellow (show x)
@@ -65,24 +56,7 @@ data ReturnType = I Int | G RealGif | C Color deriving Show
 instance Show Data where
   show Data {typeSigniture = t, currentArgs = c, currentName = n} = n <> " : " <> show t
 
--- data Fn = Fn {
---   h      :: Header,
---   fn     :: [Value]
--- }
-
--- data FnVal = Func [FnVal] | Val String
-
--- data Block a = Block {
---   header :: Header,
---   code   :: a
--- }
-
 data OutputFile = Gif | Image deriving Eq
-
--- data Layer = Layer {
---   coord  :: Coordinate,
---   gif    :: [Map Coordinate (Colored Char)]
--- }
 
 newtype Suggestion = Suggestion (Maybe String) 
 
@@ -229,29 +203,6 @@ data Modifiers = Modifiers {
   check       :: Bool,
   text        :: Bool
 } deriving Show
-
--- data Header = Header {
---   width   :: Int,
---   height  :: Int,
---   frames  :: Int,
---   name    :: String,
---   mark    :: Mark
--- } deriving Show
-
--- data Command 
---   = Draw  Int (Int,Int) (Header, Gif) 
---   | Clear Int
---   | Slow Int Int
---   | Shift Int Int Int
---   | Reverse Int
---   | Skip Int Int
---   | Freeze Int
-
--- data Notated a = Script a | Drawings a -- for parse
-
--- instance Functor Notated where
---   fmap f (Script a) = Script (f a)
---   fmap f (Drawings a) = Drawings (f a)
 
 data Colored a = Colored Color a deriving Eq
 

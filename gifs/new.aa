@@ -1,5 +1,5 @@
 robot : gif
-5 7 8 
+5 7
  c O .6.5.  O  ..5.. O o .5.6.o   o5...6
   V  ..5..  |  ..5..  V  ..5.. \./ .526.
 [_ ]]77072 [ ] .702.[[_ ]72202[__ ]22202
@@ -18,7 +18,7 @@ robot : gif
 end
 
 dress_white : gif
-5 4 2
+5 4
  ._. .777. ._. .777.
  ) ( .777. ) ( .777.
 //..\77777/,.\\77777
@@ -26,7 +26,7 @@ dress_white : gif
 end
 
 dress_red : gif
-5 4 1
+5 4
  ._. .111.
  | | .111.
 //W\\11111
@@ -39,7 +39,7 @@ gifs are spawened with the bottom left corner at (1, 1)
 <o>
 
 right_arm : gif
-5 2 8 
+5 2
  |   .7...  /  ..7..    /....7    /....7
 W    2....VV   22...\/\/ 2222.\/\/ 2222.
 
@@ -48,7 +48,7 @@ W    2....VV   22...\/\/ 2222.\/\/ 2222.
 end
 
 left_arm : gif
-5 3 8 
+5 3
      .....     .....__   77...__   77...
  __  .77.. __  .77..  \__..222  \__..222
    \/...22   \/...22     .....     .....
@@ -59,7 +59,7 @@ left_arm : gif
 end
 
 legs : gif
-3 1 4
+3 1
  )\.22
 ( )2.2
 /( 22.
@@ -67,7 +67,7 @@ legs : gif
 end
 
 ball : gif
-1 1 3
+1 1
 O7c7.7
 end
 
@@ -130,6 +130,6 @@ Try changing the dress to `dress_red` or changing the color
 <o>
 
 signiture : gif
-2 1 1
+2 1
 OB77
 end

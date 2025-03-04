@@ -19,10 +19,11 @@ import Types
 
 infix 8 ...
 
-main = flip parseArgs defaultMods <$> getArgs >>= \case
+main = getArgs >>= \arg -> case parseArgs arg defaultMods of
   Left e -> exitWithError e
   Right (mods@Modifiers {target = t, directory = d, quiet = q, check = c, message = m}, files) ->
-    (evaluate <=< newGiga (Marked Arguments t) mods . concat . zipWith number files) <$> mapM readFile files >>= \case 
+     mapM readFile files >>= \fl ->
+    case (newGiga (Marked Arguments t) mods . concat . zipWith number files) fl >>= evaluate of
       Left e -> exitWithError e
       Right (I int) -> print int
       Right (G gif) -> 
@@ -30,7 +31,7 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
         let
           file = d <> "/" <> t <> ".sh"
           (height, newGif) = changeFormat gif
-          (fileSh, command) = new_formatShell mods height messageIn . pipeline $ newGif
+          (fileSh, command) = formatShell mods height messageIn . pipeline $ newGif
         in
         putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
         unless c (
@@ -40,8 +41,8 @@ main = flip parseArgs defaultMods <$> getArgs >>= \case
         ) >> 
         unless q (callCommand command)-- (callCommand command)
 
-new_formatShell :: Modifiers -> Int  -> Maybe String -> [String] -> (ShellScript, ShellScript)
-new_formatShell mods ht message renderedFrames = case renderedFrames of
+formatShell :: Modifiers -> Int  -> Maybe String -> [String] -> (ShellScript, ShellScript)
+formatShell mods ht message renderedFrames = case renderedFrames of
   [frame] -> (gif, gif <> "; sleep 2" <> clear)
     where gif = comment <> "printf '" <> frame <> "'"
   frames  -> (intro <> loop <> body <> done, intro <> body <> clear)
@@ -197,9 +198,6 @@ shiftAll x y = map (first ((+ x) *** (+ y)))
 insertVal :: Eq a => a -> b -> Map a b -> Map a b
 insertVal new val x = (new,val) : filter ((/= new) . fst) x
 
--- shift :: Map Int Layer -> Map Int Layer
--- shift = map (second (\b -> b {gif = rotate $ gif b})) 
-
 rotate [] = []
 rotate (x:xs) = xs <> [x]
 
@@ -209,7 +207,6 @@ chunksOf n x  = uncurry ((. chunksOf n) . cons) $ splitAt n x
 
 renderer :: [[Colored Char]] -> String
 renderer = helper Transp . concatMap (append (Colored Black '\n'))
--- renderer = helper Transp . concatMap (append (Colored Transp '\n') . removeExtraSpaces)
   where
     helper :: Color -> [Colored Char] -> String
     helper _        []                        = "" --"\\n"
@@ -498,9 +495,8 @@ parseBlock :: NewHeader -> [Marked String] -> Map Name Data -> OrError Data
 parseBlock header all@(x:xs) table = 
   let 
     fun = case traverse readMaybe (words (unwrap x)) of
-      Just [a, b, c] -> parseGif header a b c xs -- $ map (`addMarkBlock` new_name header) xs
-      Just _         -> Left $ Custom "incorrect art header" (block_mark header)
-      Nothing        -> parseScript header table (concatMap (words . unwrap) all) 
+      Just [a, b] -> parseGif header a b xs -- $ map (`addMarkBlock` new_name header) xs
+      _           -> parseScript header table (concatMap (words . unwrap) all) 
   in fun >>= \fn -> pure Data {
     currentName   = new_name header,
     typeSigniture = typeSig header,
@@ -508,8 +504,8 @@ parseBlock header all@(x:xs) table =
     function      = fn
   }
 
-parseGif :: NewHeader -> Int -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
-parseGif header w h f lns = 
+parseGif :: NewHeader -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
+parseGif header w h lns = 
   if mod (length lns) h /= 0 
   then Left $ Custom 
     (
@@ -518,10 +514,12 @@ parseGif header w h f lns =
     )
     (block_mark header)
   else traverse validateStrings (chunksOf h lns) >>= \gif -> 
-    if length (concat gif) == f
-      then pure $ \_ -> G $ 
+    -- if length (concat gif) == f
+    --   then pure $ \_ -> G $ 
+    --         map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) (concat gif)
+    --   else Left $ Value "script's number of frames" "frames" f (length gif) (block_mark header) 
+      pure $ \_ -> G $ 
             map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) (concat gif)
-      else Left $ Value "script's number of frames" "frames" f (length gif) (block_mark header) 
   where 
     validateStrings :: [Marked String] -> OrError [[Colored Char]]
     validateStrings [] = pure []
