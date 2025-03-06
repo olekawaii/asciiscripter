@@ -98,12 +98,12 @@ changeFormat x = (y_max - y_min + 1, map convertFrame x)
           Just a  -> a
           Nothing -> Colored Transp ' '
 
-parseInt :: String -> String -> OrToError Int
+parseInt :: String -> String -> Either ErrorType Int
 parseInt x y = case readMaybe x of
   Just x  -> pure x
-  Nothing -> Left $ Parse y  "an int" x
+  Nothing -> Left $ Parse y "an int" x
 
-parseName :: String -> OrToError Name
+parseName :: String -> Either ErrorType Name
 parseName s = if isValidName s then pure s else Left $ Parse "name" "a valid name" s
 
 number :: FilePath -> String -> [Marked String]
@@ -122,7 +122,7 @@ maybeGuard f a = if f a then pure a else Nothing
 
 parseArgs :: [String] -> Modifiers -> OrError (Modifiers, [FilePath])
 parseArgs (a:as) m = case a of
-  "-h"        -> Left Help 
+  "-h"        -> Left Error {errorType = Help, errorMark = None}
   "-n"        -> getNext a as >>= \(b,cs) -> parseArgs cs     m {target    = b   }
   "-c"        -> parseArgs as m {check     = True}
   "-q"        -> parseArgs as m {quiet     = True}
@@ -130,18 +130,36 @@ parseArgs (a:as) m = case a of
   "-d"        -> getNext a as >>= \(b,cs) -> parseArgs cs     m {directory = b   }  
   "-s"        -> parseArgs as m {text      = True}
   "-f"        -> getNext a as >>= \(b,cs) -> case readMaybe b >>= maybeGuard (>= 0) of 
-    Nothing -> Left $ ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m"
+    Nothing -> Left Error {
+      errorType = ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m",
+      errorMark = Arguments
+    }
     Just x  -> parseArgs cs m {frameTime = 1 / x}
-  ('-':'-':x) -> Left . ArgError $ "Unknown argument '" <> colour Yellow ('-':'-':x) <> "'"
-  ['-',x]     -> Left . ArgError $ "Unknown argument '" <> colour Yellow ['-',x] <> "'"
+  ('-':'-':x) -> Left Error {
+    errorType = ArgError $ "Unknown argument '" <> colour Yellow ('-':'-':x) <> "'",
+    errorMark = Arguments
+  }
+  ['-',x]     -> Left Error {
+    errorType = ArgError $ "Unknown argument '" <> colour Yellow ['-',x] <> "'",
+    errorMark = Arguments
+  }
   ('-':x)     -> parseArgs (map (cons '-' . pure) x <> as) m
   _           -> pure (m, a:as)
   where 
     getNext :: String -> [String] -> OrError (String, [String])
-    getNext s []   = Left $ Custom (s <> " expected an argument") Arguments
-    getNext _ [_]  = Left $ Custom "Expected a list of files at the end" Arguments
+    getNext s []   = Left Error {
+      errorType = Custom (s <> " expected an argument"),
+      errorMark = Arguments
+    }
+    getNext _ [_]  = Left Error {
+      errorType = Custom "Expected a list of files at the end",
+      errorMark = Arguments
+    }
     getNext _ (x:xs)    = pure (x, xs)
-parseArgs _ _ = Left $ ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m"
+parseArgs _ _ = Left Error {
+  errorType = ArgError "Args should end with \x1b[33mNAME <FILE>\x1b[0m",
+  errorMark = Arguments
+}
 
 (>?) :: Mark -> OrToError a -> OrError a
 (>?) x = first ($ x)
@@ -296,16 +314,19 @@ cancel (n:ns) name = let cut = rm n name in cancel ns cut + if cut == name then 
     rm x (y:ys) = if x == y then ys else y : rm x ys
 
 evaluate :: Data -> OrError ReturnType
-evaluate Data {dummy = Dummy {type_sig = Fn _ _}} = Left $ Custom "can't evaluate a function" None
+evaluate Data {dummy = Dummy {type_sig = Fn _ _}} = Left Error {
+  errorType = Custom "can't evaluate a function",
+  errorMark = None
+}
 evaluate Data {currentArgs = args, function = f} = pure $ f args
 
 fromRight (Right x) = x
 
-parseType :: [String] -> OrToError Type
+parseType :: [String] -> Either ErrorType Type
 parseType x = parseTypeSigniture x >>= \case
   (t,[]) -> pure t
   _      -> Left $ Custom "Trailing words after the type signiture"
-parseTypeSigniture :: [String] -> OrToError (Type, [String])
+parseTypeSigniture :: [String] -> Either ErrorType (Type, [String])
 parseTypeSigniture ("gif":xs) = pure (Type Giff, xs)
 parseTypeSigniture ("int":xs) = pure (Type Int,  xs)
 parseTypeSigniture ("fn":xs)  = 
@@ -319,13 +340,19 @@ cleanInput [] = pure []
 cleanInput (Marked m s : xs) = case trim s of
   ""    -> cleanInput xs
   "---" -> findClosing xs >>= cleanInput
-  "<o>" -> Left $ BadDelimiter "<o>" m
+  "<o>" -> Left Error {
+    errorType = BadDelimiter "<o>",
+    errorMark = m
+  }
   _     -> (Marked m (stripWhitespace s) :) <$> cleanInput xs
   where
     findClosing [] = pure []
     findClosing (Marked m a : as) = case trim a of
       "<o>" -> pure as
-      "---" -> Left $ BadDelimiter "---" m
+      "---" -> Left Error {
+        errorType = BadDelimiter "---",
+        errorMark = m
+      }
       _     -> findClosing as
     
 
@@ -531,12 +558,12 @@ parseBlock header all@(x:xs) table =
 parseGif :: NewHeader -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
 parseGif header w h lns = 
   if mod (length lns) h /= 0 
-  then Left $ Custom 
-    (
+  then Left Error {
+    errorType = Custom $
       "A gif's number of lines should be divisible by the header's height.\nYou have "
-      <> show (length lns) <> " lines." 
-    )
-    (block_mark header)
+      <> show (length lns) <> " lines.",
+    errorMark = block_mark header
+  }
   else traverse validateStrings (chunksOf h lns) >>= \gif -> 
       pure $ \_ -> G $ 
             map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) (concat gif)
@@ -550,11 +577,12 @@ parseGif header w h lns =
         firstStrLen = let lnlen = length . stripWhitespace $ unwrap x in
           if lnlen `mod` w == 0
           then pure lnlen
-          else Left $ Custom 
-            (
+          else Left Error {
+            errorType = Custom $
               "A gif's chars per line should be divisible by the header's width.\nYou have "
-              <> show lnlen <> " chars." 
-            ) (getMark x)
+              <> show lnlen <> " chars.",
+            errorMark = getMark x
+          }
 
         rearange :: [String] -> [String]
         rearange = concat . transpose . map (chunksOf (w * 2))
@@ -563,7 +591,10 @@ parseGif header w h lns =
         helper [] _ = pure []
         helper ((Marked m x):xs) n = let len = length x in
           if len /= n
-          then Left $ Value "line" "characters" n len m
+          then Left Error {
+            errorType = Value "line" "characters" n len,
+            errorMark = m
+          }
           else cons x <$> helper xs n
 
 argTypes :: Type -> [Type]
@@ -585,9 +616,15 @@ findDependencies table = fmap nub . getDependencies []
     getDependencies used (Marked m target) =
       if elem target (map fst builtinFns) then pure [] else
       if elem target used
-      then Left $ Recursive target (reverse $ target : used) 
+      then Left Error {
+        errorType = Recursive target (reverse $ target : used),
+        errorMark = None
+      }
       else case extract . snd <$> lookup target table :: Maybe [Marked String] of 
-        Nothing -> Left $ NoMatchingName target (findSimilarName target (map fst table)) m
+        Nothing -> Left Error {
+          errorType = NoMatchingName target (findSimilarName target (map fst table)),
+          errorMark = m
+        }
         Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
         
     extract :: [Marked String] -> [Marked Name]
@@ -607,7 +644,10 @@ parseChunks all@(Marked m x : xs) =
   ((new_name header, (header, map (`addMarkBlock` new_name header) inside)) :) <$> parseChunks other
   where 
     find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
-    find_leftover [] = Left $ Parse "code block" "end" "EOF" m
+    find_leftover [] = Left Error {
+      errorType = Parse "code block" "end" "EOF",
+      errorMark = m
+    }
     find_leftover (Marked m a : as) = case trim a of
       "end" -> pure ([],as)
       _     -> first (Marked m a :) <$> find_leftover as
@@ -615,9 +655,16 @@ parseChunks all@(Marked m x : xs) =
 addMarkBlock :: Marked a -> Name -> Marked a
 addMarkBlock (Marked m s) name = Marked m {block = pure name} s
 
+mkError :: Mark -> Either ErrorType a -> Either Error a
+mkError _ (Right x) = Right x
+mkError m (Left e) = Left Error {
+  errorType = e,
+  errorMark = m
+}
+
 parseHeader :: Marked String -> OrError NewHeader
 parseHeader (Marked m s) = case words s of 
-  (name:":":t) -> (m ?>) $ 
+  (name:":":t) -> mkError m $ 
     parseName name  >>= \name -> 
     parseType t     >>= \sig -> 
     pure NewHeader {
@@ -625,7 +672,10 @@ parseHeader (Marked m s) = case words s of
       typeSig    = sig,
       block_mark = m
     }
-  _ -> Left $ Custom "A header has the syntax `name : type`" m
+  _ -> Left Error {
+    errorType = Custom "A header has the syntax `name : type`",
+    errorMark = m
+    }
 
 (?>) :: Mark -> OrToError a -> OrError a
 (?>) m (Left f)  = Left (f m)
@@ -642,13 +692,13 @@ isPossible :: Type -> Type -> Bool
 isPossible w f@(Fn a b) = w == f || isPossible w b
 isPossible w got        = w == got
   
-evaluateRealTypes :: Type -> [DummyData] -> OrToError DummyData
+evaluateRealTypes :: Type -> [DummyData] -> Either ErrorType DummyData
 evaluateRealTypes want x = case evaluateTypes want x of
   RealError x -> Left x
   Success (x,[]) -> Right x
   Func f -> Left $ Custom "TypeMismatch in the first argument"
 
-data ComplexError = RealError (Mark -> Error) | Func (DummyData -> Mark -> Error) | Success (DummyData, [DummyData]) 
+data ComplexError = RealError ErrorType | Func (DummyData -> ErrorType) | Success (DummyData, [DummyData]) 
 
 evaluateTypes :: Type -> [DummyData] -> ComplexError
 evaluateTypes want [] = Func (\name -> Custom (show name <> " is missing arguments"))
@@ -667,16 +717,22 @@ evaluateTypes want (x@Dummy {type_sig = tp} : xs) = if
           Left x -> error "evaluateTypes "
           Right d -> case evaluateTypes want (d:leftover) of 
             RealError x             -> RealError x
-            Func f                  -> RealError (f $ d)
+            Func f                  -> RealError (f d)
             Success (arg, leftover) -> Success (arg, leftover)
 
 applyDummy :: DummyData -> DummyData -> OrError DummyData
-applyDummy Dummy {type_sig = Type _} _ = Left $ Custom "applied value to non-function" None
+applyDummy Dummy {type_sig = Type _} _ = Left Error {
+  errorType = Custom "applied value to non-function",
+  errorMark = None
+}
 applyDummy 
   Dummy {type_sig = Fn a b, current_name = name1} 
   Dummy {type_sig = x, current_name = name2} =
     if x /= a 
-    then Left $ Custom "applied value to non-function" None
+    then Left Error {
+      errorType = Custom "applied value to non-function",
+      errorMark = None
+    }
     else pure Dummy {
       current_name = name1 <> " " <>surround name2,
       type_sig = b
@@ -707,7 +763,7 @@ parseScript :: NewHeader -> Map Name Data -> [String] -> OrError ([Data] -> Retu
 parseScript NewHeader {typeSig = tp, block_mark = m} table xs = 
   -- TODO test if argument types match up
   helperParseScript xs >>= \newTable -> 
-  first ($ m) (evaluateRealTypes (result tp) (map getDummy newTable) :: OrToError DummyData) >>
+  mkError m (evaluateRealTypes (result tp) (map getDummy newTable) :: Either ErrorType DummyData) >>
   pure (\args -> 
       let
         matcher x = case x of
@@ -722,10 +778,16 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
       helperParseScript :: [String] -> OrError [Either (Int, Type) Data]
       helperParseScript [] = pure []
       helperParseScript (('$':num):xs) = case readMaybe num of
-        Nothing -> Left $ Custom "$ must be preceded by a number" m
+        Nothing -> Left Error {
+          errorType = Custom "$ must be preceded by a number",
+          errorMark = m
+        }
         Just x  -> case arguments !? x  of
           Nothing -> 
-            Left $ Custom "index is greater than the number of arguments" m 
+            Left $ Error {
+              errorType = Custom "index is greater than the number of arguments",
+              errorMark = m
+            }
           Just t ->
             (Left (x,t) :) <$> helperParseScript xs
       helperParseScript (x:xs) = 
@@ -742,7 +804,10 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
               }
             in (Right d :) <$> helperParseScript xs
           Nothing -> case lookup x table of
-            Nothing -> Left $ Custom "variable not in scope" m
+            Nothing -> Left $ Error {
+              errorType = Custom "variable not in scope",
+              errorMark = m
+            }
             Just x  -> (Right x :) <$> helperParseScript xs
 
       getDummy :: Either (Int, Type) Data -> DummyData

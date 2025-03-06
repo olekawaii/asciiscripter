@@ -77,24 +77,32 @@ data Marked a = Marked Mark a deriving Show
 instance Functor Marked where
   fmap f (Marked a b) = Marked a (f b)
 
-data Error 
-  = Delimiter String Mark
-  | BadDelimiter String Mark
-  | Parse String String String Mark
-  | Value String String Int Int Mark
-  | Custom String Mark
-  | NoMatchingName Name Suggestion Mark 
+getArg (Fn a _) = a
+
+data Error = Error {
+  errorType :: ErrorType,
+  errorMark :: Mark
+}
+
+instance Show Error where
+  show Error {errorType = t, errorMark = m} = show m <> show t
+
+data ErrorType
+  = Delimiter String
+  | BadDelimiter String
+  | Parse String String String
+  | Value String String Int Int
+  | Custom String
+  | NoMatchingName Name Suggestion 
   | Recursive Name [Name]
   | ArgError String
   | Help
-  | CommandArg String Int Int Mark
+  | CommandArg String Int Int
   | ReallyCustom String
-  | BadCommand String Suggestion Mark
-  | TypeMismatch DummyData DummyData Mark
+  | BadCommand String Suggestion
+  | TypeMismatch DummyData DummyData
 
-getArg (Fn a _) = a
-
-instance Show Error where 
+instance Show ErrorType where 
   show Help =
     "Usage: ascr [\x1b[33mOPTIONS\x1b[0m] \x1b[35mNAME\x1b[0m <\x1b[36mFILE\x1b[0m>\n\nOptions:\n"
     <> "  \x1b[33m-c\x1b[0m        Don't write to a file\n"
@@ -104,44 +112,38 @@ instance Show Error where
     <> "  \x1b[33m-m\x1b[0m        Past StdIn as a comment into the output script\n"
     <> "  \x1b[33m-q\x1b[0m        Suppress success gif"
   show err = case err of
-    TypeMismatch a b m
-      -> show m
-      <> show a
+    TypeMismatch a b
+      -> show a
       <> " expected a value of type "
       <> (show . getArg . type_sig) a
       <> ".\nHowever, "
       <> show b
       <> " could never evaluate to "
       <> (show . getArg . type_sig) a
-    BadCommand s suggestion m
-      -> show m
-      <> "The command '"
+    BadCommand s suggestion
+      -> "The command '"
       <> s
       <> "' doesn't exist."
       <> show suggestion
-    Delimiter s m 
-      -> show m 
-      <> "The delimiter "
+    Delimiter s 
+      -> "The delimiter "
       <> colour Blue s 
       <> " did not find the matching "
       <> colour Blue (reverse s) 
       <> " starting" 
-    BadDelimiter s m 
-      -> show m
-      <> "Unexpected closing deliminator "
+    BadDelimiter s 
+      -> "Unexpected closing deliminator "
       <> colour Blue s
       <> " found"
-    Parse thing expected got m
-      -> show m
-      <> "Couldn't parse " 
+    Parse thing expected got
+      -> "Couldn't parse " 
       <> thing 
       <> ". Expected " 
       <> expected 
       <> " but got " 
       <> colour Red ("'" <> got <> "'")
-    Value thing name expected got m
-      -> show m
-      <> "Couldn't parse " 
+    Value thing name expected got
+      -> "Couldn't parse " 
       <> thing 
       <> ". Expected " 
       <> show expected
@@ -149,28 +151,23 @@ instance Show Error where
       <> name
       <> " but got " 
       <> colour Red (show got)
-    Custom s m 
-      -> show m
-      <> s 
-    NoMatchingName a suggestion m
-      -> show m
-      <> "Could not find the gif '"
+    Custom s 
+      -> s 
+    NoMatchingName a suggestion
+      -> "Could not find the gif '"
       <> colour Magenta a
       <> "' in the input files"
       <> show suggestion
     Recursive a l
-      -> show None
-      <> "The script "
+      -> "The script "
       <> colour Magenta a
       <> " called itself recursively.\n"
       <> foldr1 (\x y -> colour Magenta x <> " -> " <> colour Magenta y) l
     ArgError s
-      -> show Arguments
-      <> s
+      -> s
       <> ". Check " <> colour Yellow "ascr -h"
-    CommandArg c x y m
-      -> show m
-      <> "The command "
+    CommandArg c x y
+      -> "The command "
       <> colour Green c
       <> " expected "
       <> show x

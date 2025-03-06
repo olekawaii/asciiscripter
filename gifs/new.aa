@@ -34,8 +34,8 @@ dress_red : gif
 end
 
 ---
-adding an empty row to `dress_red` so it's a drop in replacement for `dress_white`.
-gifs are spawened with the bottom left corner at (1, 1) 
+- adding an empty row to `dress_red` so it's a drop in replacement for `dress_white`.
+- gifs are spawened with the bottom left corner at (1, 1) 
 <o>
 
 right_arm : gif
@@ -81,13 +81,13 @@ seq dye yellow ball
 end
 
 ---
-I could have also written `ball_cycle` as 
-
-ball_cycle : gif
-seq dye red ball seq take 5 null seq dye blue ball seq take 5 null seq dye yellow ball take 5 null
-end
-
-It's the same thing
+- I could have also written `ball_cycle` as 
+- 
+- ball_cycle : gif
+- seq dye red ball seq take 5 null seq dye blue ball seq take 5 null seq dye yellow ball take 5 null
+- end
+- 
+- It's the same thing
 <o>
 
 wheel : gif
@@ -104,7 +104,7 @@ skip $1 move $2 $3 ball_cycle
 end
 
 ---
-Lots of repetition. I made it into a function.
+- Lots of repetition. I made it into a function.
 <o>
 
 robot_juggler : fn gif gif
@@ -126,7 +126,7 @@ robot_juggler dye white dress_white
 end
 
 ---
-Try changing the dress to `dress_red` or changing the color
+- Try changing the dress to `dress_red` or changing the color
 <o>
 
 signiture : gif
