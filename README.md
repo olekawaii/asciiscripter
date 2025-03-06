@@ -10,7 +10,7 @@ paste:
 
 ```
 bird : gif
-9 5 2
+9 5
     ,,   ....11...
   <')    ..381....
    ( \   ...101...
@@ -47,7 +47,7 @@ The order of code blocks doesn't matter.
 
 ```
 colors : gif
-6 1 4
+6 1
 red   111...green 22222.
 yellow333333blue  4444..
 end
@@ -57,10 +57,9 @@ name:              colors
 type:              gif
 width:             6
 height:            1
-number of frames:  4
 the first frame:   "red   " colored red
 ```
-The three numbers representing width, height, and frames, are followed by <frames>
+The two numbers representing width and height are followed by
 rectangles of size (width * 2, height). The left half is the art and the right
 are the corresponding ansi colours, the colors being:
 ```
@@ -173,7 +172,7 @@ This concludes the intro. Here's a juggling_robot animation. Use
 
 ````
 robot : gif
-5 7 8 
+5 7
  c O .6.5.  O  ..5.. O o .5.6.o   o5...6
   V  ..5..  |  ..5..  V  ..5.. \./ .526.
 [_ ]]77072 [ ] .702.[[_ ]72202[__ ]22202
@@ -192,7 +191,7 @@ robot : gif
 end
 
 dress_white : gif
-5 4 2
+5 4
  ._. .777. ._. .777.
  ) ( .777. ) ( .777.
 //..\77777/,.\\77777
@@ -200,7 +199,7 @@ dress_white : gif
 end
 
 dress_red : gif
-5 4 1
+5 4
  ._. .111.
  | | .111.
 //W\\11111
@@ -213,7 +212,7 @@ gifs are spawened with the bottom left corner at (1, 1)
 <o>
 
 right_arm : gif
-5 2 8 
+5 2
  |   .7...  /  ..7..    /....7    /....7
 W    2....VV   22...\/\/ 2222.\/\/ 2222.
 
@@ -222,7 +221,7 @@ W    2....VV   22...\/\/ 2222.\/\/ 2222.
 end
 
 left_arm : gif
-5 3 8 
+5 3
      .....     .....__   77...__   77...
  __  .77.. __  .77..  \__..222  \__..222
    \/...22   \/...22     .....     .....
@@ -233,7 +232,7 @@ left_arm : gif
 end
 
 legs : gif
-3 1 4
+3 1 
  )\.22
 ( )2.2
 /( 22.
@@ -241,7 +240,7 @@ legs : gif
 end
 
 ball : gif
-1 1 3
+1 1 
 O7c7.7
 end
 
@@ -299,51 +298,6 @@ end
 
 ---
 made `robot_juggler` into a function so I can choose the dress that gets displayed
-
-here's how it would look as tree diagram
-
-join 
-  move 
-    12 
-    1 
-    signiture
-  join 
-    skip 
-      3 
-      move 
-        1 
-        3 
-        left_arm
-    join 
-      skip 
-        5 
-        move 
-          9 
-          3 
-          right_arm
-      join 
-        slow 
-          2 
-          move 
-            5 
-            4 
-            robot
-        join 
-          wheel
-          join 
-            move 
-              5 
-              1 
-              slow 
-                4 
-                $1
-            slow 
-              6 
-              move 
-                6 
-                1 
-                legs
-
 <o>
 
 main : gif
@@ -355,7 +309,7 @@ Try changing the dress to `dress_red` or changing the color
 <o>
 
 signiture : gif
-2 1 1
+2 1
 OB77
 end
 ````
@@ -420,6 +374,4 @@ do
   draw '         \n  \033[33mO  \033[36mO \033[35mo   \n \033[33mc    \033[36mV     \n\033[33m.   \033[32m[\033[37m[_ ]   \033[34m.\n      \033[35m\134     \033[34mc\n    \033[31mO\033[36m(\033[31m.\033[35m)    \033[34mO\n      \033[36m\134      \n \033[37m__  \033[35m(\033[31m_\033[36m)    \033[37m/\n   \033[32m\134/\033[31m) (\033[32m\134/\134/\n    \033[31m/,.\134\134\n    //|.\134  \033[37mOB\n'
   draw '    \033[33mO    \n  c \033[36mo   \033[35mo  \n \033[33m.   \033[36m\134\033[37m.\033[35m/    \n    \033[37m[__ ]    \n     \033[35m\134 \033[36m/    \033[34m.\n    \033[31mc \033[35m\134     \033[34mc\n   \033[31mO \033[36m( \033[35m)    \033[34mO\n \033[37m__  \033[31m.\033[36m\134\033[31m.    \033[37m/\n   \033[32m\134/\033[31m) (\033[32m\134/\134/\n    \033[31m/,.\134\134\n    //|.\134  \033[37mOB\n'
   draw '    \033[33mc O  \n  . \033[36mo   \033[35mo  \n     \033[36m\134\033[37m.\033[35m/    \n    \033[37m[__ ]    \n     \033[35m\134 \033[36m/     \n    \033[31m. \033[35m\134     \033[34m.\n\033[37m__\033[31mOc \033[36m( \033[35m)    \033[34mc\n  \033[32m\134__\033[31m.\033[36m\134\033[31m.  \033[34mO \033[37m/\n     \033[31m) (\033[32m\134/\134/\n    \033[31m/,.\134\134\n    //|.\134  \033[37mOB\n'
-  sleep 0.0
- # empty case
 done
