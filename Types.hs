@@ -1,19 +1,14 @@
 module Types where
 
 type ShellScript   = String
--- type NumFrame      = Map Coordinate (Colored Char)
 type Map a b       = [(a,b)]
 type OrError       = Either Error
-type OrToError     = Either (Mark -> Error)
 type LineNumber    = Int
 type Dependencies  = Map Name [Name]
 type Name          = String
 type Frame         = [Colored Char]
 type Gif           = [Frame]
 type Coordinate    = (Int,Int)
-type Line          = String
-type Lines         = [String] --Map LineNumber String
-
 type RealGif = [Map Coordinate (Colored Char)]
 
 data Type = Type SimpleType | Fn Type Type deriving Eq
@@ -29,6 +24,8 @@ instance Show Type where
   show (Fn a b) = colour Yellow "fn " <> show a <> " " <> show b
 
 data SimpleType = Int | Giff | Colour deriving Eq
+
+-- newtype Name = Name String
 
 instance Show SimpleType where
   show Int   = "int"
@@ -47,8 +44,7 @@ data DummyData = Dummy {
 }
 
 instance Show DummyData where
-  show Dummy {current_name = name, type_sig = tp} = 
-    colour Magenta name <> " : " <> show tp
+  show Dummy {current_name = name, type_sig = tp} = colour Magenta name <> " : " <> show tp
 
 data ReturnType = I Int | G RealGif | C Color deriving Show
 
@@ -64,13 +60,13 @@ instance Show Suggestion where
   show (Suggestion (Just x)) = ". Did you mean " <> colour Green x <> "?"
 
 data Mark 
-  = File {
-    origin :: FilePath, 
-    line   :: LineNumber, 
-    block  :: Maybe Name
-  }
-  | Arguments
+  = Arguments
   | None
+  | File {
+      origin :: FilePath, 
+      line   :: LineNumber, 
+      block  :: Maybe Name
+    }
 
 data Marked a = Marked Mark a deriving Show
 
@@ -101,6 +97,7 @@ data ErrorType
   | ReallyCustom String
   | BadCommand String Suggestion
   | TypeMismatch DummyData DummyData
+  | EmptyGif
 
 instance Show ErrorType where 
   show Help =
@@ -175,6 +172,8 @@ instance Show ErrorType where
       <> show y
     ReallyCustom x
       -> x
+    EmptyGif
+      -> "The gif is empty"
 
 instance Show Mark where
   show x = "\x1b[31;1mError\x1b[0m" <> (
@@ -211,7 +210,6 @@ data Color
   | Magenta  
   | Cyan     
   | White    
-  | Transp
   deriving (Show, Eq)
 
 instance Show a => Show (Colored a) where
@@ -229,5 +227,4 @@ colorCode Blue    = "\x1b[34m"
 colorCode Magenta = "\x1b[35m"
 colorCode Cyan    = "\x1b[36m"
 colorCode White   = "\x1b[37m"
-colorCode Transp  = "\x1b[30m"
 

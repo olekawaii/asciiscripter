@@ -26,20 +26,22 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
     case (newGiga (Marked Arguments t) mods . concat . zipWith number files) fl >>= evaluate of
       Left e -> exitWithError e
       Right (I int) -> print int
-      Right (G gif) -> 
-        (if m then fmap pure getContents else pure Nothing) >>= \messageIn ->
-        let
-          file = d <> "/" <> t <> ".sh"
-          (height, newGif) = changeFormat gif
-          (fileSh, command) = formatShell mods height messageIn . pipeline $ newGif
-        in
-        putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
-        unless c (
-          writeFile file fileSh >> 
-          callCommand ("chmod +x " <> file) >>
-          putStrLn ("Gif saved to " <> colour Cyan file <> ".")
-        ) >> 
-        unless q (callCommand command)-- (callCommand command)
+      Right (G gif) -> case changeFormat gif of
+        Left e -> exitWithError Error {errorType = e, errorMark = None}
+        Right (height, newGif) ->
+          (if m then fmap pure getContents else pure Nothing) >>= \messageIn ->
+          let
+            file = d <> "/" <> t <> ".sh"
+            -- (height, newGif) = changeFormat gif
+            (fileSh, command) = formatShell mods height messageIn . pipeline $ newGif
+          in
+          putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
+          unless c (
+            writeFile file fileSh >> 
+            callCommand ("chmod +x " <> file) >>
+            putStrLn ("Gif saved to " <> colour Cyan file <> ".")
+          ) >> 
+          unless q (callCommand command)-- (callCommand command)
 
 formatShell :: Modifiers -> Int  -> Maybe String -> [String] -> (ShellScript, ShellScript)
 formatShell mods ht message renderedFrames = case renderedFrames of
@@ -66,6 +68,24 @@ formatShell mods ht message renderedFrames = case renderedFrames of
     comment = "#!/bin/sh\n" <> maybe "" (unlines . map ("# " <>) . lines) message <> "\n"
     clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[0m"
 
+dimensions :: RealGif -> Either ErrorType (Int, Int, Int, Int)
+dimensions gif = case concatMap (map fst) gif of
+  [] -> Left EmptyGif
+  g  -> pure $ getDimensions g
+    where
+      getDimensions :: [Coordinate] -> (Int, Int, Int, Int)
+      getDimensions x =
+        let
+          xCoords = map fst x
+          yCoords = map snd x
+        in
+          (
+            minimum xCoords,
+            maximum xCoords,
+            minimum yCoords,
+            maximum yCoords
+          )
+
 getMark :: Marked x -> Mark
 getMark (Marked m _) = m
 
@@ -81,22 +101,20 @@ defaultMods = Modifiers {
 }
 
 -- TODO
-changeFormat :: RealGif -> (Int, [[[Colored Char]]])
-changeFormat x = (y_max - y_min + 1, map convertFrame x) 
-  where 
-    (xx,yy) = unzip $ map fst (head x)
-    x_min = minimum xx
-    x_max = maximum xx
-    y_min = minimum yy
-    y_max = maximum yy 
+changeFormat :: RealGif -> Either ErrorType (Int, [[[Colored Char]]])
+changeFormat x = dimensions x >>= \(x_min, x_max, y_min, y_max) ->
+  let
     chart = liftA2 (flip (,))  [y_max, y_max -1 .. y_min] [x_min..x_max]
     convertFrame :: Map Coordinate (Colored Char) -> [[Colored Char]]
-    -- convertFrame a =  chunksOf (y_max - y_min) $ map lookupChar chart
     convertFrame a =  chunksOf (x_max - x_min + 1) $ map lookupChar chart
       where
-        lookupChar want = case lookup want (filter (\(_, Colored m _) -> m /= Transp) a)of
+        lookupChar want = case lookup want a of
           Just a  -> a
-          Nothing -> Colored Transp ' '
+          Nothing -> Colored White ' '
+  in
+  pure (y_max - y_min + 1, map convertFrame x) 
+  -- where 
+  --   (xx,yy) = unzip $ map fst (head x)
 
 parseInt :: String -> String -> Either ErrorType Int
 parseInt x y = case readMaybe x of
@@ -161,9 +179,6 @@ parseArgs _ _ = Left Error {
   errorMark = Arguments
 }
 
-(>?) :: Mark -> OrToError a -> OrError a
-(>?) x = first ($ x)
-
 cons = (:)
 
 append :: a -> [a] -> [a]
@@ -224,12 +239,12 @@ chunksOf _ [] = []
 chunksOf n x  = uncurry ((. chunksOf n) . cons) $ splitAt n x
 
 renderer :: [[Colored Char]] -> String
-renderer = helper Transp . concatMap (append (Colored Black '\n'))
+renderer = helper Black . concatMap (append (Colored Black '\n'))
   where
     helper :: Color -> [Colored Char] -> String
     helper _        []                        = "" --"\\n"
     helper oldcolor (Colored color char : xs) = if
-      | color == Transp || char == ' '     -> ' ' : helper oldcolor xs
+      | char == ' '     -> ' ' : helper oldcolor xs
       | color == oldcolor || char == '\n'  -> clean char <> helper oldcolor xs
       | otherwise                          -> colorChar (Colored color char) <> helper color xs
     
@@ -255,7 +270,7 @@ reduce1 :: [[[Colored Char]]] -> [[[Colored Char]]]
 reduce1 = map (map (map toSpace))
   where 
     toSpace x@(Colored color char) = 
-      if color == Transp || elem char " \n"
+      if char `elem` " \n"
       then Colored Black ' '
       else x
 
@@ -275,20 +290,20 @@ reduce3 :: [[[Colored Char]]] -> [[[Colored Char]]]
 reduce3 [] = []
 reduce3 (x:xs) = if all (== x) xs then [x] else (x:xs)
 
-parseColorLine :: String -> [Colored Char]
-parseColorLine x = uncurry (zipWith Colored) . first (map charToColor) . swap $ splitAt (length x `quot` 2) x
+parseColorLine :: String -> [(Maybe Color, Char)]
+parseColorLine x = uncurry zip . first (map charToColor) . swap $ splitAt (length x `quot` 2) x
   where 
     charToColor = \case 
-      '0' -> Black 
-      '1' -> Red
-      '2' -> Green
-      '3' -> Yellow
-      '4' -> Blue
-      '5' -> Magenta
-      '6' -> Cyan
-      '7' -> White
-      '.' -> Transp
-      _   -> White
+      '0' -> Just Black 
+      '1' -> Just Red
+      '2' -> Just Green
+      '3' -> Just Yellow
+      '4' -> Just Blue
+      '5' -> Just Magenta
+      '6' -> Just Cyan
+      '7' -> Just White
+      '.' -> Nothing
+      _   -> Just White
 
 colorChar :: Colored Char -> String
 colorChar (Colored c s) = "\\033[3" <> case c of
@@ -300,7 +315,6 @@ colorChar (Colored c s) = "\\033[3" <> case c of
     Magenta -> "5"
     Cyan    -> "6"
     White   -> "7"
-    Transp  -> "0"
   <> "m" <> clean s
 
 findSimilarName :: Name -> [Name] -> Suggestion
@@ -452,7 +466,7 @@ builtinFns = [
       },
       currentArgs   = [],
       function      = \_ ->
-        G [[((1,1), Colored Transp ' ')]]
+        G [[]]
     }
 
     slowf = Data {
@@ -566,9 +580,14 @@ parseGif header w h lns =
   }
   else traverse validateStrings (chunksOf h lns) >>= \gif -> 
       pure $ \_ -> G $ 
-            map (liftA2 (flip (,))  [h, h -1 .. 1] [1..w] `zip`) (concat gif)
+            map (removeTransp . zip (liftA2 (flip (,)) [h, h -1 .. 1] [1..w])) (concat gif)
   where 
-    validateStrings :: [Marked String] -> OrError [[Colored Char]]
+    removeTransp :: Map Coordinate (Maybe Color, Char) -> Map Coordinate (Colored Char)
+    removeTransp [] = []
+    removeTransp ((_, (Nothing,_)):xs) = removeTransp xs
+    removeTransp ((coord, (Just color, char)):xs) = (coord, Colored color char) : removeTransp xs
+        
+    validateStrings :: [Marked String] -> OrError [[(Maybe Color, Char)]]
     validateStrings [] = pure []
     validateStrings (x:xs) = firstStrLen >>= -- \lnlen -> 
       -- map concat . chunksOf h . map parseColorLine . rearange <$> helper (x:xs) lnlen
@@ -676,10 +695,6 @@ parseHeader (Marked m s) = case words s of
     errorType = Custom "A header has the syntax `name : type`",
     errorMark = m
     }
-
-(?>) :: Mark -> OrToError a -> OrError a
-(?>) m (Left f)  = Left (f m)
-(?>) _ (Right x) = Right x
 
 nums = ['0'..'9']
 
