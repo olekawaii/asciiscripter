@@ -32,7 +32,6 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
           (if m then fmap pure getContents else pure Nothing) >>= \messageIn ->
           let
             file = d <> "/" <> t <> ".sh"
-            -- (height, newGif) = changeFormat gif
             (fileSh, command) = formatShell mods height messageIn . pipeline $ newGif
           in
           putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
@@ -101,6 +100,7 @@ defaultMods = Modifiers {
 }
 
 -- TODO
+-- check that it's not 0
 changeFormat :: RealGif -> Either ErrorType (Int, [[[Character]]])
 changeFormat x = dimensions x >>= \(x_min, x_max, y_min, y_max) ->
   let
@@ -180,12 +180,12 @@ cons = (:)
 append :: a -> [a] -> [a]
 append  x y = y <> [x]
 
-win :: Map Name Data -> Dependencies -> Map Name (NewHeader, [Marked String]) -> OrError (Map Name Data)
+win :: Map Name Data -> Dependencies -> Map Name Block -> OrError (Map Name Data)
 win uwu []          _ = pure uwu
 win uwu ((n,[]):xs) d = 
-  let (header@NewHeader {new_name = name}, str) = fromJust $ lookup n d in
-  parseBlock header str uwu >>= \s -> 
-  win ((name,s):uwu) (second (filter (/= n)) <$> xs) d
+  -- let (header@NewHeader {new_name = name}, str) = fromJust $ lookup n d in
+  parseBlock (fromJust $ lookup n d) uwu >>= \s -> 
+  win ((n,s):uwu) (second (filter (/= n)) <$> xs) d
 win uwu (x:xs)      d = win uwu (append x xs) d
 
 unwrap :: Marked a -> a
@@ -260,23 +260,14 @@ clean a    = [a]
 
 
 pipeline :: [[[Character]]] -> [String]
-pipeline = map renderer . reduce3 . reduce2 -- . reduce1
-
--- turns all Transparent chars to spaces
--- reduce1 :: [[[Character]]] -> [[[Character]]]
--- reduce1 = map (map (map toSpace))
---   where 
---     toSpace x@(Colored color char) = 
---       if char `elem` " \n"
---       then Colored Black ' '
---       else x
+pipeline = map renderer . reduce2 . reduce1
 
 -- trims off unused space from the ends of lines. Only if doesn't break other frames
 -- could be improved. reverse and use next frame as reference for size
-reduce2 :: [[[Character]]] -> [[[Character]]]
-reduce2 []  = []
-reduce2 [x] = [map removeExtraSpaces x]
-reduce2 x   = 
+reduce1 :: [[[Character]]] -> [[[Character]]]
+reduce1 []  = []
+reduce1 [x] = [map removeExtraSpaces x]
+reduce1 x   = 
   (\ns -> map (zipWith take ns) x) . 
   map maximum . 
   transpose . 
@@ -284,9 +275,9 @@ reduce2 x   =
   x
 
 -- if all frames are the same, reduces it to an Image
-reduce3 :: [[[Character]]] -> [[[Character]]]
-reduce3 [] = []
-reduce3 (x:xs) = if all (== x) xs then [x] else (x:xs)
+reduce2 :: [[[Character]]] -> [[[Character]]]
+reduce2 [] = []
+reduce2 (x:xs) = if all (== x) xs then [x] else x:xs
 
 parseColorLine :: String -> [(Maybe Color, Char)]
 parseColorLine x = uncurry zip . first (map charToColor) . swap $ splitAt (length x `quot` 2) x
@@ -554,20 +545,38 @@ builtinFns = [
     cyan    = createColor Cyan    
     white   = createColor White
 
-parseBlock :: NewHeader -> [Marked String] -> Map Name Data -> OrError Data
-parseBlock header all@(x:xs) table = 
-  let 
-    fun = case traverse readMaybe (words (unwrap x)) of
-      Just [a, b] -> parseGif header a b xs -- $ map (`addMarkBlock` new_name header) xs
-      _           -> parseScript header table (concatMap (words . unwrap) all) 
-  in fun >>= \fn -> pure Data {
-    dummy = Dummy {
-      current_name = new_name header,
-      type_sig     = typeSig header
-    },
-    currentArgs   = [],
-    function      = fn
-  }
+-- parseBlock :: NewHeader -> [Marked String] -> Map Name Data -> OrError Data
+parseBlock :: Block -> Map Name Data -> OrError Data
+parseBlock (Block header lns tp) table =
+  let
+    output = case tp of
+      Art x y ->
+        parseGif header x y lns
+      Script ->
+        parseScript header table (concatMap (words . unwrap) lns) 
+  in
+  output >>= \fn -> pure Data {
+      dummy = Dummy {
+        current_name = new_name header,
+        type_sig     = typeSig header
+      },
+      currentArgs   = [],
+      function      = fn
+    }
+-- parseBlock header all@(x:xs) table = 
+--   let 
+--     fun = case traverse readMaybe . words $ unwrap x of
+--       Just [a, b] -> parseGif header a b xs -- $ map (`addMarkBlock` new_name header) xs
+--       _           -> parseScript header table (concatMap (words . unwrap) all) 
+--   in fun >>= \fn -> pure Data {
+--     dummy = Dummy {
+--       current_name = new_name header,
+--       type_sig     = typeSig header
+--     },
+--     currentArgs   = [],
+--     function      = fn
+--   }
+-- parseBlock header [] _ = Left Error {errorType = MissingBody, errorMark = block_mark header}
 
 parseGif :: NewHeader -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
 parseGif header w h lns = 
@@ -628,7 +637,7 @@ result :: Type -> Type
 result (Type x) = Type x
 result (Fn _ b) = result b
 
-findDependencies :: Map Name (NewHeader, [Marked String]) -> Marked Name -> OrError (Map Name [Name])
+findDependencies :: Map Name Block -> Marked Name -> OrError (Map Name [Name])
 findDependencies table = fmap nub . getDependencies []
   where 
     getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
@@ -639,28 +648,49 @@ findDependencies table = fmap nub . getDependencies []
         errorType = Recursive target (reverse $ target : used),
         errorMark = None
       }
-      else case extract . snd <$> lookup target table :: Maybe [Marked String] of 
+      else case  extract  <$> lookup target table :: Maybe [Marked String] of 
         Nothing -> Left Error {
           errorType = NoMatchingName target (findSimilarName target (map fst table)),
           errorMark = m
         }
         Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
         
-    extract :: [Marked String] -> [Marked Name]
-    extract allah@(Marked m x : xs) = 
-      if head x `elem` nums
-      then [] 
-      else helper . concatMap (\(Marked m x) -> map (Marked m) (words x)) $ allah
+    extract :: Block -> [Marked Name]
+    -- extract allah@(Marked m x : xs) = 
+    extract (Block _ _ (Art _ _)) = []
+    extract (Block header lns Script) = 
+      helper . concatMap (\(Marked m x) -> map (Marked m) (words x)) $ lns
         where
           helper :: [Marked String] -> [Marked String]
           helper = filter (\(Marked m x) -> (x `notElem` map fst builtinFns) && not (all (`elem` ('$':nums)) x))
+    -- extract :: Block -> [Marked Name]
+    -- extract allah@(Marked m x : xs) = 
+    --   if head x `elem` nums
+    --   then [] 
+    --   else helper . concatMap (\(Marked m x) -> map (Marked m) (words x)) $ allah
+    --     where
+    --       helper :: [Marked String] -> [Marked String]
+    --       helper = filter (\(Marked m x) -> (x `notElem` map fst builtinFns) && not (all (`elem` ('$':nums)) x))
+    -- extract [] = []
 
-parseChunks :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
+parseChunks :: [Marked String] -> OrError (Map Name Block)-- OrError (Map Name (NewHeader, [Marked String]))
 parseChunks [] = pure []
+parseChunks (Marked m ('-':'-':_) : xs) = parseChunks xs 
 parseChunks all@(Marked m x : xs) = 
   parseHeader (Marked m x)  >>= \header -> 
-  find_leftover xs           >>= \(inside, other) -> 
-  ((new_name header, (header, map (`addMarkBlock` new_name header) inside)) :) <$> parseChunks other
+  find_leftover xs           >>= \(inside, other) ->
+    case inside  of
+      [] -> Left Error {errorType = MissingBody, errorMark = block_mark header}
+      all@(Marked m ln:lns) ->
+        let
+          (lines, tp) = case traverse readMaybe $ words ln of
+            Just [a, b] -> (filter (not . isArtComment) lns, Art a b)
+            Nothing -> (filter (not . isComment) all, Script)
+        in
+        ((new_name header, Block header lines tp):) <$> parseChunks other
+            -- Just [a, b] -> ((new_name header, Block header (filter (not . isArtComment) lns) (Art a b )) :) <$> parseChunks other
+            -- Nothing -> ((new_name header, Block header (filter (not . isComment) all) Script) :) <$> parseChunks other
+      -- ((new_name header, (header, map (`addMarkBlock` new_name header) inside)) :) <$> parseChunks other
   where 
     find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
     find_leftover [] = Left Error {
@@ -670,6 +700,14 @@ parseChunks all@(Marked m x : xs) =
     find_leftover (Marked m a : as) = case trim a of
       "end" -> pure ([],as)
       _     -> first (Marked m a :) <$> find_leftover as
+
+isComment :: Marked String -> Bool
+isComment (Marked m ('-':'-':_)) = True
+isComment _ = False
+
+isArtComment :: Marked String -> Bool
+isArtComment (Marked m ('-':'-':' ':xs)) = even (length xs)
+isArtComment _ = False
 
 addMarkBlock :: Marked a -> Name -> Marked a
 addMarkBlock (Marked m s) name = Marked m {block = pure name} s
@@ -711,6 +749,7 @@ evaluateRealTypes :: Type -> [DummyData] -> Either ErrorType DummyData
 evaluateRealTypes want x = case evaluateTypes want x of
   RealError x -> Left x
   Success (x,[]) -> Right x
+  Success (x,xs) -> Left $ Custom (show x <> " did not expect any arguments")
   Func f -> Left $ Custom "TypeMismatch in the first argument"
 
 data ComplexError = RealError ErrorType | Func (DummyData -> ErrorType) | Success (DummyData, [DummyData]) 
@@ -726,7 +765,7 @@ evaluateTypes want (x@Dummy {type_sig = tp} : xs) = if
     Type a -> error (show want) --Func (flip TypeMismatch want) -- pure (x,xs)
     Fn a b -> case evaluateTypes a xs of
       RealError x             -> RealError x
-      Func f                  -> RealError (f $ x)
+      Func f                  -> RealError (f x)
       Success (arg, leftover) -> 
         case applyDummy x arg of
           Left x -> error "evaluateTypes "
@@ -749,7 +788,7 @@ applyDummy
       errorMark = None
     }
     else pure Dummy {
-      current_name = name1 <> " " <>surround name2,
+      current_name = name1 <> " " <> surround name2,
       type_sig = b
     }
 
@@ -776,7 +815,6 @@ unsafeApplyFn
   
 parseScript :: NewHeader -> Map Name Data -> [String] -> OrError ([Data] -> ReturnType)
 parseScript NewHeader {typeSig = tp, block_mark = m} table xs = 
-  -- TODO test if argument types match up
   helperParseScript xs >>= \newTable -> 
   mkError m (evaluateRealTypes (result tp) (map getDummy newTable) :: Either ErrorType DummyData) >>
   pure (\args -> 

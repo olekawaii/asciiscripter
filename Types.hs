@@ -13,6 +13,10 @@ type RealGif = [Map Coordinate Character]
 
 data Type = Type SimpleType | Fn Type Type deriving Eq
 
+data Block = Block NewHeader [Marked String] BlockType
+
+data BlockType =  Art Int Int | Script
+
 data NewHeader = NewHeader {
   new_name    :: String,
   typeSig     :: Type,
@@ -20,8 +24,8 @@ data NewHeader = NewHeader {
 } deriving Show
 
 instance Show Type where
-  show (Type x) = colour Yellow (show x)
-  show (Fn a b) = colour Yellow "fn " <> show a <> " " <> show b
+  show (Type x) = colour Blue (show x)
+  show (Fn a b) = colour Blue "fn " <> show a <> " " <> show b
 
 data SimpleType = Int | Giff | Colour deriving Eq
 
@@ -83,9 +87,9 @@ data Error = Error {
 instance Show Error where
   show Error {errorType = t, errorMark = m} = show m <> show t
 
-data ErrorType
-  = Delimiter String
-  | BadDelimiter String
+data ErrorType =
+  -- = Delimiter String
+    BadDelimiter String
   | Parse String String String
   | Value String String Int Int
   | Custom String
@@ -93,101 +97,69 @@ data ErrorType
   | Recursive Name [Name]
   | ArgError String
   | Help
-  | CommandArg String Int Int
   | ReallyCustom String
-  | BadCommand String Suggestion
   | TypeMismatch DummyData DummyData
   | EmptyGif
+  | MissingBody
 
 instance Show ErrorType where 
-  show Help =
-    "Usage: ascr [\x1b[33mOPTIONS\x1b[0m] \x1b[35mNAME\x1b[0m <\x1b[36mFILE\x1b[0m>\n\nOptions:\n"
-    <> "  \x1b[33m-c\x1b[0m        Don't write to a file\n"
-    <> "  \x1b[33m-d\x1b[0m \x1b[36mDIR\x1b[0m    Directory in which to save the gif\n"
-    <> "  \x1b[33m-f\x1b[0m \x1b[32mNUM\x1b[0m    Frames per second\n"
-    <> "  \x1b[33m-h\x1b[0m        Show this help text\n"
-    <> "  \x1b[33m-m\x1b[0m        Past StdIn as a comment into the output script\n"
-    <> "  \x1b[33m-q\x1b[0m        Suppress success gif"
   show err = case err of
-    TypeMismatch a b
-      -> show a
-      <> " expected a value of type "
-      <> (show . getArg . type_sig) a
-      <> ".\nHowever, "
-      <> show b
-      <> " could never evaluate to "
-      <> (show . getArg . type_sig) a
-    BadCommand s suggestion
-      -> "The command '"
-      <> s
-      <> "' doesn't exist."
-      <> show suggestion
-    Delimiter s 
-      -> "The delimiter "
-      <> colour Blue s 
-      <> " did not find the matching "
-      <> colour Blue (reverse s) 
-      <> " starting" 
-    BadDelimiter s 
-      -> "Unexpected closing deliminator "
-      <> colour Blue s
-      <> " found"
-    Parse thing expected got
-      -> "Couldn't parse " 
-      <> thing 
-      <> ". Expected " 
-      <> expected 
-      <> " but got " 
-      <> colour Red ("'" <> got <> "'")
-    Value thing name expected got
-      -> "Couldn't parse " 
-      <> thing 
-      <> ". Expected " 
-      <> show expected
-      <> " "
-      <> name
-      <> " but got " 
-      <> colour Red (show got)
-    Custom s 
-      -> s 
-    NoMatchingName a suggestion
-      -> "Could not find the gif '"
-      <> colour Magenta a
-      <> "' in the input files"
-      <> show suggestion
-    Recursive a l
-      -> "The script "
-      <> colour Magenta a
-      <> " called itself recursively.\n"
-      <> foldr1 (\x y -> colour Magenta x <> " -> " <> colour Magenta y) l
-    ArgError s
-      -> s
-      <> ". Check " <> colour Yellow "ascr -h"
-    CommandArg c x y
-      -> "The command "
-      <> colour Green c
-      <> " expected "
-      <> show x
-      <> " arguments but got "
-      <> show y
-    ReallyCustom x
-      -> x
-    EmptyGif
-      -> "The gif is empty"
+    Help ->
+      "Usage: ascr [\x1b[33mOPTIONS\x1b[0m] \x1b[35mNAME\x1b[0m <\x1b[36mFILE\x1b[0m>\n\nOptions:\n"
+      <> "  \x1b[33m-c\x1b[0m        Don't write to a file\n"
+      <> "  \x1b[33m-d\x1b[0m \x1b[36mDIR\x1b[0m    Directory in which to save the gif\n"
+      <> "  \x1b[33m-f\x1b[0m \x1b[32mNUM\x1b[0m    Frames per second\n"
+      <> "  \x1b[33m-h\x1b[0m        Show this help text\n"
+      <> "  \x1b[33m-m\x1b[0m        Past StdIn as a comment into the output script\n"
+      <> "  \x1b[33m-q\x1b[0m        Suppress success gif"
+
+    TypeMismatch a b -> format "% expected a value of type %.\nHowever, % could never evaluate to it"
+      [show a, (show . getArg . type_sig) a, show b]
+
+    BadDelimiter s -> format "Unexpected closing deliminator `%` found"
+      [colour Red s] 
+
+    Parse thing expected got -> format "Couldn't parse %. Expected % but got `%`"
+      [thing, expected, colour Red got]
+
+    Value thing name expected got -> format "Couldn't parse %. Expected % % but got %"
+      [thing, show expected, name, colour Red (show got)]
+
+    Custom s -> s 
+
+    NoMatchingName a suggestion -> format "Could not find the gif `%` in the input files%"
+      [colour Magenta a, show suggestion]
+
+    Recursive a l -> format "The script % called itself recursively.\n"
+      [colour Magenta a, foldr1 (\x y -> colour Magenta x <> " -> " <> colour Magenta y) l]
+
+    ArgError s -> s <> ". Check " <> colour Yellow "ascr -h"
+
+    ReallyCustom x -> x
+
+    EmptyGif -> "The gif is empty"
+
+    MissingBody -> "The block is missing a body"
 
 instance Show Mark where
   show x = "\x1b[31;1mError\x1b[0m" <> (
     case x of
-      File {origin = o, line = l, block = b} 
-        -> " at line " 
-        <> show (Colored Cyan l) 
-        <> " in " 
-        <> colour Cyan o
-        <> maybe "" (\name -> " (in the definition of " <> colour Magenta name <> ")") b
+      File {origin = o, line = l, block = b} ->
+        format
+        " at line % in %%"
+        [ show (Colored Cyan l)
+        , colour Cyan o
+        , maybe "" (\name -> format " (in the definition of %)" [colour Magenta name]) b
+        ]
       Arguments -> " in the \x1b[33marguments\x1b[0m"
       None      -> ""
     ) <> ":\n"
     
+format :: String -> [String] -> String
+format [] _ = []
+format ('%':xs) [] = error xs
+format ('%':xs) (a:as) = a <> format xs as
+format (x:xs) as = x : format xs as
 
 data Modifiers = Modifiers {
   target      :: String,
