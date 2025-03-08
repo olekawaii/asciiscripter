@@ -260,27 +260,38 @@ clean a    = [a]
 
 
 pipeline :: [[[Character]]] -> [String]
-pipeline = map renderer . reduce2 . reduce4
+pipeline = map renderer . reduce4 . reduce2 . reduce1
+
+reduce1 :: [[[Character]]] -> [[[Character]]]
+reduce1 = map (map removeExtraSpaces)
 
 -- trims off unused space from the ends of lines. Only if doesn't break other frames
 reduce4 :: [[[Character]]] -> [[[Character]]]
 reduce4 [] = []
-reduce4 [x] = [map removeExtraSpaces x] 
-reduce4 (x:xs) = reverse . helper . map (map removeExtraSpaces) $ x : reverse (x:xs)
+reduce4 [x] = [x] 
+reduce4 (x:xs) = (\(a:as) -> zipWith makeEqual x a : a : as) . tail . reverse . rotate . helper $ x : reverse (x:xs)
+-- reduce4 (x:xs) = reverse . rotate . helper $ x : reverse (x:xs)
+-- reduce4 (x:xs) = (x:) . init . reverse . rotate . helper $ x : reverse (x:xs)
   where
     helper :: [[[Character]]] -> [[[Character]]]
-    helper [a,b] = pure $ zipWith makeEqual a (map length b)
-    helper (a:b:other) = zipWith makeEqual a (map length b) : helper (b:other)
+    helper [a,b] = pure $ zipWith makeEqual a b
+    helper (a:b:other) = zipWith makeEqual a b : helper (b:other)
 
-    makeEqual :: [Character] -> Int -> [Character]
-    makeEqual input size =
-      let inputSize = length input in
-      -- error (show input <> "--------" <> show size)
-      if inputSize >= size
-      then input
-      else input <> replicate (size - inputSize) Space
+    makeEqual :: [Character] -> [Character] -> [Character]
+    makeEqual i1 i2 =
+      let
+        inputSize = length i1
+        outputSize = length i2
+      in case compare inputSize outputSize of
+        GT -> i1
+        LT -> i1 <> replicate (outputSize - inputSize) Space
+        EQ -> reduce5 i1 i2
 
 -- if all frames are the same, reduces it to an Image
+reduce5 :: [Character] -> [Character] -> [Character]
+reduce5 [] _ = []
+reduce5 (x:xs) (y:ys) = if (x:xs) == (y:ys) then [] else x : reduce5 xs ys
+
 reduce2 :: [[[Character]]] -> [[[Character]]]
 reduce2 [] = []
 reduce2 (x:xs) = if all (== x) xs then [x] else x:xs
