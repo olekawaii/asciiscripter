@@ -101,20 +101,16 @@ defaultMods = Modifiers {
 }
 
 -- TODO
-changeFormat :: RealGif -> Either ErrorType (Int, [[[Colored Char]]])
+changeFormat :: RealGif -> Either ErrorType (Int, [[[Character]]])
 changeFormat x = dimensions x >>= \(x_min, x_max, y_min, y_max) ->
   let
     chart = liftA2 (flip (,))  [y_max, y_max -1 .. y_min] [x_min..x_max]
-    convertFrame :: Map Coordinate (Colored Char) -> [[Colored Char]]
+    convertFrame :: Map Coordinate Character -> [[Character]]
     convertFrame a =  chunksOf (x_max - x_min + 1) $ map lookupChar chart
       where
-        lookupChar want = case lookup want a of
-          Just a  -> a
-          Nothing -> Colored White ' '
+        lookupChar want = fromMaybe Space $ lookup want a
   in
   pure (y_max - y_min + 1, map convertFrame x) 
-  -- where 
-  --   (xx,yy) = unzip $ map fst (head x)
 
 parseInt :: String -> String -> Either ErrorType Int
 parseInt x y = case readMaybe x of
@@ -238,20 +234,21 @@ chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
 chunksOf n x  = uncurry ((. chunksOf n) . cons) $ splitAt n x
 
-renderer :: [[Colored Char]] -> String
-renderer = helper Black . concatMap (append (Colored Black '\n'))
+renderer :: [[Character]] -> String
+renderer = helper Black . concatMap (append (Character '\n' Black))
   where
-    helper :: Color -> [Colored Char] -> String
-    helper _        []                        = "" --"\\n"
-    helper oldcolor (Colored color char : xs) = if
-      | char == ' '     -> ' ' : helper oldcolor xs
-      | color == oldcolor || char == '\n'  -> clean char <> helper oldcolor xs
-      | otherwise                          -> colorChar (Colored color char) <> helper color xs
+    helper :: Color -> [Character] -> String
+    helper _        [] = "" --"\\n"
+    helper oldcolor (Space:xs) = ' ' : helper oldcolor xs
+    helper oldcolor (c@(Character char color) : xs) =
+      if color == oldcolor || char == '\n'
+      then clean char <> helper oldcolor xs
+      else  colorChar c <> helper color xs
     
-removeExtraSpaces :: [Colored Char] -> [Colored Char]
+removeExtraSpaces :: [Character] -> [Character]
 removeExtraSpaces = reverse . remove . reverse
   where
-    remove (Colored _ ' ' : as) = remove as
+    remove (Space : as) = remove as
     remove as = as
 
 clean :: Char -> String
@@ -262,20 +259,21 @@ clean '%'  = "%%"
 clean a    = [a]
 
 
-pipeline :: [[[Colored Char]]] -> [String]
-pipeline = map renderer . reduce3 . reduce2 . reduce1
+pipeline :: [[[Character]]] -> [String]
+pipeline = map renderer . reduce3 . reduce2 -- . reduce1
 
 -- turns all Transparent chars to spaces
-reduce1 :: [[[Colored Char]]] -> [[[Colored Char]]]
-reduce1 = map (map (map toSpace))
-  where 
-    toSpace x@(Colored color char) = 
-      if char `elem` " \n"
-      then Colored Black ' '
-      else x
+-- reduce1 :: [[[Character]]] -> [[[Character]]]
+-- reduce1 = map (map (map toSpace))
+--   where 
+--     toSpace x@(Colored color char) = 
+--       if char `elem` " \n"
+--       then Colored Black ' '
+--       else x
 
 -- trims off unused space from the ends of lines. Only if doesn't break other frames
-reduce2 :: [[[Colored Char]]] -> [[[Colored Char]]]
+-- could be improved. reverse and use next frame as reference for size
+reduce2 :: [[[Character]]] -> [[[Character]]]
 reduce2 []  = []
 reduce2 [x] = [map removeExtraSpaces x]
 reduce2 x   = 
@@ -286,7 +284,7 @@ reduce2 x   =
   x
 
 -- if all frames are the same, reduces it to an Image
-reduce3 :: [[[Colored Char]]] -> [[[Colored Char]]]
+reduce3 :: [[[Character]]] -> [[[Character]]]
 reduce3 [] = []
 reduce3 (x:xs) = if all (== x) xs then [x] else (x:xs)
 
@@ -305,8 +303,9 @@ parseColorLine x = uncurry zip . first (map charToColor) . swap $ splitAt (lengt
       '.' -> Nothing
       _   -> Just White
 
-colorChar :: Colored Char -> String
-colorChar (Colored c s) = "\\033[3" <> case c of
+colorChar :: Character -> String
+colorChar Space = " "
+colorChar (Character s c) = "\\033[3" <> case c of
     Black   -> "0"
     Red     -> "1"
     Green   -> "2"
@@ -369,7 +368,6 @@ cleanInput (Marked m s : xs) = case trim s of
       }
       _     -> findClosing as
     
-
 trim :: String -> String
 trim = reverse . trimhelper . reverse . trimhelper
   where
@@ -532,7 +530,9 @@ builtinFns = [
         let 
           Right (C x) = evaluate a
           Right (G y) = evaluate b
-        in G $ map (map (\(coord, Colored _ char) -> (coord, Colored x char))) y
+          recolor Space = Space
+          recolor (Character s _) = Character s x 
+        in G $ map (map (second recolor)) y
     }
 
     createColor :: Color -> Data
@@ -579,13 +579,13 @@ parseGif header w h lns =
     errorMark = block_mark header
   }
   else traverse validateStrings (chunksOf h lns) >>= \gif -> 
-      pure $ \_ -> G $ 
-            map (removeTransp . zip (liftA2 (flip (,)) [h, h -1 .. 1] [1..w])) (concat gif)
+      pure $ \_ -> G . map (removeTransp . zip (liftA2 (flip (,)) [h, h -1 .. 1] [1..w])) $ concat gif
   where 
-    removeTransp :: Map Coordinate (Maybe Color, Char) -> Map Coordinate (Colored Char)
+    removeTransp :: Map Coordinate (Maybe Color, Char) -> Map Coordinate Character
     removeTransp [] = []
     removeTransp ((_, (Nothing,_)):xs) = removeTransp xs
-    removeTransp ((coord, (Just color, char)):xs) = (coord, Colored color char) : removeTransp xs
+    removeTransp ((coord, (Just color, ' ' )):xs) = (coord, Space) : removeTransp xs
+    removeTransp ((coord, (Just color, char)):xs) = (coord, Character char color) : removeTransp xs
         
     validateStrings :: [Marked String] -> OrError [[(Maybe Color, Char)]]
     validateStrings [] = pure []
@@ -830,10 +830,6 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
         current_name = '$' : show i,
         type_sig     = t
       }
-      -- getDummy (Right Data {currentName = name, typeSigniture = t}) = Dummy {
-      --   current_name = name,
-      --   type_sig     = t
-      -- }
       getDummy (Right x) = dummy x
 
 (!?) :: [a] -> Int -> Maybe a

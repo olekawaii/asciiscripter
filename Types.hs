@@ -9,7 +9,7 @@ type Name          = String
 type Frame         = [Colored Char]
 type Gif           = [Frame]
 type Coordinate    = (Int,Int)
-type RealGif = [Map Coordinate (Colored Char)]
+type RealGif = [Map Coordinate Character]
 
 data Type = Type SimpleType | Fn Type Type deriving Eq
 
@@ -200,6 +200,12 @@ data Modifiers = Modifiers {
 } deriving Show
 
 data Colored a = Colored Color a deriving Eq
+
+data Character = Space | Character Char Color deriving Eq
+
+instance Show Character where
+  show Space = " "
+  show (Character char color) = colour color (show char)
 
 data Color  
   = Black    
