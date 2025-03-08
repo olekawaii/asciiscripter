@@ -260,19 +260,25 @@ clean a    = [a]
 
 
 pipeline :: [[[Character]]] -> [String]
-pipeline = map renderer . reduce2 . reduce1
+pipeline = map renderer . reduce2 . reduce4
 
 -- trims off unused space from the ends of lines. Only if doesn't break other frames
--- could be improved. reverse and use next frame as reference for size
-reduce1 :: [[[Character]]] -> [[[Character]]]
-reduce1 []  = []
-reduce1 [x] = [map removeExtraSpaces x]
-reduce1 x   = 
-  (\ns -> map (zipWith take ns) x) . 
-  map maximum . 
-  transpose . 
-  map (map (length . removeExtraSpaces)) $ 
-  x
+reduce4 :: [[[Character]]] -> [[[Character]]]
+reduce4 [] = []
+reduce4 [x] = [map removeExtraSpaces x] 
+reduce4 (x:xs) = reverse . helper . map (map removeExtraSpaces) $ x : reverse (x:xs)
+  where
+    helper :: [[[Character]]] -> [[[Character]]]
+    helper [a,b] = pure $ zipWith makeEqual a (map length b)
+    helper (a:b:other) = zipWith makeEqual a (map length b) : helper (b:other)
+
+    makeEqual :: [Character] -> Int -> [Character]
+    makeEqual input size =
+      let inputSize = length input in
+      -- error (show input <> "--------" <> show size)
+      if inputSize >= size
+      then input
+      else input <> replicate (size - inputSize) Space
 
 -- if all frames are the same, reduces it to an Image
 reduce2 :: [[[Character]]] -> [[[Character]]]
@@ -656,22 +662,12 @@ findDependencies table = fmap nub . getDependencies []
         Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
         
     extract :: Block -> [Marked Name]
-    -- extract allah@(Marked m x : xs) = 
     extract (Block _ _ (Art _ _)) = []
     extract (Block header lns Script) = 
       helper . concatMap (\(Marked m x) -> map (Marked m) (words x)) $ lns
         where
           helper :: [Marked String] -> [Marked String]
           helper = filter (\(Marked m x) -> (x `notElem` map fst builtinFns) && not (all (`elem` ('$':nums)) x))
-    -- extract :: Block -> [Marked Name]
-    -- extract allah@(Marked m x : xs) = 
-    --   if head x `elem` nums
-    --   then [] 
-    --   else helper . concatMap (\(Marked m x) -> map (Marked m) (words x)) $ allah
-    --     where
-    --       helper :: [Marked String] -> [Marked String]
-    --       helper = filter (\(Marked m x) -> (x `notElem` map fst builtinFns) && not (all (`elem` ('$':nums)) x))
-    -- extract [] = []
 
 parseChunks :: [Marked String] -> OrError (Map Name Block)-- OrError (Map Name (NewHeader, [Marked String]))
 parseChunks [] = pure []
@@ -685,12 +681,9 @@ parseChunks all@(Marked m x : xs) =
         let
           (lines, tp) = case traverse readMaybe $ words ln of
             Just [a, b] -> (filter (not . isArtComment) lns, Art a b)
-            Nothing -> (filter (not . isComment) all, Script)
+            Nothing     -> (filter (not . isComment) all,    Script)
         in
         ((new_name header, Block header lines tp):) <$> parseChunks other
-            -- Just [a, b] -> ((new_name header, Block header (filter (not . isArtComment) lns) (Art a b )) :) <$> parseChunks other
-            -- Nothing -> ((new_name header, Block header (filter (not . isComment) all) Script) :) <$> parseChunks other
-      -- ((new_name header, (header, map (`addMarkBlock` new_name header) inside)) :) <$> parseChunks other
   where 
     find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
     find_leftover [] = Left Error {
