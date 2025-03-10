@@ -3,8 +3,6 @@
 ASCR is a pure statically-typed functional language to generate colorful
 ascii animations from text files. Check out some examples in the gifs/ directory.
 
-There is an example input output at `gifs/new.aa` `./main.sh` 
-
 Let's start with a demonstration. Create a file named `bird.ascr` and inside 
 paste:
 
@@ -30,7 +28,22 @@ printf '    \033[31m,,\n  \033[33m<\033[37m\047\033[31m)\n   ( \134\n\033[36m---
 The command genrated a posix shell script. Let's break down the language:
 
 ## Comments
-Comments start with `---` and end with `<o>`. The eye closes and reopens again.
+Single-line comments start with `-- `.
+Multi-line comments start with `---` and end with `<o>`. The eye closes and reopens again.
+
+
+````
+-- this is a comment
+
+---
+this is
+also
+a comment
+<o>
+
+````
+
+note that `---` and `<o>` must have a whole line to themselves. When using `-- ` syntax in art blocks, the line must not be a valid length.
 
 ## Code Block
 Syntax of a code block:

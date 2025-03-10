@@ -269,7 +269,7 @@ reduce1 = map (map removeExtraSpaces)
 reduce4 :: [[[Character]]] -> [[[Character]]]
 reduce4 [] = []
 reduce4 [x] = [x] 
-reduce4 (x:xs) = (\(a:as) -> zipWith makeEqual x a : a : as) . tail . reverse . rotate . helper $ x : reverse (x:xs)
+reduce4 (x:xs) = (\a -> zipWith makeEqual x (last a) : a) . tail . reverse . rotate . helper $ x : reverse (x:xs)
 -- reduce4 (x:xs) = reverse . rotate . helper $ x : reverse (x:xs)
 -- reduce4 (x:xs) = (x:) . init . reverse . rotate . helper $ x : reverse (x:xs)
   where
@@ -691,7 +691,7 @@ parseChunks all@(Marked m x : xs) =
       all@(Marked m ln:lns) ->
         let
           (lines, tp) = case traverse readMaybe $ words ln of
-            Just [a, b] -> (filter (not . isArtComment) lns, Art a b)
+            Just [a, b] -> (filter (not . isArtComment a) lns, Art a b)
             Nothing     -> (filter (not . isComment) all,    Script)
         in
         ((new_name header, Block header lines tp):) <$> parseChunks other
@@ -706,12 +706,12 @@ parseChunks all@(Marked m x : xs) =
       _     -> first (Marked m a :) <$> find_leftover as
 
 isComment :: Marked String -> Bool
-isComment (Marked m ('-':'-':_)) = True
+isComment (Marked _ ('-':'-':_)) = True
 isComment _ = False
 
-isArtComment :: Marked String -> Bool
-isArtComment (Marked m ('-':'-':' ':xs)) = even (length xs)
-isArtComment _ = False
+isArtComment :: Int -> Marked String -> Bool
+isArtComment width (Marked _ ('-':'-':xs)) = length xs + 2 `mod` width * 2 /= 0
+isArtComment _ _ = False
 
 addMarkBlock :: Marked a -> Name -> Marked a
 addMarkBlock (Marked m s) name = Marked m {block = pure name} s
