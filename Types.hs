@@ -105,13 +105,15 @@ data ErrorType =
 instance Show ErrorType where 
   show err = case err of
     Help ->
-      "Usage: ascr [\x1b[33mOPTIONS\x1b[0m] \x1b[35mNAME\x1b[0m <\x1b[36mFILE\x1b[0m>\n\nOptions:\n"
+      "Usage: ascr [\x1b[33mOPTIONS\x1b[0m] \x1b[35mFILE\x1b[0m\n\nOptions:\n"
       <> "  \x1b[33m-c\x1b[0m        Don't write to a file\n"
       <> "  \x1b[33m-d\x1b[0m \x1b[36mDIR\x1b[0m    Directory in which to save the gif\n"
       <> "  \x1b[33m-f\x1b[0m \x1b[32mNUM\x1b[0m    Frames per second\n"
       <> "  \x1b[33m-h\x1b[0m        Show this help text\n"
-      <> "  \x1b[33m-m\x1b[0m        Past StdIn as a comment into the output script\n"
-      <> "  \x1b[33m-q\x1b[0m        Suppress success gif"
+      <> "  \x1b[33m-m\x1b[0m        Paste StdIn as a comment into the output script\n"
+      <> "  \x1b[33m-n\x1b[0m \x1b[35mNAME\x1b[0m   which gif to evaluate\n"
+      <> "  \x1b[33m-q\x1b[0m        Suppress success gif\n"
+      <> "  \x1b[33m-t\x1b[0m a      Where a is either `vid` or `gif`"
 
     TypeMismatch a b -> format "% expected a value of type %.\nHowever, % could never evaluate to it"
       [show a, (show . getArg . type_sig) a, show b]
@@ -168,8 +170,11 @@ data Modifiers = Modifiers {
   message     :: Bool,
   quiet       :: Bool,
   check       :: Bool,
-  text        :: Bool
+  text        :: Bool,
+  output      :: OutputType
 } deriving Show
+
+data OutputType = Single | Looping deriving Show
 
 data Colored a = Colored Color a deriving Eq
 

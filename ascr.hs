@@ -1,4 +1,4 @@
-{-# Language MultiWayIf, TupleSections, LambdaCase #-}
+{-# Language MultiWayIf, {-TupleSections,-} LambdaCase #-}
 
 module Main (main) where
 
@@ -21,22 +21,32 @@ infix 8 ...
 
 main = getArgs >>= \arg -> case parseArgs arg defaultMods of
   Left e -> exitWithError e
-  Right (mods@Modifiers {target = t, directory = d, quiet = q, check = c, message = m}, files) ->
-     mapM readFile files >>= \fl ->
+  Right (mods@Modifiers {
+    output = o, target = t, directory = d,
+    quiet  = q, check  = c, message   = m
+  }, files) ->
+    (
+      if m
+      then pure <$> (putStrLn "enter a message:" >> getContents)
+      else pure Nothing
+    ) >>= \messageIn ->
+    mapM readFile files >>= \fl ->
     case (newGiga (Marked Arguments t) mods . concat . zipWith number files) fl >>= evaluate of
       Left e -> exitWithError e
       Right (I int) -> print int
       Right (G gif) -> case changeFormat gif of
         Left e -> exitWithError Error {errorType = e, errorMark = None}
         Right (height, newGif) ->
-          (if m then fmap pure getContents else pure Nothing) >>= \messageIn ->
           let
             file = d <> "/" <> t <> ".sh"
             (fileSh, command) = formatShell mods height messageIn . pipeline $ newGif
           in
           putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
           unless c (
-            writeFile file fileSh >> 
+            writeFile file (case o of
+              Looping -> fileSh
+              Single  -> command
+            ) >> 
             callCommand ("chmod +x " <> file) >>
             putStrLn ("Gif saved to " <> colour Cyan file <> ".")
           ) >> 
@@ -96,7 +106,8 @@ defaultMods = Modifiers {
   quiet     = False,
   check     = False,
   text      = False,
-  target    = "main"
+  target    = "main",
+  output    = Looping
 }
 
 -- TODO
@@ -140,9 +151,16 @@ parseArgs (a:as) m = case a of
   "-n"        -> getNext a as >>= \(b,cs) -> parseArgs cs     m {target    = b   }
   "-c"        -> parseArgs as m {check     = True}
   "-q"        -> parseArgs as m {quiet     = True}
-  "-C"        -> parseArgs as m {message   = True}  
+  "-m"        -> parseArgs as m {message   = True}  
   "-d"        -> getNext a as >>= \(b,cs) -> parseArgs cs     m {directory = b   }  
-  "-s"        -> parseArgs as m {text      = True}
+  -- "-s"        -> parseArgs as m {text      = True}
+  "-t"        -> getNext a as >>= \(b,cs) -> case b of
+    "vid" -> parseArgs cs m {output = Single}
+    "gif" -> parseArgs cs m {output = Looping}
+    other -> Left Error {
+      errorType = ArgError ("The \x1b[33m-t\x1b[0m flag expected either `gif` or `vid`. Got" <> other),
+      errorMark = Arguments
+    }
   "-f"        -> getNext a as >>= \(b,cs) -> case readMaybe b >>= maybeGuard (>= 0) of 
     Nothing -> Left Error {
       errorType = ArgError "The \x1b[33m-f\x1b[0m flag expected a positive \x1b[33mNUM\x1b[0m",
@@ -285,7 +303,7 @@ reduce4 (x:xs) = (\a -> zipWith makeEqual x (last a) : a) . tail . reverse . rot
       in case compare inputSize outputSize of
         GT -> i1
         LT -> i1 <> replicate (outputSize - inputSize) Space
-        EQ -> reduce5 i1 i2
+        EQ -> i1 -- reduce5 i1 i2
 
 -- if all frames are the same, reduces it to an Image
 reduce5 :: [Character] -> [Character] -> [Character]
@@ -393,6 +411,7 @@ builtinFns = [
     ("null"        , nullf        ),
     ("seq"         , seqf         ),
     ("take"        , takef        ),
+    ("tail"        , tailf        ),
     ("frame_count" , frame_countf ),
     ("dye"         , dyef         ),
     ("black"       , black        ),
@@ -405,7 +424,19 @@ builtinFns = [
     ("white"       , white        )
   ]
   where 
-    
+    tailf = Data {
+      dummy = Dummy {
+        current_name = "tail",
+        type_sig     = Fn (Type Giff) (Type Giff)
+      },
+      currentArgs = [],
+      function = \[a] ->
+        let
+          Right (G x) = evaluate a
+        in
+        G (tail x)
+
+    }
     movef = Data {
       dummy = Dummy {
         current_name   = "move",
@@ -486,7 +517,7 @@ builtinFns = [
           Right (I x) = evaluate a
           Right (G y) = evaluate b
         in G . concatMap (replicate x) $ y
-    }    
+    } 
 
     seqf = Data {
       dummy = Dummy {
@@ -658,14 +689,13 @@ findDependencies :: Map Name Block -> Marked Name -> OrError (Map Name [Name])
 findDependencies table = fmap nub . getDependencies []
   where 
     getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
-    getDependencies used (Marked m target) =
-      if elem target (map fst builtinFns) then pure [] else
-      if elem target used
-      then Left Error {
-        errorType = Recursive target (reverse $ target : used),
-        errorMark = None
-      }
-      else case  extract  <$> lookup target table :: Maybe [Marked String] of 
+    getDependencies used (Marked m target) = if
+      | elem target (map fst builtinFns) -> pure []
+      | elem target used -> Left Error {
+          errorType = Recursive target (reverse $ target : used),
+          errorMark = None
+        }
+      | otherwise -> case  extract  <$> lookup target table :: Maybe [Marked String] of 
         Nothing -> Left Error {
           errorType = NoMatchingName target (findSimilarName target (map fst table)),
           errorMark = m
@@ -751,10 +781,10 @@ isPossible w got        = w == got
   
 evaluateRealTypes :: Type -> [DummyData] -> Either ErrorType DummyData
 evaluateRealTypes want x = case evaluateTypes want x of
-  RealError x -> Left x
+  RealError x    -> Left x
   Success (x,[]) -> Right x
   Success (x,xs) -> Left $ Custom (show x <> " did not expect any arguments")
-  Func f -> Left $ Custom "TypeMismatch in the first argument"
+  Func f         -> Left $ Custom "TypeMismatch in the first argument"
 
 data ComplexError = RealError ErrorType | Func (DummyData -> ErrorType) | Success (DummyData, [DummyData]) 
 
