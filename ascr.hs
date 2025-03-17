@@ -740,7 +740,7 @@ isComment (Marked _ ('-':'-':_)) = True
 isComment _ = False
 
 isArtComment :: Int -> Marked String -> Bool
-isArtComment width (Marked _ ('-':'-':xs)) = length xs + 2 `mod` width * 2 /= 0
+isArtComment width (Marked _ ('-':'-':' ':xs)) = length xs + 2 `mod` width * 2 /= 0
 isArtComment _ _ = False
 
 addMarkBlock :: Marked a -> Name -> Marked a
@@ -768,7 +768,7 @@ parseHeader (Marked m s) = case words s of
     errorMark = m
     }
 
-nums = ['0'..'9']
+nums = '-' : ['0'..'9']
 
 surround :: String -> String
 surround x = case words x of
