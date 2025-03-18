@@ -176,6 +176,12 @@ div 2 : fn int fn int maybe int
     | 0 nothing
     | _ some div $1 $2
 
+return type should match what is expected.
+return type can not have any undeclared types
+-- tree structure test every branch
+  flip
+    fn fn int int fn int int const: apply add 4 5 
+
 
 
 
@@ -186,7 +192,4 @@ end
 compose : fn fn b c fn fn a b fn a c
   $1 $2 $3
 end
-
-
-
 <o>
