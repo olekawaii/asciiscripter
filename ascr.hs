@@ -318,6 +318,7 @@ parseColorLine :: String -> [(Maybe Color, Char)]
 parseColorLine x = uncurry zip . first (map charToColor) . swap $ splitAt (length x `quot` 2) x
   where 
     charToColor = \case 
+      '.' -> Nothing
       '0' -> Just Black 
       '1' -> Just Red
       '2' -> Just Green
@@ -326,7 +327,6 @@ parseColorLine x = uncurry zip . first (map charToColor) . swap $ splitAt (lengt
       '5' -> Just Magenta
       '6' -> Just Cyan
       '7' -> Just White
-      '.' -> Nothing
       _   -> Just White
 
 colorChar :: Character -> String
