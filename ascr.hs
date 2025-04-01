@@ -721,8 +721,8 @@ parseChunks all@(Marked m x : xs) =
       all@(Marked m ln:lns) ->
         let
           (lines, tp) = case traverse readMaybe $ words ln of
-            Just [a, b] -> (filter (not . isArtComment a) lns, Art a b)
-            Nothing     -> (filter (not . isComment) all,    Script)
+            Just [a, b] -> (filter (not . isArtComment a . unwrap) lns, Art a b)
+            Nothing     -> (filter (not . isComment . trim . unwrap) all,    Script)
         in
         ((new_name header, Block header lines tp):) <$> parseChunks other
   where 
@@ -735,12 +735,13 @@ parseChunks all@(Marked m x : xs) =
       "end" -> pure ([],as)
       _     -> first (Marked m a :) <$> find_leftover as
 
-isComment :: Marked String -> Bool
-isComment (Marked _ ('-':'-':_)) = True
+isComment :: String -> Bool
+isComment ('-':'-':_) = True
 isComment _ = False
 
-isArtComment :: Int -> Marked String -> Bool
-isArtComment width (Marked _ ('-':'-':' ':xs)) = length xs + 2 `mod` width * 2 /= 0
+isArtComment :: Int -> String -> Bool
+isArtComment width ('-':'-':' ':xs) = length xs + 3 `mod` width * 2 /= 0
+isArtComment _ "--" = True
 isArtComment _ _ = False
 
 addMarkBlock :: Marked a -> Name -> Marked a
