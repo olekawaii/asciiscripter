@@ -1,0 +1,49 @@
+big_mushroom : gif
+10 7
+  _.__,_  ..171171..
+(_c_O_/\_)1171711111
+   |  |   ...7007...
+  /__  \  ..777077..
+   |  |   ...7007... 
+   |,,|   ...7777... 
+   |  |   ...7007... 
+end
+
+
+small_mushroom : gif
+6 3
+  __  ..11.. 
+(c_o_)171711 
+ ('') .7777. 
+end
+
+main : gif
+join
+  big_mushroom
+  join
+     move 8 0 small_mushroom
+     move 11 3 title
+end
+
+rain : gif
+1 11
+.'
+|.'
+ |.'
+' |.'
+ ' |.'
+. ' |.'
+ . ' |.'
+| . ' |.'
+'| . ' |.'
+.'| . ' |.'
+'.'| . ' |.
+end
+
+title : gif
+7 2
+Muhomor7777777
+    -OB....777
+end
+
+

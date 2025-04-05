@@ -28,8 +28,8 @@ end
 dress_red : gif
 5 4
  ._. .111.
- | | .111.
-//W\\11111
+ ) ( .111.
+/___\11111
      .....
 end
 
@@ -38,7 +38,7 @@ end
 
 right_arm : gif
 5 2
- |   .7...  /  ..7..    /....7    /....7
+ |   .7...  |  ..7..    /....7    /....7
 W    2....VV   22...\/\/ 2222.\/\/ 2222.
 
     /....7  /  ..70. /   .700. |   .7...
@@ -111,7 +111,7 @@ robot_juggler : fn gif gif
   join skip 5 move 9 3 right_arm
   join slow 2 move 5 4 robot
   join wheel
-  join move 5 1 slow 4 $1 
+  join move 5 1 slow 4 dye white $1 
        slow 6 move 6 1 legs
 end
 
@@ -120,7 +120,7 @@ end
 <o>
 
 main : gif
-robot_juggler dye white dress_white
+robot_juggler dye white dress_red
 end
 
 ---
