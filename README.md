@@ -126,8 +126,8 @@ What this really is is
 ```
 slow 2 (move 0 1 $1)
 ```
-or noncurried python style
-```py
+or noncurried c style
+```c
 slow(2, move(0, 1, $1))
 ```
 The function `slow` takes two arguments, `2 : int` and `move 0 1 $1 : gif`. The 
@@ -163,6 +163,9 @@ seq : fn gif fn gif gif
 
 null : gif
   A gif with one transparent frame. Useful for sequencing
+
+anchor : gif
+  A gif with a space at (0,0). Use it to expand the field of view
 
 take : fn int fn gif gif
   Takes the first $1 frames of the looping gif
