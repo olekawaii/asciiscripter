@@ -1,7 +1,7 @@
 big_mushroom : gif
 13 7
   __c__,___  ..117117111..
-(_c_,O_/\_o_)1171771111711
+(_c_,O_/\_3_)1171771111711
      | |     .....777..... 
     /_. \    ....77777.... 
      | |     .....777..... 
@@ -11,24 +11,20 @@ end
 
 small_mushroom : gif
 6 3
-  __  ..11.. 
-(c_o_)171711 
- (..) 177771 
+  __  ..11..
+(c_o_)171711
+ (..) .7777.
 end
 
 main : gif
   join
-    move 9 0 join
+    move 10 0 join
       small_mushroom
-      move 3 2 title
-    big_mushroom
+      move 2 2 title
+    join
+      big_mushroom
+      move -2 7 anchor
 end
-
----
-main =
-  lambda x y of fn int fn color gif
-  join move pos ix zero join small_mushroom move iii ii title big_mushroom
-<o>
 
 title : gif
 8 2

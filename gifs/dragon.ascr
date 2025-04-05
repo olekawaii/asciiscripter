@@ -33,11 +33,6 @@ dragon_eye_open : gif
 <o>727
 end
 
-dragon_eye_closed : gif
-3 1
----777
-end
-
 dragon_blow : gif
 13 4
  ,,,         .666......... ,,,         .666......... ,,,         .666.........

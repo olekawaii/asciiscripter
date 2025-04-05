@@ -409,6 +409,7 @@ builtinFns = [
     ("join"        , joinf        ),
     ("slow"        , slowf        ),
     ("null"        , nullf        ),
+    ("anchor"      , anchorf      ),
     ("seq"         , seqf         ),
     ("take"        , takef        ),
     ("tail"        , tailf        ),
@@ -504,6 +505,16 @@ builtinFns = [
       currentArgs   = [],
       function      = \_ ->
         G [[]]
+    }
+
+    anchorf = Data {
+      dummy = Dummy {
+        current_name   = "anchor",
+        type_sig = Type Giff
+      },
+      currentArgs   = [],
+      function      = \_ ->
+        G [[((0, 0), Space)]]
     }
 
     slowf = Data {
@@ -636,7 +647,8 @@ parseGif header w h lns =
     errorMark = block_mark header
   }
   else traverse validateStrings (chunksOf h lns) >>= \gif -> 
-      pure $ \_ -> G . map (removeTransp . zip (liftA2 (flip (,)) [h, h -1 .. 1] [1..w])) $ concat gif
+      pure $ \_ ->
+      G . map (removeTransp . zip (liftA2 (flip (,)) [h -1 , h -2 .. 0] [0 .. w - 1])) $ concat gif
   where 
     removeTransp :: Map Coordinate (Maybe Color, Char) -> Map Coordinate Character
     removeTransp [] = []
