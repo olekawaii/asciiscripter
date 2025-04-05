@@ -1,49 +1,37 @@
 big_mushroom : gif
-10 7
-  _.__,_  ..171171..
-(_c_O_/\_)1171711111
-   |  |   ...7007...
-  /__  \  ..777077..
-   |  |   ...7007... 
-   |,,|   ...7777... 
-   |  |   ...7007... 
+13 7
+  __c__,___  ..117117111..
+(_c_,O_/\_o_)1171771111711
+     | |     .....777..... 
+    /_. \    ....77777.... 
+     | |     .....777..... 
+     |"|     .....777..... 
+     | |     .....777.....
 end
-
 
 small_mushroom : gif
 6 3
   __  ..11.. 
 (c_o_)171711 
- ('') .7777. 
+ (..) 177771 
 end
 
 main : gif
-join
-  big_mushroom
   join
-     move 8 0 small_mushroom
-     move 11 3 title
+    move 9 0 join
+      small_mushroom
+      move 3 2 title
+    big_mushroom
 end
 
-rain : gif
-1 11
-.'
-|.'
- |.'
-' |.'
- ' |.'
-. ' |.'
- . ' |.'
-| . ' |.'
-'| . ' |.'
-.'| . ' |.'
-'.'| . ' |.
-end
+---
+main =
+  lambda x y of fn int fn color gif
+  join move pos ix zero join small_mushroom move iii ii title big_mushroom
+<o>
 
 title : gif
-7 2
-Muhomor7777777
-    -OB....777
+8 2
+Muchomor77777777
+     -OB.....777
 end
-
-
