@@ -1,3 +1,13 @@
+main : gif
+  join
+    move 10 0 join
+      small_mushroom
+      move 2 2 title
+    join
+      big_mushroom
+      move -1 0 anchor
+end
+
 big_mushroom : gif
 13 7
   __c__,___  ..117117111..
@@ -16,18 +26,8 @@ small_mushroom : gif
  (..) .7777.
 end
 
-main : gif
-  join
-    move 10 0 join
-      small_mushroom
-      move 2 2 title
-    join
-      big_mushroom
-      move -2 7 anchor
-end
-
 title : gif
 8 2
 Muchomor77777777
-     -OB.....777
+     -ob.....777
 end
