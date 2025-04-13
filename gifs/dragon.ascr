@@ -1,35 +1,51 @@
 ---
-ascii art of a dragon head
-by ovb
+ascii art of a dragon
+by olekawaii
 <o>
 
 main : gif
-  join
-    skip 18 move 30 7 fire
+  -- dye white
+  join skip 18 move 30 7 fire join
+    move 1 -1 join
+      skip 3 slow 4 dragon_foot_left
+      move_x 12 slow 4 dragon_foot_right
     join
-      move 1 -1 join
-        skip 3 slow 4 dragon_foot_left
-        move 12 0 slow 4 dragon_foot_right
-      join
+      slow 2 join
+		side_heads
         join
-          slow 2 move 0 4 join
-            skip 6 move -10 1 seq
-              move 0 2 loop dragon_blow_left
-              loop move 2 0 dragon_roar_left
-            move 16 1 seq
-              move 0 2 loop dragon_blow_right
-              move -1 0 loop dragon_roar_right
-          join
-            slow 3 move 7 -5 dragon_tail
-            slow 2 loop dragon_body
-        move 0 1 join
-           skip 1 move -10 0 loop wing_left
-           move 18 0 loop wing_right
+          move 7 -4 dragon_tail
+          loop dragon_body
+      move -10 1 join
+         loop wing_left
+         move_x 28 loop wing_right
 end
+
+
+side_heads : gif
+  move_y 5 join
+    skip 6 move_x -8 seq
+      move -2 2 loop dragon_blow_left
+      loop dragon_roar_left
+    move_x 15 seq
+      move 1 2 loop dragon_blow_right
+      loop dragon_roar_right
+end
+
 
 loop : fn gif gif
   seq $1 tail reverse tail $1
 end
+
+
+move_x : fn int fn gif gif
+  move $1 0 $2
+end
+
+
+move_y : fn int fn gif gif
+  move 0 $1 $2
+end
+
 
 dragon_body : gif
 20 12
@@ -37,15 +53,16 @@ dragon_body : gif
       ((__))        ......776677........       ((__))       .......776677.......        ((__))      ........776677......       
       /o..o\        ......636636........       /o..o\       .......636636.......        /o..o\      ........636636......        
   \  ( /VV\ )    /  ..6..66577566....6..  \   ( /VV\ )   /  ..6...66577566...6..  \    ( /VV\ )  /  ..6....66577566..6..                   
-\  \  \\vv/ \   /  /6666..6577566...6666\  \   )\vv/(   /  /6666...657756...6666\  \   / \vv//  /  /6666...6657756..6666                    
+\  \  \\__/ \   /  /6666..6577566...6666\  \   )\__/(   /  /6666...657756...6666\  \   / \__//  /  /6666...6657756..6666                    
  \  \  '--'  \ /  / .6666666666666.6666. \  \ / '--' \ /  / .6666.66666666.6666. \  \ /  '--'  /  / .6666.6666666666666.                   
-  \  \/       V  (  ..6666666666666666..  )  V        V  (  ..6666666666666666..  )  V       \/  /  ..6666666666666666..            
-   ) (         )  \ .666666666666666666. /  (          )  \ .666666666666666666. /  (         ) (   .666666666666666666.             
-  /   `            )66666666666666666666(    '        '    )66666666666666666666(            '   \  66666666666666666666                              
+  \  \/       Y  (  ..6666666666666666..  )  V        V  (  ..6666666666666666..  )  Y       \/  /  ..6666666666666666..            
+   )  \       '   \ ...6666666666666666. /   |        |   \ .666666666666666666. /   '       /  (   .6666666666666666...             
+  /                )..666666666666666666(                  )66666666666666666666(                \  666666666666666666..                              
  (                / .666666666666666666. \                / .666666666666666666. \                ) .666666666666666666.               
   \              /  ..6666666666666666..  \              /  ..6666666666666666..  \              /  ..6666666666666666..                
    ``---.__.---''   ...66666666666666...   ``---.__.---''   ...66666666666666...   ``---.__.---''   ...66666666666666...   
 end
+
 
 dragon_foot_left : gif
 6 2
@@ -53,11 +70,13 @@ dragon_foot_left : gif
 mm_(  6666.. mm_| .6666.
 end
 
+
 dragon_foot_right : gif
 6 2
 '\ (  6666..') /  6666..
   )_mm..6666 |_mm .6666.
 end
+
 
 dragon_roar_left : gif
 13 7
@@ -70,6 +89,7 @@ dragon_roar_left : gif
              .............             ............. '~.----'    .66666666....
 end
 
+
 dragon_roar_right : gif
 13 7
 .            7.............            7.............            7............
@@ -80,6 +100,7 @@ dragon_roar_right : gif
              .............    `----.~' ....66666666.   (  \,A,A, ...666577777.   
              .............             .............    `----.~' ....66666666.
 end
+
 
 dragon_blow_right : gif
 14 5
@@ -95,6 +116,7 @@ dragon_blow_right : gif
    `-'   `.~' ...666...6666.   `-'   `.~' ...666...6666. 
 end
 
+
 dragon_blow_left : gif
 14 5
              ,.............7             ,.............7             ,.............7
@@ -109,6 +131,7 @@ dragon_blow_left : gif
  `~.'   `-'   .6666...666... `~.'   `-'   .6666...666...
 end
 
+
 wing_left : gif
 12 4
      ./|\  /.....2222...     ./|\  /.....2222...         /| .........22.           /............  
@@ -116,6 +139,7 @@ wing_left : gif
  .' /._|' \\.22222222.2. .' /._|' \\.22222222.2.       //' \.......222..          |\..........2. 
 /"''        2222......../"''        2222........      '     ......2.....           '..........22  
 end
+
 
 wing_right : gif
 12 4
@@ -125,14 +149,16 @@ wing_right : gif
         ``"\........2222        ``"\........2222     '      .....2......'           22..........
 end
 
+
 dragon_tail : gif
-6 5              
-\   ( 66666. )   /.66666
+6 4              
+-- \   ( 66666. )   /.66666
  \   ).66666(   / 66666. 
   ) / ..666. \ (  .666..                               
  ( /  .666..  \ ) ..666.    
   V   ..6...   V  ...6..    
 end
+
 
 fire : gif
 13 3

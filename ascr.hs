@@ -69,13 +69,13 @@ formatShell mods ht message renderedFrames = case renderedFrames of
           then ("  sleep " <> show (frameTime mods * i) <> "\n") : draw : helper xs x 0.0
           else draw : helper xs x 0.0
       intro = comment <> "draw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " <> 
-        show (frameTime mods) <> "\n}\n" <> "printf '" <> concat (replicate ht "\\n") <> "\\033[0m'\n" 
+        show (frameTime mods) <> "\n}\n" <> "printf '" <> concat (replicate ht "\\n") <> "\\033[1m'\n" 
       loop = "while true\ndo\n"
       body = concat (helper frames "" 0.0)
-      done = "done"
+      done = "\ndone"
   where
     comment = "#!/bin/sh\n" <> maybe "" (unlines . map ("# " <>) . lines) message <> "\n"
-    clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[0m"
+    clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[1m"
 
 dimensions :: RealGif -> Either ErrorType (Int, Int, Int, Int)
 dimensions gif = case concatMap (map fst) gif of
@@ -707,7 +707,7 @@ findDependencies table = fmap nub . getDependencies []
           errorType = Recursive target (reverse $ target : used),
           errorMark = None
         }
-      | otherwise -> case  extract  <$> lookup target table :: Maybe [Marked String] of 
+      | otherwise -> case extract <$> lookup target table :: Maybe [Marked String] of 
         Nothing -> Left Error {
           errorType = NoMatchingName target (findSimilarName target (map fst table)),
           errorMark = m
