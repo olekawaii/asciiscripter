@@ -56,7 +56,7 @@ formatShell :: Modifiers -> Int  -> Maybe String -> [String] -> (ShellScript, Sh
 formatShell mods ht message renderedFrames = case renderedFrames of
   [frame] -> (gif, gif <> "; sleep 2" <> clear)
     where gif = comment <> "printf '" <> frame <> "'"
-  frames  -> (comment <> trap <> hideprompt <> intro <> loop <> body <> done, intro <> body <> clear)
+  frames  -> (comment <> trap <> hideprompt <> intro <> loop <> body <> done, comment <> intro <> body <> clear)
     where 
       helper :: [String] -> String -> Float -> [String]
       helper [] _ 0.0     = [""]    
@@ -68,13 +68,15 @@ formatShell mods ht message renderedFrames = case renderedFrames of
           if i > 0 
           then ("  sleep " <> show (frameTime mods * i) <> "\n") : draw : helper xs x 0.0
           else draw : helper xs x 0.0
-      trap = "trap 'printf \"\\033[" <> show ht <> "A\\033[0J\\033[1A\\033[?25h\\033[0m\"; exit' EXIT\n" 
-      hideprompt = "stty -echo -icanon; printf '\\033[?25l'\n"
+      trap =
+        "trap 'printf \"\\033[" <> show ht <>
+        "A\\033[0J\\033[?25h\\033[0m\"; stty echo; exit' INT\n"
+      hideprompt = "stty -echo; printf '\\033[?25l'\n"
       intro = "draw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " <> 
         show (frameTime mods) <> "\n}\n" <> "printf '" <> concat (replicate ht "\\n") <> "\\033[1m'\n" 
       loop = "while true\ndo\n"
       body = concat (helper frames "" 0.0)
-      done = "\ndone"
+      done = "done"
   where
     comment = "#!/bin/sh\n" <> maybe "" (unlines . map ("# " <>) . lines) message <> "\n"
     clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[1m"
