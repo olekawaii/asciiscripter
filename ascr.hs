@@ -36,10 +36,10 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
       Right (I int) -> print int
       Right (G gif) -> case changeFormat gif of
         Left e -> exitWithError Error {errorType = e, errorMark = None}
-        Right (height, newGif) ->
+        Right (width, height, newGif) ->
           let
             file = d <> "/" <> t <> ".sh"
-            (fileSh, command) = formatShell mods height messageIn . pipeline $ newGif
+            (fileSh, command) = formatShell mods width height messageIn . pipeline $ newGif
           in
           putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
           unless c (
@@ -52,11 +52,11 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
           ) >> 
           unless q (callCommand command)-- (callCommand command)
 
-formatShell :: Modifiers -> Int  -> Maybe String -> [String] -> (ShellScript, ShellScript)
-formatShell mods ht message renderedFrames = case renderedFrames of
+formatShell :: Modifiers -> Int -> Int -> Maybe String -> [String] -> (ShellScript, ShellScript)
+formatShell mods wd ht message renderedFrames = case renderedFrames of
   [frame] -> (gif, gif <> "; sleep 2" <> clear)
     where gif = comment <> "printf '" <> frame <> "'"
-  frames  -> (comment <> trap <> hideprompt <> intro <> loop <> body <> done, comment <> intro <> body <> clear)
+  frames  -> (comment <> sizeCheck <> trap <> hideprompt <> intro <> loop <> body <> done, comment <> intro <> body <> clear)
     where 
       helper :: [String] -> String -> Float -> [String]
       helper [] _ 0.0     = [""]    
@@ -68,6 +68,10 @@ formatShell mods ht message renderedFrames = case renderedFrames of
           if i > 0 
           then ("  sleep " <> show (frameTime mods * i) <> "\n") : draw : helper xs x 0.0
           else draw : helper xs x 0.0
+      sizeCheck =
+        "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <>
+        " ]\nthen\n  printf 'terminal is too small\\nmust be at least " <>
+        show wd <> "x" <> show ht <> " cells\\n';\n  exit;\nfi\n" 
       trap =
         "trap 'printf \"\\033[" <> show ht <>
         "A\\033[0J\\033[?25h\\033[0m\"; stty echo; exit' INT\n"
@@ -116,7 +120,7 @@ defaultMods = Modifiers {
 
 -- TODO
 -- check that it's not 0
-changeFormat :: RealGif -> Either ErrorType (Int, [[[Character]]])
+changeFormat :: RealGif -> Either ErrorType (Int, Int, [[[Character]]])
 changeFormat x = dimensions x >>= \(x_min, x_max, y_min, y_max) ->
   let
     chart = liftA2 (flip (,))  [y_max, y_max -1 .. y_min] [x_min..x_max]
@@ -125,7 +129,7 @@ changeFormat x = dimensions x >>= \(x_min, x_max, y_min, y_max) ->
       where
         lookupChar want = fromMaybe Space $ lookup want a
   in
-  pure (y_max - y_min + 1, map convertFrame x) 
+  pure (x_max - x_min + 1, y_max - y_min + 1, map convertFrame x) 
 
 parseInt :: String -> String -> Either ErrorType Int
 parseInt x y = case readMaybe x of
