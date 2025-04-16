@@ -4,7 +4,8 @@ by olekawaii
 <o>
 
 main : gif
-  join skip 18 move 30 7 fire join move 25 -3 title join
+ --join move 25 -3 title join
+  join skip 18 move 30 7 fire join
     move 1 -1 join
       skip 3 slow 4 dragon_foot_left
       move_x 12 slow 4 dragon_foot_right

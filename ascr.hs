@@ -42,6 +42,13 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
             (fileSh, command) = formatShell mods width height messageIn . pipeline $ newGif
           in
           putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
+          (
+            if width > 80
+            then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 80 chars in width"
+            else if height > 24
+              then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 24 chars in height"
+              else pure ()
+          ) >>
           unless c (
             writeFile file (case o of
               Looping -> fileSh
@@ -56,7 +63,7 @@ formatShell :: Modifiers -> Int -> Int -> Maybe String -> [String] -> (ShellScri
 formatShell mods wd ht message renderedFrames = case renderedFrames of
   [frame] -> (gif, gif <> "; sleep 2" <> clear)
     where gif = comment <> "printf '" <> frame <> "'"
-  frames  -> (comment <> sizeCheck <> trap <> hideprompt <> intro <> loop <> body <> done, comment <> intro <> body <> clear)
+  frames  -> (comment <> initialize <> sizeCheck <> hideprompt <> initMove <> cleanup <> trap <> intro <> alloc <> loop <> body <> done, comment <> initialize <> sizeCheck <> initMove <> cleanup <> trap <> intro <> alloc <> body <> clear)
     where 
       helper :: [String] -> String -> Float -> [String]
       helper [] _ 0.0     = [""]    
@@ -68,17 +75,19 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
           if i > 0 
           then ("  sleep " <> show (frameTime mods * i) <> "\n") : draw : helper xs x 0.0
           else draw : helper xs x 0.0
+      initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
       sizeCheck =
-        "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <>
-        " ]\nthen\n  printf 'terminal is too small\\nmust be at least " <>
-        show wd <> "x" <> show ht <> " cells\\n';\n  exit;\nfi\n" 
+        "# exit if terminal is smaller than the gif\nif [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n  printf \"terminal is too small\\nmust be at least ${VIDEO_WIDTH}x${VIDEO_HEIGHT} cells\\n\";\n  exit 1\nfi\n\n" 
       trap =
-        "trap 'printf \"\\033[" <> show ht <>
-        "A\\033[0J\\033[?25h\\033[0m\"; stty echo; exit' INT\n"
-      hideprompt = "stty -echo; printf '\\033[?25l'\n"
-      intro = "draw() {\n  printf \"\\033[" <> show ht <> "A\\r$1\"\n  sleep " <> 
-        show (frameTime mods) <> "\n}\n" <> "printf '" <> concat (replicate ht "\\n") <> "\\033[1m'\n" 
-      loop = "while true\ndo\n"
+        "trap cleanup INT\n\n"
+      initMove = "move_up=\"\\033[${VIDEO_HEIGHT}A\\r\"\n\n"
+      cleanup =
+        "# cleanup after exit\ncleanup() {\n  printf \"${move_up}\\033[0J\\033[?25h\\033[0m\"\n  stty echo\n  exit 0\n}\n\n"
+      hideprompt = "# hide prompt\nstty -echo\nprintf '\\033[?25l'\n\n"
+      intro = "# moves cursor up and redraws frame\ndraw() {\n  printf \"${move_up}$1\"\n  sleep " <> 
+        show (frameTime mods) <> "\n}\n\n"
+      alloc = "# allocate space\nyes '' | head -n$VIDEO_HEIGHT\n\n"
+      loop = "# main loop\nwhile true\ndo\n"
       body = concat (helper frames "" 0.0)
       done = "done"
   where
