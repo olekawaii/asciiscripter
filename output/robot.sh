@@ -1,12 +1,40 @@
 #!/bin/sh
 
-trap 'printf "\033[11A\033[0J\033[1A\033[?25h\033[0m"; exit' EXIT
-stty -echo -icanon; printf '\033[?25l'
+VIDEO_WIDTH=13
+VIDEO_HEIGHT=11
+
+# exit if terminal is smaller than the gif
+if [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]
+then
+  printf "terminal is too small\nmust be at least ${VIDEO_WIDTH}x$VIDEO_HEIGHT cells\n";
+  exit 1
+fi
+
+# hide prompt
+stty -echo
+printf '\033[?25l'
+
+move_up="\033[${VIDEO_HEIGHT}A\r"
+
+# cleanup after exit
+cleanup() {
+  printf "$move_up\033[0J\033[?25h\033[0m"
+  stty echo
+  exit 0
+}
+
+trap cleanup INT
+
+# moves cursor up and redraws frame
 draw() {
-  printf "\033[11A\r$1"
+  printf "$move_up$1"
   sleep 0.1
 }
-printf '\n\n\n\n\n\n\n\n\n\n\n\033[1m'
+
+# allocate space
+yes '' | head -n $VIDEO_HEIGHT
+
+# main loop
 while true
 do
   draw '    \033[33m. c O\n     \033[36mc \033[35mO \n      V \n    \033[37m[_ ]\033[32m]\n     \033[35m( \033[36m)     \n      \033[35m\134      \n\033[37m__\033[31mc. \033[36m( \033[35m) \033[34mO  .\n  \033[32m\134__\033[37m.\033[36m\134\033[37m.  /  \n     ) (\033[32mVV  \n    \033[37m/___\134\n      \033[32m)\134   \033[37mOB\n'
@@ -57,5 +85,4 @@ do
   draw '\n  \033[33mO  \033[36mO \033[35mo\n \033[33mc    \033[36mV     \n\033[33m.   \033[32m[\033[37m[_ ]   \033[34m.\n      \033[35m\134     \033[34mc\n    \033[31mO\033[36m(\033[31m.\033[35m)    \033[34mO\n      \033[36m\134\n \033[37m__  \033[35m(\033[37m_\033[36m)    \033[37m/\n   \033[32m\134/\033[37m) (\033[32m\134/\134/\n    \033[37m/___\134\n     \033[32m( )   \033[37mOB\n'
   draw '    \033[33mO\n  c \033[36mo   \033[35mo\n \033[33m.   \033[36m\134\033[37m.\033[35m/\n    \033[37m[__ ]    \n     \033[35m\134 \033[36m/    \033[34m.\n    \033[31mc \033[35m\134     \033[34mc\n   \033[31mO \033[36m( \033[35m)    \033[34mO\n \033[37m__  .\033[36m\134\033[37m.    /\n   \033[32m\134/\033[37m) (\033[32m\134/\134/\n    \033[37m/___\134\n     \033[32m( )   \033[37mOB\n'
   draw '    \033[33mc O\n  . \033[36mo   \033[35mo\n     \033[36m\134\033[37m.\033[35m/\n    \033[37m[__ ]\n     \033[35m\134 \033[36m/     \n    \033[31m. \033[35m\134     \033[34m.\n\033[37m__\033[31mOc \033[36m( \033[35m)    \033[34mc\n  \033[32m\134__\033[37m.\033[36m\134\033[37m.  \033[34mO \033[37m/\n     ) (\033[32m\134/\134/\n    \033[37m/___\134\n     \033[32m( )   \033[37mOB\n'
-
 done

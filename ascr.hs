@@ -605,8 +605,8 @@ builtinFns = [
     createColor :: Color -> Data
     createColor x = Data {
       dummy = Dummy {
-        current_name   = show x,
-        type_sig = Type Colour
+        current_name = show x,
+        type_sig     = Type Colour
       },
       currentArgs   = [],
       function      = const (C x)
