@@ -191,8 +191,8 @@ data Color
   | Yellow   
   | Blue     
   | Magenta  
-  | Cyan     
-  | White    
+  | Cyan
+  | White
   deriving (Show, Eq)
 
 instance Show a => Show (Colored a) where

@@ -639,20 +639,6 @@ parseBlock (Block header lns tp) table =
       currentArgs   = [],
       function      = fn
     }
--- parseBlock header all@(x:xs) table = 
---   let 
---     fun = case traverse readMaybe . words $ unwrap x of
---       Just [a, b] -> parseGif header a b xs -- $ map (`addMarkBlock` new_name header) xs
---       _           -> parseScript header table (concatMap (words . unwrap) all) 
---   in fun >>= \fn -> pure Data {
---     dummy = Dummy {
---       current_name = new_name header,
---       type_sig     = typeSig header
---     },
---     currentArgs   = [],
---     function      = fn
---   }
--- parseBlock header [] _ = Left Error {errorType = MissingBody, errorMark = block_mark header}
 
 parseGif :: NewHeader -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
 parseGif header w h lns = 
@@ -899,7 +885,7 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
           errorType = Custom "$ must be preceded by a number",
           errorMark = m
         }
-        Just x  -> case arguments !? x  of
+        Just x  -> case arguments ??? x  of
           Nothing -> 
             Left $ Error {
               errorType = Custom "index is greater than the number of arguments",
@@ -919,13 +905,13 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
                 currentArgs   = [],
                 function      = const (I num)
               }
-            in (Right d :) <$> helperParseScript xs
+            in cons (Right d) <$> helperParseScript xs
           Nothing -> case lookup x table of
             Nothing -> Left $ Error {
               errorType = Custom "variable not in scope",
               errorMark = m
             }
-            Just x  -> (Right x :) <$> helperParseScript xs
+            Just x  -> cons (Right x) <$> helperParseScript xs
 
       getDummy :: Either (Int, Type) Data -> DummyData
       getDummy (Left (i, t)) = Dummy {
@@ -934,7 +920,7 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
       }
       getDummy (Right x) = dummy x
 
-(!?) :: [a] -> Int -> Maybe a
-(!?) y x = if x > length y 
+(???) :: [a] -> Int -> Maybe a
+(???) y x = if x > length y 
            then Nothing 
            else pure $ y !! (x - 1)
