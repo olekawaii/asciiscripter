@@ -78,8 +78,8 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
           else draw : helper xs x 0.0
       initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
       sizeCheck =
-        "# exit if terminal is smaller than the gif\nif [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n  printf \"\\033[31mterminal is too small\\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\\033[0m\\n\" >&2\n  exit 1\nfi\n\n" 
-      initMove = "move_up=\"\\033[$(expr $VIDEO_HEIGHT - 1)A\\r\"\n\n"
+        "# exit if terminal is smaller than the gif\nif [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n  printf \"\\033[91mterminal is too small\\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\\033[0m\\n\" >&2\n  exit 1\nfi\n\n" 
+      initMove = "move_up=\"\\033[$(expr $VIDEO_HEIGHT - 1)F\"\n\n"
       cleanup =
         "# cleanup after exit\ncleanup() {\n  printf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n  stty echo\n  exit 0\n}\n\ntrap cleanup INT\n\n"
       hideprompt = "# hide prompt\nstty -echo\nprintf '\\033[?25l'\n\n"
@@ -347,7 +347,7 @@ parseColorLine x = uncurry zip . first (map charToColor) . swap $ splitAt (lengt
 
 colorChar :: Character -> String
 colorChar Space = " "
-colorChar (Character s c) = "\\033[3" <> case c of
+colorChar (Character s c) = "\\033[9" <> case c of
     Black   -> "0"
     Red     -> "1"
     Green   -> "2"
