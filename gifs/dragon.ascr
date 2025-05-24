@@ -4,16 +4,18 @@ by olekawaii
 <o>
 
 main : gif
- join move 25 -3 title
-  join move_y 7 join skip 18 move_x 30 fire skip 6 move_x -23 fire_left join
-    move 1 -1 join
-      skip 3 slow 4 dragon_foot_left
-      move_x 12 slow 4 dragon_foot_right
+join move 25 -3 title
+  join 
+    skip 6 move_y 7 join skip 12 move_x 30 fire move_x -23 fire_left 
     join
+      move 1 -1 join
+        skip 3 slow 4 dragon_foot_left
+        move_x 12 slow 4 dragon_foot_right
       join
-        slow 2 side_heads
-        join slow 2 move 7 -4 dragon_tail dragon_body
-      move -10 1 join loop wing_left move_x 28 loop wing_right
+        join
+          slow 2 side_heads
+          join slow 2 move 7 -4 dragon_tail dragon_body
+        move -10 1 join loop wing_left move_x 28 loop wing_right
 end
 
 side_heads : gif
@@ -39,17 +41,19 @@ move_y : fn int fn gif gif
 end
 
 title : gif
-6 2
-dragon777777
-   ovb...777
+9 2
+   dragon...777777
+olekawaii777777777
 end
 
 dragon_body : gif
-  join slow 2 move 4 3 seq loop dragon_roar_main loop dragon_chill_main slow 2  loop dragon_belly_left
+  slow 2 join 
+    move 4 3 seq loop dragon_roar_main loop dragon_chill_main 
+    loop dragon_belly_left
 end
 
 test : gif
-loop dragon_roar_main
+  loop dragon_roar_main
 end
 
 dragon_belly_left : gif
@@ -85,7 +89,7 @@ dragon_roar_main : gif
   /o..o\    ..636636....   /o..o\   ...636636...    /o..o\  ....636636..
  ( /VV\ )   .66777766...  ( /VV\ )  ..66777766..   ( /VV\ ) ...66777766.
   \\__/ \   ..6777766...   )\__/(   ...677776...   / \__//  ...6677776..
-   '--'  \  ...6666666..  / `--' \  ..66666666..  /  `--'   ..6666666...
+   `--'  \  ...6666666..  / `--' \  ..66666666..  /  `--'   ..6666666...
   /       \ ..666666666. /        \ .6666666666. /       \  .666666666..
  '         ).66666666666(          )666666666666(         ` 66666666666.
           ' ..666666666.            .6666666666. `          .666666666.. 

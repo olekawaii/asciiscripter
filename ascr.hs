@@ -63,8 +63,9 @@ formatShell :: Modifiers -> Int -> Int -> Maybe String -> [String] -> (ShellScri
 formatShell mods wd ht message renderedFrames = case renderedFrames of
   [frame] -> (gif, gif <> "; sleep 2" <> clear)
     where gif = comment <> "printf '" <> frame <> "'"
-  frames  -> (comment <> initialize <> sizeCheck <> hideprompt <> initMove <> cleanup <> trap <> intro <> alloc <> loop <> body <> done, comment <> initialize <> sizeCheck <> initMove <> cleanup <> trap <> intro <> alloc <> body <> clear)
+  frames  -> (init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> loop <> body <> done, init2 <> initMove <> cleanup <> intro <> alloc <> body <> clear)
     where 
+      init2 = comment <> initialize <> sizeCheck
       helper :: [String] -> String -> Float -> [String]
       helper [] _ 0.0     = [""]    
       helper [] _ i       = ["  sleep " <> show (frameTime mods * i)]
@@ -77,18 +78,16 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
           else draw : helper xs x 0.0
       initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
       sizeCheck =
-        "# exit if terminal is smaller than the gif\nif [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n  printf \"terminal is too small\\nmust be at least ${VIDEO_WIDTH}x$VIDEO_HEIGHT cells\\n\";\n  exit 1\nfi\n\n" 
-      trap =
-        "trap cleanup INT\n\n"
-      initMove = "move_up=\"\\033[${VIDEO_HEIGHT}A\\r\"\n\n"
+        "# exit if terminal is smaller than the gif\nif [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n  printf \"\\033[31mterminal is too small\\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\\033[0m\\n\" >&2\n  exit 1\nfi\n\n" 
+      initMove = "move_up=\"\\033[$(expr $VIDEO_HEIGHT - 1)A\\r\"\n\n"
       cleanup =
-        "# cleanup after exit\ncleanup() {\n  printf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n  stty echo\n  exit 0\n}\n\n"
+        "# cleanup after exit\ncleanup() {\n  printf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n  stty echo\n  exit 0\n}\n\ntrap cleanup INT\n\n"
       hideprompt = "# hide prompt\nstty -echo\nprintf '\\033[?25l'\n\n"
       intro = "# moves cursor up and redraws frame\ndraw() {\n  printf \"$move_up$1\"\n  sleep " <> 
         show (frameTime mods) <> "\n}\n\n"
-      alloc = "# allocate space\nyes '' | head -n $VIDEO_HEIGHT\n\n"
+      alloc = "# allocate space\nyes '' | head -n $(expr $VIDEO_HEIGHT - 1)\n\n"
       loop = "# main loop\nwhile true\ndo\n"
-      body = concat (helper frames "" 0.0)
+      body = concat (helper (map (init . init) frames) "" 0.0)
       done = "done"
   where
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
