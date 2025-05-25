@@ -68,7 +68,7 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
       init2 = comment <> initialize <> sizeCheck
       helper :: [String] -> String -> Float -> [String]
       helper [] _ 0.0     = [""]    
-      helper [] _ i       = ["  sleep " <> show (frameTime mods * i)]
+      helper [] _ i       = ["  sleep " <> show (frameTime mods * i) <> "\n"]
       helper (x:xs) old i = 
         if x == old 
         then helper xs old (i + 1)
@@ -87,7 +87,7 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
         show (frameTime mods) <> "\n}\n\n"
       alloc = "# allocate space\nyes '' | head -n $(expr $VIDEO_HEIGHT - 1)\n\n"
       loop = "# main loop\nwhile true\ndo\n"
-      body = concat (helper (map (init . init) frames) "" 0.0)
+      body = concat (helper ({-map (init . init)-} frames) "" 0.0)
       done = "done"
   where
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
@@ -268,17 +268,6 @@ chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
 chunksOf n x  = uncurry ((. chunksOf n) . cons) $ splitAt n x
 
-renderer :: [[Character]] -> String
-renderer = helper Black . concatMap (append (Character '\n' Black))
-  where
-    helper :: Color -> [Character] -> String
-    helper _        [] = "" --"\\n"
-    helper oldcolor (Space:xs) = ' ' : helper oldcolor xs
-    helper oldcolor (c@(Character char color) : xs) =
-      if color == oldcolor || char == '\n'
-      then clean char <> helper oldcolor xs
-      else  colorChar c <> helper color xs
-    
 removeExtraSpaces :: [Character] -> [Character]
 removeExtraSpaces = reverse . remove . reverse
   where
@@ -294,7 +283,77 @@ clean a    = [a]
 
 
 pipeline :: [[[Character]]] -> [String]
-pipeline = map renderer . reduce4 . reduce2 . reduce1
+pipeline (x:xs) = ((init . init $ renderer x) :). init . map (flip showCommands Black) . reduce $ (x:xs) --map renderer . reduce4 . reduce2
+
+data Command = Draw Character | Move Dir
+data Dir = Down | Next
+
+reduce :: [[[Character]]] -> [[Command]]
+reduce [] = []
+reduce [x] = pure . intercalate [Move Down] . map (map Draw) $ x
+reduce (x:xs) = reverse . map (uncurry helper) $ chunksOf2 (x: reverse (x: xs))
+  where 
+    helper :: [[Character]] -> [[Character]] -> [Command]
+    helper [] [] = []
+    helper ([[]]) ([[]]) = []
+    helper ([]:xs) ([]:ys) = Move Down : helper xs ys
+    helper ((x:xx):xs) ((y:yy):ys) = (if x == y then Move Next else Draw x {--}) : helper (xx: xs) (yy: ys)
+    -- helper [x] = intercalate [Move Down] . map (map Draw) $ x
+    -- helper (x:y:ys) = 
+showCommands :: [Command] -> Color -> String
+showCommands [] _ = []
+showCommands m@(Move x : xs) oldColor = str <> showCommands other oldColor
+  where (str, other) = cleanMove m
+showCommands (Draw x : xs) oldColor = case x of
+  Space -> ' ' : showCommands xs oldColor
+  c@(Character char color) -> 
+    if color == oldColor 
+    then clean char <> showCommands xs oldColor 
+    else colorChar c <> showCommands xs color 
+
+data FinalMovement = Final {next :: Int, down :: Int} 
+
+instance Show FinalMovement where
+  show Final {next = next, down = down} = y <> x
+    where 
+      y = case down of 
+        0 -> "" 
+        1 -> "\\n"
+        2 -> "\\n\\n"
+        3 -> "\\n\\n\\n"
+        _ -> "\\033[" <> show down <> "E" 
+      x = if next == 0 then "" else "\\033[" <> show next <> "C"
+
+cleanMove :: [Command] -> (String, [Command])
+cleanMove x = first (show . flip makeFinal Final {next = 0, down = 0}) $ helper x
+  where 
+    helper :: [Command] -> ([Dir], [Command])
+    helper (Move x: xs) = first (x:) $ helper xs
+    helper x = ([], x)
+
+    makeFinal :: [Dir] -> FinalMovement -> FinalMovement
+    makeFinal [] f = f
+    makeFinal (Next : xs) f = makeFinal xs f {next = next f + 1, down = down f} 
+    makeFinal (Down : xs) f = makeFinal xs f {next = 0, down = down f + 1} 
+    
+
+
+renderer :: [[Character]] -> String
+renderer = helper Black . concatMap (append (Character '\n' Black))
+  where
+    helper :: Color -> [Character] -> String
+    helper _        [] = "" --"\\n"
+    helper oldcolor (Space:xs) = ' ' : helper oldcolor xs
+    helper oldcolor (c@(Character char color) : xs) =
+      if color == oldcolor || char == '\n'
+      then clean char <> helper oldcolor xs
+      else  colorChar c <> helper color xs
+    
+
+chunksOf2 :: [a] -> [(a, a)] 
+chunksOf2 [] = []
+chunksOf2 [a] = []
+chunksOf2 (a:b:bs) = (a, b) : chunksOf2 (b:bs)
 
 reduce1 :: [[[Character]]] -> [[[Character]]]
 reduce1 = map (map removeExtraSpaces)
@@ -303,7 +362,7 @@ reduce1 = map (map removeExtraSpaces)
 reduce4 :: [[[Character]]] -> [[[Character]]]
 reduce4 [] = []
 reduce4 [x] = [x] 
-reduce4 (x:xs) = (\a -> zipWith makeEqual x (last a) : a) . tail . reverse . rotate . helper $ x : reverse (x:xs)
+reduce4 (x:xs) = (x:) . tail . (\a -> zipWith makeEqual x (last a) : a) . tail . reverse . rotate . helper $ x : reverse (x:xs)
 -- reduce4 (x:xs) = reverse . rotate . helper $ x : reverse (x:xs)
 -- reduce4 (x:xs) = (x:) . init . reverse . rotate . helper $ x : reverse (x:xs)
   where
@@ -319,7 +378,7 @@ reduce4 (x:xs) = (\a -> zipWith makeEqual x (last a) : a) . tail . reverse . rot
       in case compare inputSize outputSize of
         GT -> i1
         LT -> i1 <> replicate (outputSize - inputSize) Space
-        EQ -> i1 -- reduce5 i1 i2
+        EQ -> reduce5 i1 i2
 
 -- if all frames are the same, reduces it to an Image
 reduce5 :: [Character] -> [Character] -> [Character]
