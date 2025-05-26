@@ -78,11 +78,11 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
           else draw : helper xs x 0.0
       initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
       sizeCheck =
-        "# exit if terminal is smaller than the gif\nif [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n  printf \"\\e[91mterminal is too small\\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\\e[0m\\n\" >&2\n  exit 1\nfi\n\n" 
-      initMove = "move_up=\"\\e[$(expr $VIDEO_HEIGHT - 1)F\"\n\n"
+        "# exit if terminal is smaller than the gif\nif [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n  printf \"\\033[91mterminal is too small\\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\\033[0m\\n\" >&2\n  exit 1\nfi\n\n" 
+      initMove = "move_up=\"\\033[$(expr $VIDEO_HEIGHT - 1)F\"\n\n"
       cleanup =
-        "# cleanup after exit\ncleanup() {\n  printf \"$move_up\\e[0J\\e[?25h\\e[0m\"\n  stty echo\n  exit 0\n}\n\ntrap cleanup INT\n\n"
-      hideprompt = "# hide prompt\nstty -echo\nprintf '\\e[?25l'\n\n"
+        "# cleanup after exit\ncleanup() {\n  printf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n  stty echo\n  exit 0\n}\n\ntrap cleanup INT\n\n"
+      hideprompt = "# hide prompt\nstty -echo\nprintf '\\033[?25l'\n\n"
       intro = "# moves cursor up and redraws frame\ndraw() {\n  printf \"$move_up$1\"\n  sleep " <> 
         show (frameTime mods) <> "\n}\n\n"
       alloc = "# allocate space\nyes '' | head -n $(expr $VIDEO_HEIGHT - 1)\n\n"
@@ -303,15 +303,23 @@ reduce (x:xs) = reverse . map (uncurry (helper Black)) $ chunksOf2 (x: reverse (
             (same, different) = first (map fst) . span (uncurry (==)) $ zip (x:xx) (y:yy) 
             len = length same
             leftover = uncurry (helper c) . bimap (: xs) (: ys) $ unzip different
-            isGood a = case getColor a of
-              Nothing -> True
-              Just b -> b == c
+            -- isGood = \case
+            --   Space -> True
+            --   Character char color -> color == c && char `notElem` "'\\"
           in 
-          if all isGood same && len < 5 
+          if (&& different /= []) . (< 7) . sum . map (getSize c) $ same --all isGood same && len < 6
           then map Draw same <> leftover
           else take len (repeat $ Move Next) <> leftover
         else Draw x {--} : helper (case getColor x of Nothing -> c; Just x -> x) (xx: xs) (yy: ys)
 
+getSize :: Color -> Character -> Int
+getSize c = \case
+    Space -> 1
+    Character char color -> (if color == c then 0 else 7) + case char of
+        '%'  -> 2
+        '\'' -> 4
+        '\\' -> 4
+        _ -> 1
 
 getColor = \case
   Space -> Nothing
@@ -340,8 +348,9 @@ instance Show FinalMovement where
         0 -> "" 
         1 -> "\\n"
         2 -> "\\n\\n"
-        _ -> "\\e[" <> show down <> "E" 
-      x = if next == 0 then "" else "\\e[" <> show next <> "C"
+        3 -> "\\n\\n\\n"
+        _ -> "\\033[" <> show down <> "E" 
+      x = if next == 0 then "" else "\\033[" <> show next <> "C"
 
 cleanMove :: [Command] -> (FinalMovement, [Command])
 cleanMove x = first (flip makeFinal Final {next = 0, down = 0}) $ helper x
@@ -395,7 +404,7 @@ parseColorLine x = uncurry zip . first (map charToColor) . swap $ splitAt (lengt
 
 colorChar :: Character -> String
 colorChar Space = " "
-colorChar (Character s c) = "\\e[9" <> case c of
+colorChar (Character s c) = "\\033[9" <> case c of
     Black   -> "0"
     Red     -> "1"
     Green   -> "2"
