@@ -290,25 +290,29 @@ data Dir = Down | Next
 reduce :: [[[Character]]] -> [[Command]]
 reduce [] = []
 reduce [x] = pure . intercalate [Move Down] . map (map Draw) $ x
-reduce (x:xs) = reverse . map (uncurry helper) $ chunksOf2 (x: reverse (x: xs))
+reduce (x:xs) = reverse . map (uncurry (helper Black)) $ chunksOf2 (x: reverse (x: xs))
   where 
-    helper :: [[Character]] -> [[Character]] -> [Command]
-    helper [] [] = []
-    helper ([[]]) ([[]]) = []
-    helper ([]:xs) ([]:ys) = Move Down : helper xs ys
-    helper ((x:xx):xs) ((y:yy):ys) = 
+    helper :: Color -> [[Character]] -> [[Character]] -> [Command]
+    helper _ [] [] = []
+    helper _ ([[]]) ([[]]) = []
+    helper c ([]:xs) ([]:ys) = Move Down : helper c xs ys
+    helper c ((x:xx):xs) ((y:yy):ys) = 
         if x == y 
         then 
           let 
             (same, different) = first (map fst) . span (uncurry (==)) $ zip (x:xx) (y:yy) 
             len = length same
-            leftover = uncurry helper (bimap (: xs) (: ys) $ unzip different) 
+            leftover = uncurry (helper c) . bimap (: xs) (: ys) $ unzip different
           in 
-          if all (== Space) same && len < 7 
+          if (all (== Space) same || (getColor x == Just c && all (== getColor x) (map getColor same))) && len < 7 
           then map Draw same <> leftover
           else take len (repeat $ Move Next) <> leftover
-        else Draw x {--} : helper (xx: xs) (yy: ys)
+        else Draw x {--} : helper (case getColor x of Nothing -> c; Just x -> x) (xx: xs) (yy: ys)
 
+
+getColor = \case
+    Space -> Nothing
+    Character _ color -> Just color
     -- helper [x] = intercalate [Move Down] . map (map Draw) $ x
     -- helper (x:y:ys) = 
 showCommands :: [Command] -> Color -> String
