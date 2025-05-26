@@ -9,7 +9,7 @@ import Control.Applicative
 import Control.Monad ((<=<), (>=>), guard, unless, when)
 import Control.Arrow ((<<<), (>>>), (***), (&&&), (+++), (|||))
 import qualified Data.Map.Strict as Map
-import Data.Bifunctor (first, second)
+import Data.Bifunctor (first, second, bimap)
 import Data.Maybe
 import Data.Tuple
 import Data.List
@@ -281,9 +281,8 @@ clean '\n' = "\\n"
 clean '%'  = "%%"
 clean a    = [a]
 
-
 pipeline :: [[[Character]]] -> [String]
-pipeline (x:xs) = ((init . init $ renderer x) :). init . map (flip showCommands Black) . reduce $ (x:xs) --map renderer . reduce4 . reduce2
+pipeline (x:xs) = ((init . init $ renderer x) :). init . map (flip showCommands Black) . reduce . reduce2 $ (x:xs) --map renderer . reduce4 . reduce2
 
 data Command = Draw Character | Move Dir
 data Dir = Down | Next
@@ -297,13 +296,27 @@ reduce (x:xs) = reverse . map (uncurry helper) $ chunksOf2 (x: reverse (x: xs))
     helper [] [] = []
     helper ([[]]) ([[]]) = []
     helper ([]:xs) ([]:ys) = Move Down : helper xs ys
-    helper ((x:xx):xs) ((y:yy):ys) = (if x == y then Move Next else Draw x {--}) : helper (xx: xs) (yy: ys)
+    helper ((x:xx):xs) ((y:yy):ys) = 
+        if x == y 
+        then 
+          let 
+            (same, different) = first (map fst) . span (uncurry (==)) $ zip (x:xx) (y:yy) 
+            len = length same
+            leftover = uncurry helper (bimap (: xs) (: ys) $ unzip different) 
+          in 
+          if all (== Space) same && len < 7 
+          then map Draw same <> leftover
+          else take len (repeat $ Move Next) <> leftover
+        else Draw x {--} : helper (xx: xs) (yy: ys)
+
     -- helper [x] = intercalate [Move Down] . map (map Draw) $ x
     -- helper (x:y:ys) = 
 showCommands :: [Command] -> Color -> String
 showCommands [] _ = []
-showCommands m@(Move x : xs) oldColor = str <> showCommands other oldColor
-  where (str, other) = cleanMove m
+showCommands m@(Move x : xs) oldColor = case cleanMove m of 
+  (f, []) -> show f {next = 0}
+  (f, other) -> show f <> showCommands other oldColor
+  -- where (str, other) = cleanMove m
 showCommands (Draw x : xs) oldColor = case x of
   Space -> ' ' : showCommands xs oldColor
   c@(Character char color) -> 
@@ -324,8 +337,8 @@ instance Show FinalMovement where
         _ -> "\\033[" <> show down <> "E" 
       x = if next == 0 then "" else "\\033[" <> show next <> "C"
 
-cleanMove :: [Command] -> (String, [Command])
-cleanMove x = first (show . flip makeFinal Final {next = 0, down = 0}) $ helper x
+cleanMove :: [Command] -> (FinalMovement, [Command])
+cleanMove x = first (flip makeFinal Final {next = 0, down = 0}) $ helper x
   where 
     helper :: [Command] -> ([Dir], [Command])
     helper (Move x: xs) = first (x:) $ helper xs
@@ -336,8 +349,6 @@ cleanMove x = first (show . flip makeFinal Final {next = 0, down = 0}) $ helper 
     makeFinal (Next : xs) f = makeFinal xs f {next = next f + 1, down = down f} 
     makeFinal (Down : xs) f = makeFinal xs f {next = 0, down = down f + 1} 
     
-
-
 renderer :: [[Character]] -> String
 renderer = helper Black . concatMap (append (Character '\n' Black))
   where
@@ -348,7 +359,6 @@ renderer = helper Black . concatMap (append (Character '\n' Black))
       if color == oldcolor || char == '\n'
       then clean char <> helper oldcolor xs
       else  colorChar c <> helper color xs
-    
 
 chunksOf2 :: [a] -> [(a, a)] 
 chunksOf2 [] = []
@@ -357,33 +367,6 @@ chunksOf2 (a:b:bs) = (a, b) : chunksOf2 (b:bs)
 
 reduce1 :: [[[Character]]] -> [[[Character]]]
 reduce1 = map (map removeExtraSpaces)
-
--- trims off unused space from the ends of lines. Only if doesn't break other frames
-reduce4 :: [[[Character]]] -> [[[Character]]]
-reduce4 [] = []
-reduce4 [x] = [x] 
-reduce4 (x:xs) = (x:) . tail . (\a -> zipWith makeEqual x (last a) : a) . tail . reverse . rotate . helper $ x : reverse (x:xs)
--- reduce4 (x:xs) = reverse . rotate . helper $ x : reverse (x:xs)
--- reduce4 (x:xs) = (x:) . init . reverse . rotate . helper $ x : reverse (x:xs)
-  where
-    helper :: [[[Character]]] -> [[[Character]]]
-    helper [a,b] = pure $ zipWith makeEqual a b
-    helper (a:b:other) = zipWith makeEqual a b : helper (b:other)
-
-    makeEqual :: [Character] -> [Character] -> [Character]
-    makeEqual i1 i2 =
-      let
-        inputSize = length i1
-        outputSize = length i2
-      in case compare inputSize outputSize of
-        GT -> i1
-        LT -> i1 <> replicate (outputSize - inputSize) Space
-        EQ -> reduce5 i1 i2
-
--- if all frames are the same, reduces it to an Image
-reduce5 :: [Character] -> [Character] -> [Character]
-reduce5 [] _ = []
-reduce5 (x:xs) (y:ys) = if (x:xs) == (y:ys) then [] else x : reduce5 xs ys
 
 reduce2 :: [[[Character]]] -> [[[Character]]]
 reduce2 [] = []
