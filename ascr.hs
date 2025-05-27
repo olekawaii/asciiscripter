@@ -59,39 +59,32 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
           ) >> 
           unless q (callCommand command)-- (callCommand command)
 
-formatShell :: Modifiers -> Int -> Int -> Maybe String -> [String] -> (ShellScript, ShellScript)
+formatShell :: Modifiers -> Int -> Int -> Maybe String -> [Either String Int] -> (ShellScript, ShellScript)
 formatShell mods wd ht message renderedFrames = case renderedFrames of
-  [frame] -> (gif, gif <> "; sleep 2" <> clear)
-    where gif = comment <> "printf '" <> frame <> "'"
-  frames  -> (init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> loop <> body <> done, init2 <> initMove <> cleanup <> intro <> alloc <> body <> clear)
+  [Left frame] -> (comment <> initialize <> sizeCheck <> gif <> "\\n'", comment <> initialize <> sizeCheck <> hideprompt <> initMove <> cleanup <> gif <> "'\nsleep 2" <> "\ncleanup")
+    where gif = "printf '" <> frame
+  frames  -> (init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> loop <> body <> done, init2 <> initMove <> cleanup <> intro <> alloc <> body <> "\nprintf \x1b[" <> show (ht - 1) <> "A\r\x1b[0J\x1b[1m")
     where 
       init2 = comment <> initialize <> sizeCheck
-      helper :: [String] -> String -> Float -> [String]
-      helper [] _ 0.0     = [""]    
-      helper [] _ i       = ["  sleep " <> show (frameTime mods * i) <> "\n"]
-      helper (x:xs) old i = 
-        if x == old 
-        then helper xs old (i + 1)
-        else let draw = "  draw '" <> x <> "'\n" in 
-          if i > 0 
-          then ("  sleep " <> show (frameTime mods * i) <> "\n") : draw : helper xs x 0.0
-          else draw : helper xs x 0.0
-      initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
-      sizeCheck =
-        "# exit if terminal is smaller than the gif\nif [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n  printf \"\\033[91mterminal is too small\\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\\033[0m\\n\" >&2\n  exit 1\nfi\n\n" 
-      initMove = "move_up=\"\\033[$(expr $VIDEO_HEIGHT - 1)F\"\n\n"
-      cleanup =
-        "# cleanup after exit\ncleanup() {\n  printf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n  stty echo\n  exit 0\n}\n\ntrap cleanup INT\n\n"
-      hideprompt = "# hide prompt\nstty -echo\nprintf '\\033[?25l'\n\n"
-      intro = "# moves cursor up and redraws frame\ndraw() {\n  printf \"$move_up$1\"\n  sleep " <> 
+      newHelper :: [Either String Int] -> String
+      newHelper [] = ""
+      newHelper (Left s : xs) = "    draw '" <> s <> "'\n" <> newHelper xs
+      newHelper (Right i : xs) = "    sleep " <> show (fromIntegral i * frameTime mods) <> "\n" <> newHelper xs
+      intro = "draw() {\n    printf \"$move_up$1\"\n    sleep " <> 
         show (frameTime mods) <> "\n}\n\n"
-      alloc = "# allocate space\nyes '' | head -n $(expr $VIDEO_HEIGHT - 1)\n\n"
-      loop = "# main loop\nwhile true\ndo\n"
-      body = concat (helper ({-map (init . init)-} frames) "" 0.0)
+      alloc = "yes '' | head -n $(expr $VIDEO_HEIGHT - 1)\n\n"
+      loop = "while true\ndo\n"
+      body = newHelper frames
+      -- body = concat (helper ({-map (init . init)-} frames) "" 0.0)
       done = "done"
   where
+    initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
+    hideprompt = "stty -echo\nprintf '\\033[?25l'\n\n"
+    initMove = "move_up=\"\\033[$(expr $VIDEO_HEIGHT - 1)F\"\n\n"
+    cleanup = "cleanup() {\n    printf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT HUP\n\n"
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
-    clear = "\nprintf \x1b[" <> show ht <> "A\r\x1b[0J\x1b[1m"
+    sizeCheck = "if [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n    printf \"\\033[91mterminal is too small\\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\\033[0m\\n\" >&2\n    exit 1\nfi\n\n" 
+    clear = "\nprintf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n" -- 
 
 dimensions :: RealGif -> Either ErrorType (Int, Int, Int, Int)
 dimensions gif = case concatMap (map fst) gif of
@@ -281,8 +274,13 @@ clean '\n' = "\\n"
 clean '%'  = "%%"
 clean a    = pure a
 
-pipeline :: [[[Character]]] -> [String]
-pipeline (x:xs) = ((init . init $ renderer x) :). init . map (flip showCommands Black) . reduce . reduce2 $ (x:xs) --map renderer . reduce4 . reduce2
+pipeline :: [[[Character]]] -> [Either String Int]
+pipeline (x:xs) = (Left (init . init $ renderer x) :) . init . countUp . map formatCommands . reduce . reduce2 $ (x:xs) --map renderer . reduce4 . reduce2
+  where
+    countUp :: [Maybe String] -> [Either String Int]
+    countUp [] = []
+    countUp (Just s: xs) = Left s : countUp xs
+    countUp (Nothing: xs) = let (num, other) = first ((+ 1) . length) $ span isNothing xs in Right num : countUp other
 
 data Command = Draw Character | Move Dir
 data Dir = Down | Next
@@ -326,6 +324,13 @@ getColor = \case
   Character _ color -> Just color
     -- helper [x] = intercalate [Move Down] . map (map Draw) $ x
     -- helper (x:y:ys) = 
+
+formatCommands :: [Command] -> Maybe String
+formatCommands x = if all isMove x then Nothing else pure $ showCommands x Black
+  where
+    isMove (Move _) = True
+    isMove _ = False
+
 showCommands :: [Command] -> Color -> String
 showCommands [] _ = []
 showCommands m@(Move x : xs) oldColor = case cleanMove m of 
