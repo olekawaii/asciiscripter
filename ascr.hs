@@ -61,18 +61,17 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
 
 formatShell :: Modifiers -> Int -> Int -> Maybe String -> [Either String Int] -> (ShellScript, ShellScript)
 formatShell mods wd ht message renderedFrames = case renderedFrames of
-  [Left frame] -> (comment <> initialize <> sizeCheck <> gif <> "\\n'", comment <> initialize <> sizeCheck <> hideprompt <> initMove <> cleanup <> gif <> "'\nsleep 2" <> "\ncleanup")
+  [Left frame] -> (init2 <> gif <> "\\n'", init2 <> hideprompt <> initMove <> cleanup <> gif <> "'\nsleep 2" <> "\ncleanup")
     where gif = "printf '" <> frame
   frames  -> (init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> loop <> body <> done, init2 <> initMove <> cleanup <> intro <> alloc <> body <> "\nprintf \x1b[" <> show (ht - 1) <> "A\r\x1b[0J\x1b[1m")
     where 
-      init2 = comment <> initialize <> sizeCheck
       newHelper :: [Either String Int] -> String
       newHelper [] = ""
       newHelper (Left s : xs) = "    draw '" <> s <> "'\n" <> newHelper xs
       newHelper (Right i : xs) = "    sleep " <> show (fromIntegral i * frameTime mods) <> "\n" <> newHelper xs
       intro = "draw() {\n    printf \"$move_up$1\"\n    sleep " <> 
         show (frameTime mods) <> "\n}\n\n"
-      alloc = "yes '' | head -n $(expr $VIDEO_HEIGHT - 1)\n\n"
+      alloc = "yes '' | head -n " <> show (ht - 1) <> "\n\n"
       loop = "while true\ndo\n"
       body = newHelper frames
       -- body = concat (helper ({-map (init . init)-} frames) "" 0.0)
@@ -80,11 +79,12 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
   where
     initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
     hideprompt = "stty -echo\nprintf '\\033[?25l'\n\n"
-    initMove = "move_up=\"\\033[$(expr $VIDEO_HEIGHT - 1)F\"\n\n"
-    cleanup = "cleanup() {\n    printf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT HUP\n\n"
+    initMove = "move_up=\"\\033[" <> show (ht - 1) <> "F\"\n\n"
+    cleanup = "cleanup() {\n    printf \"$move_up\\033[0J\\033[0m\\033[?25h\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT HUP\n\n"
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
-    sizeCheck = "if [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]\nthen\n    printf \"\\033[91mterminal is too small\\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\\033[0m\\n\" >&2\n    exit 1\nfi\n\n" 
-    clear = "\nprintf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n" -- 
+    sizeCheck = "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <> " ]\nthen\n    printf \"\\033[91mterminal is too small\\nmust be at least " <> show wd <> " by " <> show ht <> " cells\\033[0m\\n\" >&2\n    exit 1\nfi\n\n" 
+    clear = "\nprintf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n"
+    init2 = comment <> sizeCheck
 
 dimensions :: RealGif -> Either ErrorType (Int, Int, Int, Int)
 dimensions gif = case concatMap (map fst) gif of
@@ -301,14 +301,11 @@ reduce (x:xs) = reverse . map (uncurry (helper Black)) $ chunksOf2 (x: reverse (
             (same, different) = first (map fst) . span (uncurry (==)) $ zip (x:xx) (y:yy) 
             len = length same
             leftover = uncurry (helper c) . bimap (: xs) (: ys) $ unzip different
-            -- isGood = \case
-            --   Space -> True
-            --   Character char color -> color == c && char `notElem` "'\\"
           in 
-          if (&& different /= []) . (< 7) . sum . map (getSize c) $ same --all isGood same && len < 6
+          if different /= [] && sum (map (getSize c) same) < 7 
           then map Draw same <> leftover
           else take len (repeat $ Move Next) <> leftover
-        else Draw x {--} : helper (case getColor x of Nothing -> c; Just x -> x) (xx: xs) (yy: ys)
+        else Draw x : helper (case getColor x of Nothing -> c; Just x -> x) (xx: xs) (yy: ys)
 
 getSize :: Color -> Character -> Int
 getSize c = \case
@@ -322,8 +319,6 @@ getSize c = \case
 getColor = \case
   Space -> Nothing
   Character _ color -> Just color
-    -- helper [x] = intercalate [Move Down] . map (map Draw) $ x
-    -- helper (x:y:ys) = 
 
 formatCommands :: [Command] -> Maybe String
 formatCommands x = if all isMove x then Nothing else pure $ showCommands x Black
