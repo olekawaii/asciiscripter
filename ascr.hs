@@ -50,8 +50,8 @@ instance Show Type where
 data SimpleType = Int | Giff | Colour deriving Eq
 
 instance Show SimpleType where
-  show Int   = "int"
-  show Giff  = "gif"
+  show Int    = "int"
+  show Giff   = "gif"
   show Colour = "color"
 
 data Data = Data {
@@ -288,7 +288,7 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
     initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
     hideprompt = "stty -echo\nprintf '\\033[?25l'\n\n"
     initMove = "move_up=\"\\033[" <> show (ht - 1) <> "F\"\n\n"
-    cleanup = "cleanup() {\n    printf \"$move_up\\033[0J\\033[0m\\033[?25h\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT HUP\n\n"
+    cleanup = "cleanup() {\n    printf \"$move_up\\033[0J\\033[0m\\033[?25h\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT\n\n"
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
     sizeCheck = "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <> " ]\nthen\n    printf \"\\033[91mterminal is too small\\nmust be at least " <> show wd <> " by " <> show ht <> " cells\\033[0m\\n\" >&2\n    exit 1\nfi\n\n" 
     clear = "\nprintf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n"
@@ -755,7 +755,7 @@ builtinFns = [
 
     joinf = Data {
       dummy = Dummy {
-        current_name   = "skip",
+        current_name   = "join",
         type_sig = Fn (Type Giff) (Fn (Type Giff) (Type Giff))
       },
       currentArgs   = [],

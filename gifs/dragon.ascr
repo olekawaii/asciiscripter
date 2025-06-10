@@ -42,7 +42,9 @@ end
 
 dragon_body : gif
   slow 2 join 
-    move 4 3 seq loop dragon_roar_main loop dragon_chill_main 
+    move 4 3 seq 
+      seq loop dragon_roar_main loop dragon_roar_main 
+      seq loop dragon_chill_main loop dragon_chill_main 
     loop dragon_belly_left
 end
 
