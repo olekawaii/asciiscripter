@@ -25,11 +25,11 @@ type LineNumber    = Int
 type Dependencies  = Map Name [Name]
 type Name          = String
 type Frame         = [Colored Char]
-type Gif           = [Frame]
+-- type Gif           = [Frame]
 type Coordinate    = (Int,Int)
 type RealGif = [Map Coordinate Character]
 
-data ValName = Name String [ValName]
+-- data ValName = Name String [ValName]
 
 data Type = Type SimpleType | Fn Type Type deriving Eq
 
@@ -70,7 +70,7 @@ instance Show DummyData where
 
 data ReturnType = I Int | G RealGif | C Color deriving Show
 
-data OutputFile = Gif | Image deriving Eq
+-- data OutputFile = Gif | Image deriving Eq
 
 newtype Suggestion = Suggestion (Maybe String) 
 
@@ -226,7 +226,7 @@ colorCode Magenta = "\x1b[35m"
 colorCode Cyan    = "\x1b[36m"
 colorCode White   = "\x1b[37m"
 
-
+main :: IO ()
 main = getArgs >>= \arg -> case parseArgs arg defaultMods of
   Left e -> exitWithError e
   Right (mods@Modifiers {
@@ -285,13 +285,13 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
       -- body = concat (helper ({-map (init . init)-} frames) "" 0.0)
       done = "done"
   where
-    initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
+    -- initialize = "VIDEO_WIDTH=" <> show wd <> "\nVIDEO_HEIGHT=" <> show ht <> "\n\n"
     hideprompt = "stty -echo\nprintf '\\033[?25l'\n\n"
     initMove = "move_up=\"\\033[" <> show (ht - 1) <> "F\"\n\n"
     cleanup = "cleanup() {\n    printf \"$move_up\\033[0J\\033[0m\\033[?25h\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT\n\n"
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
     sizeCheck = "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <> " ]\nthen\n    printf \"\\033[91mterminal is too small\\nmust be at least " <> show wd <> " by " <> show ht <> " cells\\033[0m\\n\" >&2\n    exit 1\nfi\n\n" 
-    clear = "\nprintf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n"
+    -- clear = "\nprintf \"$move_up\\033[0J\\033[?25h\\033[0m\"\n"
     init2 = comment <> sizeCheck
 
 dimensions :: RealGif -> Either ErrorType (Int, Int, Int, Int)
@@ -327,7 +327,6 @@ defaultMods = Modifiers {
   output    = Looping
 }
 
--- TODO
 -- check that it's not 0
 changeFormat :: RealGif -> Either ErrorType (Int, Int, [[[Character]]])
 changeFormat x = dimensions x >>= \(x_min, x_max, y_min, y_max) ->
@@ -591,39 +590,42 @@ parseColorLine :: Marked String -> OrError [Maybe Character]
 parseColorLine (Marked m x) = uncurry helper $ splitAt (length x `quot` 2) x 
   where
     helper [] [] = pure []
-    helper (' ':xs) ('.':ys) = (Nothing :)                 <$> helper xs ys
-    helper (x:xs) ('.':ys) = Left $ Error {
-        errorType = Custom ("non-space character `" <> show x <> "` marked transparent"),
-        errorMark = m
-    }
-    helper (' ':xs) ('/':ys) = (Just Space :)            <$> helper xs ys
-    helper (x:xs) ('/':ys) = Left $ Error {
-        errorType = Custom ("non-space character `" <> show x <> "` marked as a space"),
-        errorMark = m
-    }
-    helper (' ':xs) (y:ys) = Left $ Error {
-        errorType = Custom (
-          "the space character marked `" <> 
-          show y <> 
-          "` should be marked transparent or filled"
-        ),
-        errorMark = m
-    }
-    helper (x:xs) (y:ys) = parseColor >>= \color -> (Just (Character x color) :)  <$> helper xs ys
-      where 
-        parseColor = case y of
-          '0' -> pure Black 
-          '1' -> pure Red
-          '2' -> pure Green
-          '3' -> pure Yellow
-          '4' -> pure Blue
-          '5' -> pure Magenta
-          '6' -> pure Cyan
-          '7' -> pure White
-          x   -> Left $ Error {
-              errorType = Custom ("bad color " <> show (x:xs) <> "\n" <> show (y:ys)),
-              errorMark = m
-          }
+    helper (x:xs) (y:ys) = case x of
+      ' ' -> case y of
+        '.' -> (Nothing    :) <$> helper xs ys
+        '/' -> (Just Space :) <$> helper xs ys
+        _   -> Left $ Error {
+          errorType = Custom (
+            "the space character marked `" <> 
+            show y <> 
+            "` should be marked transparent or filled"
+          ),
+          errorMark = m
+        }
+      char -> case y of
+        '.' -> Left $ Error {
+          errorType = Custom ("non-space character `" <> show x <> "` marked transparent"),
+          errorMark = m
+        }
+        '/' -> Left $ Error {
+          errorType = Custom ("non-space character `" <> show x <> "` marked as a space"),
+          errorMark = m
+        }
+        _   -> parseColor >>= \color -> (Just (Character x color) :)  <$> helper xs ys
+          where 
+            parseColor = case y of
+              '0' -> pure Black 
+              '1' -> pure Red
+              '2' -> pure Green
+              '3' -> pure Yellow
+              '4' -> pure Blue
+              '5' -> pure Magenta
+              '6' -> pure Cyan
+              '7' -> pure White
+              x   -> Left $ Error {
+                errorType = Custom ("bad color " <> show (x:xs) <> "\n" <> show (y:ys)),
+                errorMark = m
+              }
 
 colorChar :: Character -> String
 colorChar Space = " "
@@ -963,11 +965,6 @@ parseGif header w h lns =
           }
           else cons (Marked m x) <$> helper xs n
 
-maybes :: [(b, Maybe a)] -> [(b, a)]
-maybes [] = []
-maybes ((b, Just a) : xs) = (b, a) : maybes xs
-maybes ((_, Nothing) : xs) = maybes xs
-
 argTypes :: Type -> [Type]
 argTypes (Fn a b) = a : argTypes b
 argTypes _        = []
@@ -1003,9 +1000,9 @@ findDependencies table = fmap nub . getDependencies []
       helper . concatMap (\(Marked m x) -> map (Marked m) (words x)) $ lns
         where
           helper :: [Marked String] -> [Marked String]
-          helper = filter (\(Marked m x) -> (x `notElem` map fst builtinFns) && not (all (`elem` ('$':nums)) x))
+          helper = filter (\(Marked m x) -> notElem x (map fst builtinFns) && not (all (`elem` ('$':nums)) x))
 
-parseChunks :: [Marked String] -> OrError (Map Name Block)-- OrError (Map Name (NewHeader, [Marked String]))
+parseChunks :: [Marked String] -> OrError (Map Name Block)
 parseChunks [] = pure []
 parseChunks (Marked m ('-':'-':_) : xs) = parseChunks xs 
 parseChunks all@(Marked m x : xs) = 
@@ -1206,5 +1203,5 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
 
 (???) :: [a] -> Int -> Maybe a
 (???) y x = if x > length y 
-           then Nothing 
-           else pure $ y !! (x - 1)
+            then Nothing 
+            else pure $ y !! (x - 1)
