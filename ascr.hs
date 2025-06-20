@@ -587,20 +587,43 @@ reduce2 :: [[[Character]]] -> [[[Character]]]
 reduce2 [] = []
 reduce2 (x:xs) = if all (== x) xs then [x] else x:xs
 
-parseColorLine :: String -> [(Maybe Color, Char)]
-parseColorLine x = uncurry zip . first (map charToColor) . swap $ splitAt (length x `quot` 2) x
-  where 
-    charToColor = \case 
-      '.' -> Nothing
-      '0' -> Just Black 
-      '1' -> Just Red
-      '2' -> Just Green
-      '3' -> Just Yellow
-      '4' -> Just Blue
-      '5' -> Just Magenta
-      '6' -> Just Cyan
-      '7' -> Just White
-      _   -> Just White
+parseColorLine :: Marked String -> OrError [Maybe Character]
+parseColorLine (Marked m x) = uncurry helper $ splitAt (length x `quot` 2) x 
+  where
+    helper [] [] = pure []
+    helper (' ':xs) ('.':ys) = (Nothing :)                 <$> helper xs ys
+    helper (x:xs) ('.':ys) = Left $ Error {
+        errorType = Custom ("non-space character `" <> show x <> "` marked transparent"),
+        errorMark = m
+    }
+    helper (' ':xs) ('/':ys) = (Just Space :)            <$> helper xs ys
+    helper (x:xs) ('/':ys) = Left $ Error {
+        errorType = Custom ("non-space character `" <> show x <> "` marked as a space"),
+        errorMark = m
+    }
+    helper (' ':xs) (y:ys) = Left $ Error {
+        errorType = Custom (
+          "the space character marked `" <> 
+          show y <> 
+          "` should be marked transparent or filled"
+        ),
+        errorMark = m
+    }
+    helper (x:xs) (y:ys) = parseColor >>= \color -> (Just (Character x color) :)  <$> helper xs ys
+      where 
+        parseColor = case y of
+          '0' -> pure Black 
+          '1' -> pure Red
+          '2' -> pure Green
+          '3' -> pure Yellow
+          '4' -> pure Blue
+          '5' -> pure Magenta
+          '6' -> pure Cyan
+          '7' -> pure White
+          x   -> Left $ Error {
+              errorType = Custom ("bad color " <> show (x:xs) <> "\n" <> show (y:ys)),
+              errorMark = m
+          }
 
 colorChar :: Character -> String
 colorChar Space = " "
@@ -907,17 +930,15 @@ parseGif header w h lns =
       pure $ \_ ->
       G . map (removeTransp . zip (liftA2 (flip (,)) [h -1 , h -2 .. 0] [0 .. w - 1])) $ concat gif
   where 
-    removeTransp :: Map Coordinate (Maybe Color, Char) -> Map Coordinate Character
+    removeTransp :: Map Coordinate (Maybe Character) -> Map Coordinate Character
     removeTransp [] = []
-    removeTransp ((_, (Nothing,_)):xs) = removeTransp xs
-    removeTransp ((coord, (Just color, ' ' )):xs) = (coord, Space) : removeTransp xs
-    removeTransp ((coord, (Just color, char)):xs) = (coord, Character char color) : removeTransp xs
+    removeTransp ((_, Nothing):xs) = removeTransp xs
+    removeTransp ((coord, Just char):xs) = (coord, char) : removeTransp xs
         
-    validateStrings :: [Marked String] -> OrError [[(Maybe Color, Char)]]
+    validateStrings :: [Marked String] -> OrError [[Maybe Character]]
     validateStrings [] = pure []
-    validateStrings (x:xs) = firstStrLen >>= -- \lnlen -> 
-      -- map concat . chunksOf h . map parseColorLine . rearange <$> helper (x:xs) lnlen
-      fmap (map concat . chunksOf h . map parseColorLine . rearange) . helper (x:xs)
+    validateStrings (x:xs) = firstStrLen >>= helper (x:xs) >>= traverse (fmap concat. traverse parseColorLine) . map (\(Marked m v) -> map (Marked m) (chunksOf (w * 2) v)) >>=
+      pure . map concat . chunksOf h . rearange
       where
         firstStrLen = let lnlen = length . stripWhitespace $ unwrap x in
           if lnlen `mod` w == 0
@@ -929,10 +950,10 @@ parseGif header w h lns =
             errorMark = getMark x
           }
 
-        rearange :: [String] -> [String]
-        rearange = concat . transpose . map (chunksOf (w * 2))
+        rearange :: [[Maybe Character]] -> [[Maybe Character]]
+        rearange = concat . transpose . map (chunksOf w)
 
-        helper :: [Marked String] -> Int -> OrError [String]
+        helper :: [Marked String] -> Int -> OrError [Marked String]
         helper [] _ = pure []
         helper ((Marked m x):xs) n = let len = length x in
           if len /= n
@@ -940,7 +961,12 @@ parseGif header w h lns =
             errorType = Value "line" "characters" n len,
             errorMark = m
           }
-          else cons x <$> helper xs n
+          else cons (Marked m x) <$> helper xs n
+
+maybes :: [(b, Maybe a)] -> [(b, a)]
+maybes [] = []
+maybes ((b, Just a) : xs) = (b, a) : maybes xs
+maybes ((_, Nothing) : xs) = maybes xs
 
 argTypes :: Type -> [Type]
 argTypes (Fn a b) = a : argTypes b
