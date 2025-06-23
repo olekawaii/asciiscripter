@@ -1,37 +1,34 @@
 #!/bin/sh
 
-VIDEO_WIDTH=13
-VIDEO_HEIGHT=11
-
-if [ $(tput cols) -lt $VIDEO_WIDTH -o $(tput lines) -lt $VIDEO_HEIGHT ]
+if [ $(tput cols) -lt 18 -o $(tput lines) -lt 11 ]
 then
-    printf "\033[91mterminal is too small\nmust be at least $VIDEO_WIDTH by $VIDEO_HEIGHT cells\033[0m\n" >&2
+    printf "\033[91mterminal is too small\nmust be at least 18 by 11 cells\033[0m\n" >&2
     exit 1
 fi
 
 stty -echo
 printf '\033[?25l'
 
-move_up="\033[$(expr $VIDEO_HEIGHT - 1)F"
+move_up="\033[10F"
 
 cleanup() {
-    printf "$move_up\033[0J\033[?25h\033[0m"
+    printf "$move_up\033[0J\033[0m\033[?25h"
     stty echo
     exit 0
 }
 
-trap cleanup INT HUP
+trap cleanup INT
 
 draw() {
     printf "$move_up$1"
     sleep 0.1
 }
 
-yes '' | head -n $(expr $VIDEO_HEIGHT - 1)
+yes '' | head -n 10
 
 while true
 do
-    draw '    \033[93m. c O    \n     \033[96mc \033[95mO     \n      V      \n    \033[97m[_ ]\033[92m]    \n     \033[95m( \033[96m)     \n      \033[95m\134      \n\033[97m__\033[91mc. \033[96m( \033[95m) \033[94mO  .\n  \033[92m\134__\033[97m.\033[96m\134\033[97m.  /  \n     ) (\033[92mVV   \n    \033[97m/___\134    \n      \033[92m)\134   \033[97mOB'
+    draw '    \033[93m. c O         \n     \033[96mc \033[95mO          \n      V           \n    \033[97m[_ ]\033[92m]         \n     \033[95m( \033[96m)          \n      \033[95m\134           \n\033[97m__\033[91mc. \033[96m( \033[95m) \033[94mO  .     \n  \033[92m\134__\033[97m.\033[96m\134\033[97m.  /       \n     ) (\033[92mVV        \n    \033[97m/___\134    \033[90mRobot\n      \033[92m)\134       \033[90movb'
     draw '      \033[93m. c\n\033[10CO\033[4E\033[91mO\033[7C\033[94mO\n \033[97m|\033[91m. \033[5C\033[94mc   \n\033[9C\033[97m/ \n\033[8C\033[92mW \n\n'
     draw '        \033[93m.\n      \033[95mO   \033[93mc\n      \033[95m|    \033[93mO\n     \033[97m[ \033[92m] \n\033[91mO     \033[96m\134 \n\033[91mc    \033[95m( \033[96m)\033[94mc\n  \033[97m/   \033[95m\134  \033[94m.\n\033[5C\033[96m(\033[97m_\033[95m) \033[97m|\n\n\n'
     draw '\033[8C \n\033[10C\033[93m.\n\033[11Cc\n\033[91mO\033[11C\033[93mO\n\033[91mc\n.\033[5C\033[94mO\033[1C.\n   \033[6C \n  \033[97m|  \n   \033[92m\134/\n\n'
