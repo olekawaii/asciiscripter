@@ -1,8 +1,22 @@
 #!/bin/sh
 
+current_dir=$(pwd)
+
 error() {
     printf '\033[91merror\033[0m: %s\n' "$1" >&2
+    cd $current_dir
     exit 1
+}
+
+move_to_root() {
+    if [ "$(pwd)" = '/' ]; then
+        error "not in a project"
+    else 
+        if [ ! -f '.ascr' ]; then
+            cd ..
+            move_to_root
+        fi
+    fi
 }
 
 new() {
@@ -13,16 +27,18 @@ new() {
         error "./$1 already exists"
     fi
     mkdir "$1" "$1/src" "$1/output" 
-    echo '-d output' > "$1/.config"
+    echo '-d output' > "$1/.ascr"
     printf '%s new file\n\nmain : gif\n  anchor\nend\n' '--' > $1/src/main.ascr
     printf 'created project \033[92m%s\033[0m.\n' "$1"
 }
 
 run() {
-    ascr $(cat .config | tr '\n' ' ') ./src/main.ascr
+    move_to_root
+    ascr $(cat .ascr | tr '\n' ' ') ./src/main.ascr
 }
 
 check() {
+    move_to_root
     ascr -cq ./src/main.ascr
 }
 
@@ -43,3 +59,5 @@ case $1 in
     help  | h | -h | --help ) print_help ;;
     * ) error "not a command"
 esac
+
+cd $current_dir
