@@ -1,4 +1,4 @@
-main : gif
+main : frames
   join
     move 10 0 join
       small_mushroom
@@ -8,7 +8,7 @@ main : gif
       move -1 0 anchor
 end
 
-big_mushroom : gif
+big_mushroom : frames
 13 7
   __c__,___  ..117117111..
 (_c_,O_/\_3_)1171771111711
@@ -19,14 +19,14 @@ big_mushroom : gif
      | |     .....7/7.....
 end
 
-small_mushroom : gif
+small_mushroom : frames
 6 3
   __  ..11..
 (c_o_)171711
  (..) .7777.
 end
 
-title : gif
+title : frames
 8 2
 Muchomor00000000
      ovb.....000
