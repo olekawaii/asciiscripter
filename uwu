@@ -1,0 +1,45 @@
+#!/bin/sh
+
+error() {
+    printf '\033[91merror\033[0m: %s\n' "$1" >&2
+    exit 1
+}
+
+new() {
+    if [ -z "$1" ]; then 
+        error 'missing the name argument'
+    fi
+    if [ -d "$1" -o -f "$1" ]; then
+        error "./$1 already exists"
+    fi
+    mkdir "$1" "$1/src" "$1/output" 
+    echo '-d output' > "$1/.config"
+    printf '%s new file\n\nmain : gif\n  anchor\nend\n' '--' > $1/src/main.ascr
+    printf 'created project \033[92m%s\033[0m.\n' "$1"
+}
+
+run() {
+    ascr $(cat .config | tr '\n' ' ') ./src/main.ascr
+}
+
+check() {
+    ascr -cq ./src/main.ascr
+}
+
+print_help() {
+    printf 'uwu [command]
+commands: 
+  new NAME   create a new project named NAME
+  run        run main file at src/main.ascr
+  check      check for errors; faster than run
+  help       show this help message
+'
+}
+
+case $1 in
+    new   | n ) new $2 ;;
+    run   | r ) run ;;
+    check | c ) check ;;
+    help  | h | -h | --help ) print_help ;;
+    * ) error "not a command"
+esac
