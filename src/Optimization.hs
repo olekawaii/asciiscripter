@@ -47,14 +47,15 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
     init2 = comment <> sizeCheck
 
 pipeline :: [[[Character]]] -> [Either String Int]
-pipeline (x:xs) = case reduce2 $ (x:xs) of
-  [x] -> pure . Left . fromJust . formatCommands . intercalate [Move Down] . map (map Draw) $ map removeExtraSpaces x
-  xs -> (Left (tail . tail $ renderer x) :) . init . countUp . map formatCommands . reduce $ xs
-    where
-      countUp :: [Maybe String] -> [Either String Int]
-      countUp [] = []
-      countUp (Just s: xs) = Left s : countUp xs
-      countUp (Nothing: xs) = let (num, other) = first ((+ 1) . length) $ span isNothing xs in Right num : countUp other
+pipeline input = case reduce2 input of
+  [x] -> pure . Left . fromMaybe "" . formatCommands . intercalate [Move Down] . map (map Draw . removeExtraSpaces) $ x
+  (x:xs) -> (Left (tail . tail $ renderer x) :) . init . countUp . map formatCommands . reduce $ (x:xs)
+  [] -> []
+
+countUp :: [Maybe String] -> [Either String Int]
+countUp [] = []
+countUp (Just s: xs) = Left s : countUp xs
+countUp (Nothing: xs) = let (num, other) = first ((+ 1) . length) $ span isNothing xs in Right num : countUp other
       
 data Command = Draw Character | Move Dir
 data Dir = Down | Next

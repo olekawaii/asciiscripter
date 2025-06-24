@@ -1,6 +1,6 @@
 cd src
 ghc -O main.hs
-cp main ~/.local/bin/ascr
+cp main /usr/local/bin/ascr
 cd ..
-cp uwu ~/.local/bin/uwu
+cp uwu /usr/local/bin/uwu
 printf 'moved executables `ascr` and `uwu` to ~/.local/bin/\n'
