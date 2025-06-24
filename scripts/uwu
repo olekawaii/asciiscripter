@@ -49,6 +49,9 @@ commands:
   run        run main file at src/main.ascr
   check      check for errors; faster than run
   help       show this help message
+  
+You can also use the first letter of each command.
+These can be run from anywhere in your project.
 '
 }
 
