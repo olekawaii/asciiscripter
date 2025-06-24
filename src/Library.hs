@@ -14,6 +14,7 @@ import Control.Arrow
 builtinFns :: Map Name Data 
 builtinFns = [
     ("move"        , movef        ),
+    ("loop"        , loop         ),
     ("reverse"     , reversef     ),
     ("skip"        , skipf        ),
     ("join"        , joinf        ),
@@ -35,6 +36,23 @@ builtinFns = [
     ("white"       , white        )
   ]
   where 
+    loop = Data {
+      dummy = Dummy {
+        current_name = "loop",
+        type_sig     = Fn (Type Giff) (Type Giff)
+      },
+      currentArgs = [],
+      function = \[a] ->
+        let
+          Right (G x) = evaluate a
+        in
+        G $ case x of 
+          [] -> []
+          [a] -> [a]
+          [a,b] -> [a,b]
+          as -> as <> tail (reverse (tail as))
+    }
+
     tailf = Data {
       dummy = Dummy {
         current_name = "tail",
@@ -46,8 +64,8 @@ builtinFns = [
           Right (G x) = evaluate a
         in
         G (tail x)
-
     }
+
     movef = Data {
       dummy = Dummy {
         current_name   = "move",

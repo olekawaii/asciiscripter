@@ -151,7 +151,7 @@ parseArgs (a:as) m = case a of
   -- "-s"        -> parseArgs as m {text      = True}
   "-t"        -> getNext a as >>= \(b,cs) -> case b of
     "vid" -> parseArgs cs m {output = Single}
-    "gif" -> parseArgs cs m {output = Looping}
+    "loop" -> parseArgs cs m {output = Looping}
     other -> Left Error {
       errorType = ArgError ("The \x1b[33m-t\x1b[0m flag expected either `gif` or `vid`. Got" <> other),
       errorMark = Arguments
@@ -208,7 +208,7 @@ legalNameChars = '_' : ['a'..'z'] <> ['0'..'9']
 
 isValidName :: Name -> Bool
 isValidName x = all ($ x) 
-  [ flip notElem ["frame","com","moc","scr","rcs"]
+  [ flip notElem []
   , not . null
   , all (`elem` legalNameChars)
   , flip elem ['a'..'z'] . head
@@ -293,7 +293,7 @@ parseType x = parseTypeSigniture x >>= \case
   (t,[]) -> pure t
   _      -> Left $ Custom "Trailing words after the type signiture"
 parseTypeSigniture :: [String] -> Either ErrorType (Type, [String])
-parseTypeSigniture ("gif":xs) = pure (Type Giff, xs)
+parseTypeSigniture ("frames":xs) = pure (Type Giff, xs)
 parseTypeSigniture ("int":xs) = pure (Type Int,  xs)
 parseTypeSigniture ("fn":xs)  = 
   parseTypeSigniture xs >>= \(a,b) ->
