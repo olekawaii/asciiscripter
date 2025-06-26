@@ -11,9 +11,9 @@ main : frames
   join move 25 -3 title join 
     skip 6 move_y 7 join skip 12 move_x 30 fire_right move_x -23 fire_left 
     join
-      move 1 -1 join
-        skip 3 slow 4 dragon_foot_left
-        move_x 12 slow 4 dragon_foot_right
+      move 1 -1 slow 4 join
+        dragon_foot_left
+        move_x 12 skip 1 dragon_foot_right
       join
         join
           slow 2 side_heads
