@@ -4,9 +4,6 @@ type ShellScript   = String
 type Map a b       = [(a,b)]
 type Dependencies  = Map Name [Name]
 type Frame         = [Colored Char]
-data Block = Block NewHeader [Marked String] BlockType
-
-data BlockType =  Art Int Int | Script
 
 data NewHeader = NewHeader {
   new_name    :: String,

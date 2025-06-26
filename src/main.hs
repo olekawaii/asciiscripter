@@ -390,7 +390,7 @@ findDependencies table = fmap nub . getDependencies []
           errorType = NoMatchingName target (findSimilarName target (map fst table)),
           errorMark = m
         }
-        Just lines  -> extract . fst  <$>splitBlock lines >>= \x -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
+        Just lines  -> extract . fst <$> splitBlock lines >>= \x -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
         
     extract :: [Marked String] -> [Marked Name]
     extract lns = 
@@ -538,65 +538,6 @@ unsafeApplyFn
     currentArgs    = args <> [arg],
     function       = f
   } 
-  
-parseScript :: NewHeader -> Map Name Data -> [String] -> OrError ([Data] -> ReturnType)
-parseScript NewHeader {typeSig = tp, block_mark = m} table xs = 
-  helperParseScript xs >>= \newTable -> 
-  mkError m (evaluateRealTypes (result tp) (map getDummy newTable) :: Either ErrorType DummyData) >>
-  pure (\args -> 
-      let
-        matcher x = case x of
-          Left (i,_)  -> args !! (i - 1)
-          Right x -> x
-      in
-      case evaluate . unsafeEval (result tp) $ map matcher newTable of
-        Right x -> x
-        Left x -> error "can't happen 2"
-    )
-    where
-      arguments = argTypes tp
-      
-      helperParseScript :: [String] -> OrError [Either (Int, Type) Data]
-      helperParseScript [] = pure []
-      helperParseScript (('$':num):xs) = case readMaybe num of
-        Nothing -> Left Error {
-          errorType = Custom "$ must be preceded by a number",
-          errorMark = m
-        }
-        Just x  -> case arguments ??? x  of
-          Nothing -> 
-            Left $ Error {
-              errorType = Custom "index is greater than the number of arguments",
-              errorMark = m
-            }
-          Just t ->
-            (Left (x,t) :) <$> helperParseScript xs
-      helperParseScript (x:xs) = 
-        case readMaybe x of  -- all (`elem` nums) x 
-          Just num ->             
-            let 
-              d = Data {
-                dummy = Dummy {
-                  current_name   = x,
-                  type_sig = Type Int
-                },
-                currentArgs   = [],
-                function      = const (I num)
-              }
-            in cons (Right d) <$> helperParseScript xs
-          Nothing -> case lookup x table of
-            Nothing -> Left $ Error {
-              errorType = Custom "variable not in scope",
-              errorMark = m
-            }
-            Just x  -> cons (Right x) <$> helperParseScript xs
-
-      getDummy :: Either (Int, Type) Data -> DummyData
-      getDummy (Left (i, t)) = Dummy {
-        current_name = '$' : show i,
-        type_sig     = t
-      }
-      getDummy (Right x) = dummy x
 
 parseScript2 :: NewHeader -> Map Name Data -> [Marked String] -> OrError ([Data] -> ReturnType)
 parseScript2 header@NewHeader {typeSig = tp, block_mark = block_mark} table xs = 
