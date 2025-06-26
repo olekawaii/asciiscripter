@@ -17,7 +17,7 @@ main : frames
       join
         join
           slow 2 side_heads
-          join skip 2 slow 3 move 7 -4 dragon_tail dragon_body
+          join slow 3 move 7 -4 dragon_tail dragon_body
         slow 2 move -10 1 join 
           skip 2 wing_left 
           move_x 29 wing_right
