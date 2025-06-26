@@ -336,7 +336,7 @@ parseBlock (Block header lns tp) table =
       Art x y ->
         parseGif header x y lns
       Script ->
-        parseScript header table (concatMap (words . unwrap) lns) 
+        parseScript2 header table (markList . (map (fmap words)) $ lns) 
   in
   output >>= \fn -> pure Data {
       dummy = Dummy {
@@ -346,6 +346,9 @@ parseBlock (Block header lns tp) table =
       currentArgs   = [],
       function      = fn
     }
+
+markList :: [Marked [a]] -> [Marked a]
+markList = concatMap (\(Marked m x) -> map (Marked m) x)
 
 parseGif :: NewHeader -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
 parseGif header w h lns = 
@@ -436,13 +439,13 @@ parseChunks (Marked m ('-':'-':_) : xs) = parseChunks xs
 parseChunks all@(Marked m x : xs) = 
   parseHeader (Marked m x)  >>= \header -> 
   find_leftover xs           >>= \(inside, other) ->
-    case inside  of
+    case map (flip addMarkBlock (new_name header)) inside of
       [] -> Left Error {errorType = MissingBody, errorMark = block_mark header}
       all@(Marked m ln:lns) ->
         let
           (lines, tp) = case traverse readMaybe $ words ln of
             Just [a, b] -> (filter (not . isArtComment a . unwrap) lns, Art a b)
-            Nothing     -> (filter (not . isComment . trim . unwrap) all,    Script)
+            Nothing     -> (filter (not . isComment . trim . unwrap) all, Script)
         in
         ((new_name header, Block header lines tp):) <$> parseChunks other
   where 
@@ -609,6 +612,66 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
                 dummy = Dummy {
                   current_name   = x,
                   type_sig = Type Int
+                },
+                currentArgs   = [],
+                function      = const (I num)
+              }
+            in cons (Right d) <$> helperParseScript xs
+          Nothing -> case lookup x table of
+            Nothing -> Left $ Error {
+              errorType = Custom "variable not in scope",
+              errorMark = m
+            }
+            Just x  -> cons (Right x) <$> helperParseScript xs
+
+      getDummy :: Either (Int, Type) Data -> DummyData
+      getDummy (Left (i, t)) = Dummy {
+        current_name = '$' : show i,
+        type_sig     = t
+      }
+      getDummy (Right x) = dummy x
+
+parseScript2 :: NewHeader -> Map Name Data -> [Marked String] -> OrError ([Data] -> ReturnType)
+parseScript2 NewHeader {typeSig = tp, block_mark = block_mark} table xs = 
+
+  helperParseScript xs >>= \newTable -> 
+  mkError block_mark (evaluateRealTypes (result tp) (map getDummy newTable) :: Either ErrorType DummyData) >>
+  pure (\args -> 
+      let
+        matcher x = case x of
+          Left (i,_)  -> args !! (i - 1)
+          Right x -> x
+      in
+      case evaluate . unsafeEval (result tp) $ map matcher newTable of
+        Right x -> x
+        Left x -> error "can't happen 2"
+    )
+    where
+      arguments = argTypes tp
+      
+      helperParseScript :: [Marked String] -> OrError [Either (Int, Type) Data]
+      helperParseScript [] = pure []
+      helperParseScript (Marked m ('$':num) : xs) = case readMaybe num of
+        Nothing -> Left Error {
+          errorType = Custom "$ must be preceded by a number",
+          errorMark = m
+        }
+        Just x  -> case arguments ??? x of
+          Nothing -> 
+            Left $ Error {
+              errorType = Custom "index is greater than the number of arguments",
+              errorMark = m
+            }
+          Just t ->
+            (Left (x,t) :) <$> helperParseScript xs
+      helperParseScript (Marked m x : xs) = 
+        case readMaybe x of  -- all (`elem` nums) x 
+          Just num ->             
+            let 
+              d = Data {
+                dummy = Dummy {
+                  current_name  = x,
+                  type_sig      = Type Int
                 },
                 currentArgs   = [],
                 function      = const (I num)
