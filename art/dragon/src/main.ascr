@@ -3,24 +3,28 @@
     by olekawaii
 <o>
 
+extend : fn frames frames
+  seq $1 take 1 reverse $1
+end
+
 main : frames
-    join move 25 -3 title join 
-        skip 6 move_y 7 join skip 12 move_x 30 fire_right move_x -23 fire_left 
+  join move 25 -3 title join 
+    skip 6 move_y 7 join skip 12 move_x 30 fire_right move_x -23 fire_left 
+    join
+      move 1 -1 join
+        skip 3 slow 4 dragon_foot_left
+        move_x 12 slow 4 dragon_foot_right
+      join
         join
-            move 1 -1 join
-                skip 3 slow 4 dragon_foot_left
-                move_x 12 slow 4 dragon_foot_right
-            join
-                join
-                    slow 2 side_heads
-                    join slow 2 move 7 -4 dragon_tail dragon_body
-                slow 2 move -10 1 join 
-                    skip 2 loop wing_left 
-                    move_x 29 loop wing_right
+          slow 2 side_heads
+          join slow 2 move 7 -4 dragon_tail dragon_body
+        slow 2 move -10 1 join 
+          skip 2 wing_left 
+          move_x 29 wing_right
 end
 
 wing_left : frames
-11 4
+loop art 11 4
      ./|\  .....2222..         /\.........22           ...........
    .'/ | \ ...222/2/2.        / (........2/2          ...........2
  .' /._|' \.22/22222.2       //' .......222.          |..........2
@@ -28,7 +32,7 @@ wing_left : frames
 end
 
 wing_right : frames
-11 4
+loop art 11 4
   /|\.     ..2222...../\         22.........           ...........
  / | \`.   .2/2/222...) \        2/2.........          2..........
 / `|_.\ `. 2.22222/22. '\\       .222.......|          2..........
@@ -36,7 +40,7 @@ wing_right : frames
 end
 
 dragon_chill_main : frames
-12 9
+loop art 12 9
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
   ((__))    ..776677....   ((__))   ...776677...    ((__))  ....776677..
   /o..o\    ..636636....   /o..o\   ...636636...    /o..o\  ....636636..
@@ -48,8 +52,9 @@ dragon_chill_main : frames
           ' ..////////6.            .//////////. `          .6////////.. 
 end
 
+---
 dragon_roar_main : frames
-12 9
+loop art 12 9
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
   ((__))    ..776677....   ((__))   ...776677...    ((__))  ....776677..
   /o..o\    ..636636....   /o..o\   ...636636...    /o..o\  ....636636..
@@ -60,10 +65,13 @@ dragon_roar_main : frames
  '         ).6/////////6(          )6//////////6(         ` 6/////////6.
           ' ..////////6.            .//////////. `          .6////////.. 
 end
+<o>
 
 dragon_tail : frames
-6 4
+art 6 4
+---
 -- \   ( 6///6. )   /.6///6
+<o>
  \   ).6///6(   / 6///6.
   ) / ..6/6. \ (  .6/6..
  ( /  .6/6..  \ ) ..6/6.
@@ -71,17 +79,17 @@ dragon_tail : frames
 end
 
 side_heads : frames
-    move_y 5 join
-        skip 6 move_x -9 seq 
-            move -1 2 loop dragon_blow_left 
-            loop dragon_roar_left
-        move_x 16 seq 
-            move_y 2 loop dragon_blow_right 
-            loop dragon_roar_right
+  move_y 5 join
+    skip 6 move_x -9 seq 
+      move -1 2 dragon_blow_left 
+      dragon_roar_left
+    move_x 16 seq 
+      move_y 2 dragon_blow_right 
+      dragon_roar_right
 end
 
 dragon_blow_right : frames
-14 5
+loop extend art 14 5
 .             7..............             7.............
  )._          .776.......... )._          .776..........
  (<o>`---~~^, .673766666666. (<o>`-.-~~^, .673766666666.
@@ -92,15 +100,10 @@ dragon_blow_right : frames
  (---`._.~~^, .677766666666. (---`.___,~^,.6777666666666
  /    `  -^V  .6////6//677.. /    )__   < .6////666///6.
    `---^-.~'  ...666666666..   `-'   `.~' ...666...6666.
-.             7.............
- )._          .776..........
- (---`.___,~^,.6777666666666
- /    ,__   < .6////666///6.
-   `-'   `.~' ...666...6666.
 end
 
 dragon_blow_left : frames
-14 5
+loop extend art 14 5
              ,.............7             ,.............7
           _,( ..........677.          _,( ..........677.
  ,^~~---'<o>) .666666667376. ,^~~-.-'<o>) .666666667376.
@@ -111,15 +114,10 @@ dragon_blow_left : frames
  ,^~~._.'---) .666666667776.,^~,___.'---) 6666666667776.
   V^-  '    \ ..776//6////6. >   __(    \ .6///666////6.
   `~.-^---'   ..666666666... `~.'   `-'   .6666...666...
-             ,.............7
-          _,( ..........677.
-,^~,___.'---) 6666666667776.
- >   __.    \ .6///666////6.
- `~.'   `-'   .6666...666...
 end
 
 dragon_roar_left : frames
-13 7
+loop art 13 7
             ,............7            ,............7            ,............7
          _,( .........677.         _,( .........677.         _,( .........677.
 ,^~~---'<o>) 666666667376.,^~~---'<o>) 666666667376.,^~~---'<o>) 666666667376.
@@ -130,7 +128,7 @@ dragon_roar_left : frames
 end
 
 dragon_roar_right : frames
-13 7
+loop art 13 7
 .            7.............            7.............            7............
  )._         .776......... )._         .776......... )._         .776.........
  (<o>`---~~^,.673766666666 (<o>`---~~^,.673766666666 (<o>`---~~^,.673766666666
@@ -141,14 +139,13 @@ dragon_roar_right : frames
 end
 
 dragon_body : frames
-    slow 2 join 
-        move 4 3 loop dragon_chill_main 
---             seq loop dragon_roar_main loop dragon_roar_main
-        loop dragon_belly_left
+  slow 2 join 
+    move 4 3 dragon_chill_main 
+    dragon_belly_left
 end
 
 dragon_belly_left : frames
-20 9
+loop art 20 9
 /'\              /'\666..............666/'\              /'\666..............666
 \  \            /  /6//6............6//6\  \            /  /6//6............6//6
  \  \          /  / .6//6..........6//6. \  \          /  / .6//6..........6//6.
@@ -170,19 +167,19 @@ dragon_belly_left : frames
 end
 
 dragon_foot_left : frames
-6 2
+art 6 2
   ) /`..6/66  \ (`..6/66
 mn_(  6666.. mn_| .6666.
 end
 
 dragon_foot_right : frames
-6 2
+art 6 2
 '\ (  66/6..') /  66/6..
   )_nm..6666 |_nm .6666.
 end
 
 fire_right : frames
-13 3
+art 13 3
              .............             .............             .............
 -            3............--.          113..........--._         1113.........
              .............             .............   `         ...5.........
@@ -210,7 +207,7 @@ fire_right : frames
 end
 
 fire_left : frames
-13 3
+art 13 3
              .............             .............             .............
             -............3          .--..........311         _.--.........3111
              .............             .............         '   .........5...
@@ -238,7 +235,7 @@ fire_left : frames
 end
 
 title : frames
-6 2
+art 6 2
 Dragon000000
    ovb...000
 end

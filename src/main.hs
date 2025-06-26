@@ -1,3 +1,4 @@
+-- dummy type check recursion
 {-# Language MultiWayIf, LambdaCase #-}
 
 module Main (main) where
@@ -134,7 +135,7 @@ exitWithError = die . show
 
 newGiga target mods =
   cleanInput >=> parseChunks >=> \x ->
-  findDependencies x target >>=
+  findDependencies x {- (map (second (second (markList . map (fmap words)))) x) -} target >>= --TODO
   \d -> fromJust . lookup (unwrap target) <$> win builtinFns d x  
 
 maybeGuard :: (a -> Bool) -> a -> Maybe a
@@ -193,7 +194,7 @@ cons = (:)
 append :: a -> [a] -> [a]
 append  x y = y <> [x]
 
-win :: Map Name Data -> Dependencies -> Map Name Block -> OrError (Map Name Data)
+win :: Map Name Data -> Dependencies -> Map Name (NewHeader, [Marked String]) -> OrError (Map Name Data)
 win uwu []          _ = pure uwu
 win uwu ((n,[]):xs) d = 
   -- let (header@NewHeader {new_name = name}, str) = fromJust $ lookup n d in
@@ -208,7 +209,7 @@ legalNameChars = '_' : ['a'..'z'] <> ['0'..'9']
 
 isValidName :: Name -> Bool
 isValidName x = all ($ x) 
-  [ flip notElem []
+  [ flip notElem ["art"]
   , not . null
   , all (`elem` legalNameChars)
   , flip elem ['a'..'z'] . head
@@ -329,14 +330,10 @@ trim = reverse . trimhelper . reverse . trimhelper
     trimhelper x = x
 
 -- parseBlock :: NewHeader -> [Marked String] -> Map Name Data -> OrError Data
-parseBlock :: Block -> Map Name Data -> OrError Data
-parseBlock (Block header lns tp) table =
+parseBlock :: (NewHeader, [Marked String]) -> Map Name Data -> OrError Data
+parseBlock (header, lns) table =
   let
-    output = case tp of
-      Art x y ->
-        parseGif header x y lns
-      Script ->
-        parseScript2 header table (markList . (map (fmap words)) $ lns) 
+        output = parseScript2 header table lns
   in
   output >>= \fn -> pure Data {
       dummy = Dummy {
@@ -350,51 +347,6 @@ parseBlock (Block header lns tp) table =
 markList :: [Marked [a]] -> [Marked a]
 markList = concatMap (\(Marked m x) -> map (Marked m) x)
 
-parseGif :: NewHeader -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
-parseGif header w h lns = 
-  if mod (length lns) h /= 0 
-  then Left Error {
-    errorType = Custom $
-      "A gif's number of lines should be divisible by the header's height.\nYou have "
-      <> show (length lns) <> " lines.",
-    errorMark = block_mark header
-  }
-  else traverse validateStrings (chunksOf h lns) >>= \gif -> 
-      pure $ \_ ->
-      G . map (removeTransp . zip (liftA2 (flip (,)) [h -1 , h -2 .. 0] [0 .. w - 1])) $ concat gif
-  where 
-    removeTransp :: Map Coordinate (Maybe Character) -> Map Coordinate Character
-    removeTransp [] = []
-    removeTransp ((_, Nothing):xs) = removeTransp xs
-    removeTransp ((coord, Just char):xs) = (coord, char) : removeTransp xs
-        
-    validateStrings :: [Marked String] -> OrError [[Maybe Character]]
-    validateStrings [] = pure []
-    validateStrings (x:xs) = firstStrLen >>= helper (x:xs) >>= traverse (fmap concat. traverse parseColorLine) . map (\(Marked m v) -> map (Marked m) (chunksOf (w * 2) v)) >>=
-      pure . map concat . chunksOf h . rearange
-      where
-        firstStrLen = let lnlen = length . stripWhitespace $ unwrap x in
-          if lnlen `mod` w == 0
-          then pure lnlen
-          else Left Error {
-            errorType = Custom $
-              "A gif's chars per line should be divisible by the header's width.\nYou have "
-              <> show lnlen <> " chars.",
-            errorMark = getMark x
-          }
-
-        rearange :: [[Maybe Character]] -> [[Maybe Character]]
-        rearange = concat . transpose . map (chunksOf w)
-
-        helper :: [Marked String] -> Int -> OrError [Marked String]
-        helper [] _ = pure []
-        helper ((Marked m x):xs) n = let len = length x in
-          if len /= n
-          then Left Error {
-            errorType = Value "line" "characters" n len,
-            errorMark = m
-          }
-          else cons (Marked m x) <$> helper xs n
 
 argTypes :: Type -> [Type]
 argTypes (Fn a b) = a : argTypes b
@@ -408,7 +360,22 @@ result :: Type -> Type
 result (Type x) = Type x
 result (Fn _ b) = result b
 
-findDependencies :: Map Name Block -> Marked Name -> OrError (Map Name [Name])
+splitBlock :: [Marked String] -> OrError ([Marked Name], Maybe (Int, Int, [Marked String]))
+splitBlock [] = pure ([], Nothing)
+splitBlock (Marked _ ('-':'-':_): xs) = splitBlock xs
+splitBlock (Marked m s : xs) = helper (words s) >>= \(ws, art) -> case art of
+  art@(Just _) -> pure (ws, art)
+  Nothing -> first (ws <>) <$> splitBlock xs
+  where 
+    helper :: [String] -> OrError ([Marked Name], Maybe (Int, Int, [Marked String]))
+    helper [] = pure ([], Nothing)
+    helper ("art" : other) = case traverse readMaybe other of
+      Just [a, b] -> pure ([], Just (a, b, xs))
+      _ -> mkError m . Left $ Custom "bad art syntax"
+    helper (w : other) = first (Marked m w :) <$> helper other
+
+-- Header only needed for the error message TODO
+findDependencies :: Map Name (NewHeader, [Marked String]) -> Marked Name -> OrError (Map Name [Name])
 findDependencies table = fmap nub . getDependencies []
   where 
     getDependencies :: [Name] -> Marked Name -> OrError (Map Name [Name])
@@ -418,22 +385,22 @@ findDependencies table = fmap nub . getDependencies []
           errorType = Recursive target (reverse $ target : used),
           errorMark = None
         }
-      | otherwise -> case extract <$> lookup target table :: Maybe [Marked String] of 
+      | otherwise -> case snd <$> lookup target table :: Maybe [Marked String] of 
         Nothing -> Left Error {
           errorType = NoMatchingName target (findSimilarName target (map fst table)),
           errorMark = m
         }
-        Just x  -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
+        Just lines  -> extract . fst  <$>splitBlock lines >>= \x -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
         
-    extract :: Block -> [Marked Name]
-    extract (Block _ _ (Art _ _)) = []
-    extract (Block header lns Script) = 
-      helper . concatMap (\(Marked m x) -> map (Marked m) (words x)) $ lns
+    extract :: [Marked String] -> [Marked Name]
+    extract lns = 
+      helper lns
+      -- helper . markList . map (fmap words) $ lns
         where
           helper :: [Marked String] -> [Marked String]
           helper = filter (\(Marked m x) -> notElem x (map fst builtinFns) && not (all (`elem` ('$':nums)) x))
 
-parseChunks :: [Marked String] -> OrError (Map Name Block)
+parseChunks :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
 parseChunks [] = pure []
 parseChunks (Marked m ('-':'-':_) : xs) = parseChunks xs 
 parseChunks all@(Marked m x : xs) = 
@@ -443,11 +410,11 @@ parseChunks all@(Marked m x : xs) =
       [] -> Left Error {errorType = MissingBody, errorMark = block_mark header}
       all@(Marked m ln:lns) ->
         let
-          (lines, tp) = case traverse readMaybe $ words ln of
-            Just [a, b] -> (filter (not . isArtComment a . unwrap) lns, Art a b)
-            Nothing     -> (filter (not . isComment . trim . unwrap) all, Script)
+          lines = case traverse readMaybe $ words ln of
+            Just [a, b] -> (filter (not . isArtComment a . unwrap) lns)
+            Nothing     -> all
         in
-        ((new_name header, Block header lines tp):) <$> parseChunks other
+        ((new_name header, (header, lines)):) <$> parseChunks other
   where 
     find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
     find_leftover [] = Left Error {
@@ -632,15 +599,64 @@ parseScript NewHeader {typeSig = tp, block_mark = m} table xs =
       getDummy (Right x) = dummy x
 
 parseScript2 :: NewHeader -> Map Name Data -> [Marked String] -> OrError ([Data] -> ReturnType)
-parseScript2 NewHeader {typeSig = tp, block_mark = block_mark} table xs = 
+parseScript2 header@NewHeader {typeSig = tp, block_mark = block_mark} table xs = 
 
-  helperParseScript xs >>= \newTable -> 
+  splitBlock xs >>= \(script, art) -> 
+  let 
+
+    helperParseScript :: [Marked String] -> OrError [Either (Int, Type) Data]
+    helperParseScript [] = case art of
+      Nothing     -> pure []
+      Just (x, y, lns) -> parseGif header x y lns >>= \vid -> pure .  pure . Right $ Data {
+        dummy = Dummy {
+          current_name = new_name header,
+          type_sig = Type Giff
+        },
+        currentArgs = [],
+        function = vid
+      }
+    helperParseScript (Marked m ('$':num) : xs) = case readMaybe num of
+      Nothing -> Left Error {
+        errorType = Custom "$ must be preceded by a number",
+        errorMark = m
+      }
+      Just x  -> case arguments ??? x of
+        Nothing -> 
+          Left $ Error {
+            errorType = Custom "index is greater than the number of arguments",
+            errorMark = m
+          }
+        Just t ->
+          (Left (x,t) :) <$> helperParseScript xs
+    helperParseScript (Marked m x : xs) = 
+      case readMaybe x of  -- all (`elem` nums) x 
+        Just num ->             
+          let 
+            d = Data {
+              dummy = Dummy {
+                current_name  = x,
+                type_sig      = Type Int
+              },
+              currentArgs   = [],
+              function      = const (I num)
+            }
+          in cons (Right d) <$> helperParseScript xs
+        Nothing -> case lookup x table of
+          Nothing -> Left $ Error {
+            errorType = Custom "variable not in scope",
+            errorMark = m
+          }
+          Just x  -> cons (Right x) <$> helperParseScript xs
+
+  in
+  helperParseScript script >>= \newTable -> 
   mkError block_mark (evaluateRealTypes (result tp) (map getDummy newTable) :: Either ErrorType DummyData) >>
   pure (\args -> 
       let
         matcher x = case x of
           Left (i,_)  -> args !! (i - 1)
-          Right x -> x
+          Right x     -> x
+
       in
       case evaluate . unsafeEval (result tp) $ map matcher newTable of
         Right x -> x
@@ -649,40 +665,6 @@ parseScript2 NewHeader {typeSig = tp, block_mark = block_mark} table xs =
     where
       arguments = argTypes tp
       
-      helperParseScript :: [Marked String] -> OrError [Either (Int, Type) Data]
-      helperParseScript [] = pure []
-      helperParseScript (Marked m ('$':num) : xs) = case readMaybe num of
-        Nothing -> Left Error {
-          errorType = Custom "$ must be preceded by a number",
-          errorMark = m
-        }
-        Just x  -> case arguments ??? x of
-          Nothing -> 
-            Left $ Error {
-              errorType = Custom "index is greater than the number of arguments",
-              errorMark = m
-            }
-          Just t ->
-            (Left (x,t) :) <$> helperParseScript xs
-      helperParseScript (Marked m x : xs) = 
-        case readMaybe x of  -- all (`elem` nums) x 
-          Just num ->             
-            let 
-              d = Data {
-                dummy = Dummy {
-                  current_name  = x,
-                  type_sig      = Type Int
-                },
-                currentArgs   = [],
-                function      = const (I num)
-              }
-            in cons (Right d) <$> helperParseScript xs
-          Nothing -> case lookup x table of
-            Nothing -> Left $ Error {
-              errorType = Custom "variable not in scope",
-              errorMark = m
-            }
-            Just x  -> cons (Right x) <$> helperParseScript xs
 
       getDummy :: Either (Int, Type) Data -> DummyData
       getDummy (Left (i, t)) = Dummy {
@@ -695,3 +677,49 @@ parseScript2 NewHeader {typeSig = tp, block_mark = block_mark} table xs =
 (???) y x = if x > length y 
             then Nothing 
             else pure $ y !! (x - 1)
+
+parseGif :: NewHeader -> Int -> Int -> [Marked String] -> OrError ([Data] -> ReturnType)
+parseGif header w h lns = 
+  if mod (length lns) h /= 0 
+  then Left Error {
+    errorType = Custom $
+      "A gif's number of lines should be divisible by the header's height.\nYou have "
+      <> show (length lns) <> " lines." <> show (length lns),
+    errorMark = block_mark header
+  }
+  else traverse validateStrings (chunksOf h lns) >>= \gif -> 
+      pure $ \_ ->
+      G . map (removeTransp . zip (liftA2 (flip (,)) [h -1 , h -2 .. 0] [0 .. w - 1])) $ concat gif
+  where 
+    removeTransp :: Map Coordinate (Maybe Character) -> Map Coordinate Character
+    removeTransp [] = []
+    removeTransp ((_, Nothing):xs) = removeTransp xs
+    removeTransp ((coord, Just char):xs) = (coord, char) : removeTransp xs
+        
+    validateStrings :: [Marked String] -> OrError [[Maybe Character]]
+    validateStrings [] = pure []
+    validateStrings (x:xs) = firstStrLen >>= helper (x:xs) >>= traverse (fmap concat. traverse parseColorLine) . map (\(Marked m v) -> map (Marked m) (chunksOf (w * 2) v)) >>=
+      pure . map concat . chunksOf h . rearange
+      where
+        firstStrLen = let lnlen = length . stripWhitespace $ unwrap x in
+          if lnlen `mod` w == 0
+          then pure lnlen
+          else Left Error {
+            errorType = Custom $
+              "A gif's chars per line should be divisible by the header's width.\nYou have "
+              <> show lnlen <> " chars.",
+            errorMark = getMark x
+          }
+
+        rearange :: [[Maybe Character]] -> [[Maybe Character]]
+        rearange = concat . transpose . map (chunksOf w)
+
+        helper :: [Marked String] -> Int -> OrError [Marked String]
+        helper [] _ = pure []
+        helper ((Marked m x):xs) n = let len = length x in
+          if len /= n
+          then Left Error {
+            errorType = Value "line" "characters" n len,
+            errorMark = m
+          }
+          else cons (Marked m x) <$> helper xs n

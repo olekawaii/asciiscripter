@@ -3,17 +3,16 @@ robot_juggler dye white dress_red
 end
 
 robot_juggler : fn frames frames
-    join move 14 1 signiture join 
-        skip 3 move 1 3 left_arm 
-        join skip 5 move 9 3 right_arm join 
-            slow 2 move 5 4 robot join 
-            wheel join 
-                move 5 1 slow 4 dye white $1 
-                slow 6 move 6 1 legs
+  join move 14 1 signiture join 
+    skip 3 move 1 3 left_arm 
+    join skip 5 move 9 3 right_arm join 
+      slow 2 move 5 4 robot join wheel join 
+        move 5 1 slow 4 dye white $1 
+        slow 6 move 6 1 legs
 end
 
 robot : frames
-5 7
+art 5 7
  c O .6.5.  O  ..5.. O o .5.6.o   o5...6 c O .5.6.  O  ..6.. O o .6.5.o   o6...5
   V  ..5..  |  ..5..  V  ..5.. \./ .526.  V  ..6..  |  ..6..  V  ..6.. \./ .675.
 [_ ]]77/72 [ ] .7/2.[[_ ]722/2[__ ]222/2[_ ]]22/27 [ ] .2/7.[[_ ]277/7[__ ]777/7
@@ -24,7 +23,7 @@ robot : frames
 end
 
 dress_white : frames
-5 4
+art 5 4
  ._. .777. ._. .777.
  ) ( .7/7. ) ( .7/7.
 //..\77777/,.\\77777
@@ -32,7 +31,7 @@ dress_white : frames
 end
 
 dress_red : frames
-5 4
+art 5 4
  ._. .111.
  ) ( .1/1.
 /___\11111
@@ -40,49 +39,49 @@ dress_red : frames
 end
 
 right_arm : frames
-5 2
+art 5 2
  |   .7...  |  ..7..    /....7    /....7    /....7  /  ..7/. /   .7//. |   .7...
 W    2....VV   22...\/\/ 2222.\/\/ 2222.\/\/ 2222.VV   22...W    2....W    2....
 end
 
 left_arm : frames
-5 3
+art 5 3
      .....     .....__   77...__   77... |   /7...  /  //7..     .....     .....
  __  .77.. __  .77..  \__..222  \__..222  \__./222  \__..222  |  ..7..  \  ..7..
    \/...22   \/...22     .....     .....     .....     .....   \/...22   \/...22
 end
 
 legs : frames
-3 1
- )\.22( )2.2/( 22.( )2.2
+loop art 3 1
+ )\.22( )2.2/( 22.
 end
 
 ball : frames
-1 1
+art 1 1
 O7c7.7
 end
 
 ball_cycle : frames
-    seq dye red ball seq take 5 null
-    seq dye blue ball seq take 5 null
-    seq dye yellow ball take 5 null
+  seq dye red ball seq take 5 null
+  seq dye blue ball seq take 5 null
+  seq dye yellow ball take 5 null
 end
 
 wheel : frames
-join helper 0 2 5 join helper 1 3 5 join helper 2 4 5 join helper 3 5 6 
-join helper 5 7 6 join helper 6 8 6 join helper 7 9 6 join helper 8 10 5 
-join helper 9 11 4 join helper 10 13 5 join helper 11 13 6 join helper 12 13 7 
-join helper 13 13 8 join helper 14 12 9 join helper 15 11 10 join helper 16 9 11
-join helper 17 7 11 join helper 18 5 11 join helper 19 3 10 join helper 20 2 9 
-join helper 21 1 8 join helper 22 1 7 helper 23 1 6 
+  join helper 0 2 5 join helper 1 3 5 join helper 2 4 5 join helper 3 5 6 
+  join helper 5 7 6 join helper 6 8 6 join helper 7 9 6 join helper 8 10 5 
+  join helper 9 11 4 join helper 10 13 5 join helper 11 13 6 join helper 12 13 7 
+  join helper 13 13 8 join helper 14 12 9 join helper 15 11 10 join helper 16 9 11
+  join helper 17 7 11 join helper 18 5 11 join helper 19 3 10 join helper 20 2 9 
+  join helper 21 1 8 join helper 22 1 7 helper 23 1 6 
 end
 
 helper : fn int fn int fn int frames
-    skip $1 move $2 $3 ball_cycle
+  skip $1 move $2 $3 ball_cycle
 end
 
 signiture : frames
-5 2
+art 5 2
 Robot00000
   ovb..000
 end

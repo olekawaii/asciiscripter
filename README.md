@@ -67,7 +67,7 @@ end
 Here is an art block
 ```
 bird : frames
-9 5
+art 9 5
     ,,   ....11...
   <')    ..371....
    ( \   ...1/1...
@@ -76,7 +76,7 @@ bird : frames
 end
 
 three_frames : frames
-9 5
+art 9 5
 1   ,,   7...11...2   ,,   7...11...
   <')    ..371....  <')    ..371....
    ( \   ...1/1...   ( \   ...1/1...
@@ -115,7 +115,7 @@ comment
 <o>
 
 bottom_of_triangle : frames
-6 2
+art 6 2
 --   /\  ..11..   make sure it's `-- ` and not `--` to make its length odd
  /  \ .1//1.
 /____\111111
