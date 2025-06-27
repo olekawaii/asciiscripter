@@ -1,4 +1,3 @@
--- dummy type check recursion
 {-# Language MultiWayIf, LambdaCase #-}
 
 module Main (main) where
@@ -70,7 +69,7 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
               Single  -> command
             ) >> 
             callCommand ("chmod +x " <> file) >>
-            putStrLn ("Gif saved to " <> colour Cyan file <> ".")
+            putStrLn ("Saved to " <> colour Cyan file <> ".")
           ) >> 
           unless q (callCommand command)-- (callCommand command)
 
