@@ -114,6 +114,8 @@ multi-line
 comment
 <o>
 
+some code -- comment
+
 bottom_of_triangle : frames
 art 6 2
 --   /\  ..11..   make sure it's `-- ` and not `--` to make its length odd

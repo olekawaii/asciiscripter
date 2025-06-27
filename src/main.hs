@@ -369,6 +369,7 @@ splitBlock (Marked m s : xs) = helper (words s) >>= \(ws, art) -> case art of
   where 
     helper :: [String] -> OrError ([Marked Name], Maybe (Int, Int))
     helper [] = pure ([], Nothing)
+    helper ("--" : other) = pure ([], Nothing)
     helper ("art" : other) = case traverse readMaybe other of
       Just [a, b] -> pure ([], Just (a, b))
       _ -> mkError m . Left $ Custom "bad art syntax"
