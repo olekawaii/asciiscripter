@@ -39,11 +39,11 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
       body = newHelper frames
       done = "done"
   where
-    hideprompt = "stty -echo\nprintf '\\033[?25l'\n\n"
-    initMove = "move_up=\"\\033[" <> show (ht - 1) <> "F\"\n\n"
-    cleanup = "cleanup() {\n    printf \"$move_up\\033[0J\\033[0m\\033[?25h\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT\n\n"
+    hideprompt = "stty -echo\nprintf '\\33[?25l'\n\n"
+    initMove = "move_up=\"\\33[" <> show (ht - 1) <> "F\"\n\n"
+    cleanup = "cleanup() {\n    printf \"$move_up\\33[0J\\33[0m\\33[?25h\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT\n\n"
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
-    sizeCheck = "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <> " ]\nthen\n    printf \"\\033[91mterminal is too small\\nmust be at least " <> show wd <> " by " <> show ht <> " cells\\033[0m\\n\" >&2\n    exit 1\nfi\n\n" 
+    sizeCheck = "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <> " ]\nthen\n    printf \"\\33[91mterminal is too small\\nmust be at least " <> show wd <> " by " <> show ht <> " cells\\33[0m\\n\" >&2\n    exit 1\nfi\n\n" 
     init2 = comment <> sizeCheck
 
 pipeline :: [[[Character]]] -> [Either String Int]
@@ -77,7 +77,7 @@ reduce (x:xs) = reverse . map (uncurry (helper Black)) $ chunksOf2 (x: reverse (
             len = length same
             leftover = uncurry (helper c) . bimap (: xs) (: ys) $ unzip different
           in 
-          if different /= [] && sum (map (getSize c) same) < 7 
+          if different /= [] && sum (map (getSize c) same) < 6 
           then map Draw same <> leftover
           else take len (repeat $ Move Next) <> leftover
         else Draw x : helper (case getColor x of Nothing -> c; Just x -> x) (xx: xs) (yy: ys)
@@ -85,9 +85,9 @@ reduce (x:xs) = reverse . map (uncurry (helper Black)) $ chunksOf2 (x: reverse (
 getSize :: Color -> Character -> Int
 getSize c = \case
     Space -> 1
-    Character char color -> (if color == c then 0 else 7) + case char of
+    Character char color -> (if color == c then 0 else 6) + case char of
         '%'  -> 2
-        '\'' -> 4
+        '\'' -> 3
         '\\' -> 4
         _ -> 1
 
@@ -123,9 +123,8 @@ instance Show FinalMovement where
         0 -> "" 
         1 -> "\\n"
         2 -> "\\n\\n"
-        3 -> "\\n\\n\\n"
-        _ -> "\\033[" <> show down <> "E" 
-      x = if next == 0 then "" else "\\033[" <> show next <> "C"
+        _ -> "\\33[" <> show down <> "E" 
+      x = if next == 0 then "" else "\\33[" <> show next <> "C"
 
 cleanMove :: [Command] -> (FinalMovement, [Command])
 cleanMove x = first (flip makeFinal Final {next = 0, down = 0}) $ helper x
@@ -170,7 +169,7 @@ removeExtraSpaces = reverse . remove . reverse
 
 colorChar :: Character -> String
 colorChar Space = " "
-colorChar (Character s c) = "\\033[9" <> case c of
+colorChar (Character s c) = "\\33[9" <> case c of
     Black   -> "0"
     Red     -> "1"
     Green   -> "2"
@@ -183,7 +182,7 @@ colorChar (Character s c) = "\\033[9" <> case c of
 
 clean :: Char -> String
 clean '\\' = "\\134"
-clean '\'' = "\\047"
+clean '\'' = "\\47"
 clean '\n' = "\\n"
 clean '%'  = "%%"
 clean a    = pure a
