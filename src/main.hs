@@ -364,13 +364,13 @@ splitBlock :: [Marked String] -> OrError ([Marked Name], Maybe (Int, Int, [Marke
 splitBlock [] = pure ([], Nothing)
 splitBlock (Marked _ ('-':'-':_): xs) = splitBlock xs
 splitBlock (Marked m s : xs) = helper (words s) >>= \(ws, art) -> case art of
-  art@(Just _) -> pure (ws, art)
+  Just (x, y) -> pure (ws, pure (x, y, filter (not . isArtComment x . unwrap) xs))
   Nothing -> first (ws <>) <$> splitBlock xs
   where 
-    helper :: [String] -> OrError ([Marked Name], Maybe (Int, Int, [Marked String]))
+    helper :: [String] -> OrError ([Marked Name], Maybe (Int, Int))
     helper [] = pure ([], Nothing)
     helper ("art" : other) = case traverse readMaybe other of
-      Just [a, b] -> pure ([], Just (a, b, xs))
+      Just [a, b] -> pure ([], Just (a, b))
       _ -> mkError m . Left $ Custom "bad art syntax"
     helper (w : other) = first (Marked m w :) <$> helper other
 

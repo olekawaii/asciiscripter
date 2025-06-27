@@ -8,7 +8,7 @@ extend : fn frames frames
 end
 
 main : frames
-  join move 25 -3 title join 
+  join move 23 -3 title join 
     skip 3 move_y 7 join skip 6 move_x 30 fire_right move_x -19 fire_left 
     join
       move 1 -1 slow 2 join
@@ -17,7 +17,7 @@ main : frames
       join
         join
            side_heads
-          join slow 3 move 7 -4 dragon_tail dragon_body
+          join slow 1 move 7 -4 dragon_tail dragon_body
         move -10 1 join 
           skip 2 wing_left 
           move_x 29 wing_right
@@ -26,7 +26,7 @@ end
 wing_left : frames
 loop art 11 4
      ./|\  .....2222..         /\.........22           ...........
-   .'/ | \ ...222/2/2.        / (........2/2          ...........2
+   .'/ | \ ...222/2/2.        / (........2/2          )..........6
  .' /._|' \.22/22222.2       //' .......222.          |..........2
 /"''       2222.......      '    ......2....          '..........2
 end
@@ -36,7 +36,7 @@ loop art 11 4
   /|\.     ..2222...../\         22.........           ...........
  / | \`.   .2/2/222...) \        2/2.........          2..........
 / `|_.\ `. 2.22222/22. '\\       .222.......|          2..........
-       ``"\.......2222    '      ....2......'          2..........
+       ``"\.......2222    `      ....2......'          2..........
 end
 
 dragon_chill_main : frames
@@ -52,24 +52,9 @@ loop art 12 9
           ' ..////////6.            .//////////. `          .6////////.. 
 end
 
-dragon_roar_main : frames
-loop art 12 9
-   )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
-  ((__))    ..776677....   ((__))   ...776677...    ((__))  ....776677..
-  /o..o\    ..636636....   /o..o\   ...636636...    /o..o\  ....636636..
- ( /VV\ )   .6/6776/6...  ( /VV\ )  ..6/6776/6..   ( /VV\ ) ...6/6776/6.
-  \\__/ \   ..67777/6...   )\__/(   ...677776...   / \__//  ...6/77776..
-   `--   \  ...666///6..  /  --  \  ..6//66//6..  /   --'   ..6///666...
-  /       \ ..6///////6. /        \ .6////////6. /       \  .6///////6..
- '         ).6/////////6(          )6//////////6(         ` 6/////////6.
-          ' ..////////6.            .//////////. `          .6////////.. 
-end
-
 dragon_tail : frames
 art 6 4
----
 -- \   ( 6///6. )   /.6///6
-<o>
  \   ).6///6(   / 6///6.
   ) / ..6/6. \ (  .6/6..
  ( /  .6/6..  \ ) ..6/6.
@@ -138,7 +123,7 @@ end
 
 dragon_body : frames
   join 
-    move 4 3 seq take 8 dragon_chill_main take 4 skip 8 dragon_roar_main
+    move 4 3 dragon_chill_main 
     dragon_belly_left
 end
 
@@ -203,9 +188,9 @@ art 9 3
 end
 
 title : frames
-art 6 2
-Dragon000000
-   ovb...000
+art 9 2
+   Dragon...000000
+olekawaii000000000
 end
 
 move_x : fn int fn frames frames
