@@ -1,5 +1,3 @@
-# asciiscripter tutorial
-
 Work in progress. Check out some examples in the art/ directory
 
 ## Install
@@ -20,12 +18,14 @@ uwu new first_project && cd first_project
 ````
 Inside you will find 
 ```
-first_project/       root
-|-- .ascr            options for `ascr` when using `uwu run`
-|-- output/          directory containing the output files
-|   `-- main.sh      output of main.ascr
-`-- src/             directory containing the source code
-    `-- main.ascr    main file
+first_project/         root
+|-- .ascr/             contains config options for uwu
+|   `-- fps            the frames per second
+|-- output/            containins the output files
+|   |-- main.sh        output of src/main.ascr
+|   `-- short_main.sh  main.sh that only plays once and clears
+`-- src/               containins the source code
+    `-- main.ascr      main file
 ```
 Compile and run the main function with `uwu run` (from anywhere in the project). 
 You should see a success message with a short animation. The output shell script 
@@ -33,7 +33,7 @@ hould appear in `output/main.sh`.
 
 ## Syntax
 The language is very simple; there are no conditionals, pattermatching,
-recursion, or generics.
+recursion, or generics. This will change later.
 
 ### Types
 There are only a handful of types and you can't create your own (for now). Those 
