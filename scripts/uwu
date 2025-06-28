@@ -11,11 +11,10 @@ error() {
 move_to_root() {
     if [ "$(pwd)" = '/' ]; then
         error "not in a project"
-    else 
-        if [ ! -f '.ascr' ]; then
-            cd ..
-            move_to_root
-        fi
+    fi
+    if [ ! -d '.ascr' ]; then
+        cd ..
+        move_to_root
     fi
 }
 
@@ -26,20 +25,30 @@ new() {
     if [ -d "$1" -o -f "$1" ]; then
         error "./$1 already exists"
     fi
-    mkdir "$1" "$1/src" "$1/output" 
-    echo '-d output' > "$1/.ascr"
-    printf '%s new file\n\nmain : gif\n  anchor\nend\n' '--' > $1/src/main.ascr
+    mkdir "$1" "$1/src" "$1/output" "$1/.ascr"
+    echo 5 > "$1/.ascr/fps"
+    art="main : frames\nart 12 1\nhello world!12345/671234\nend"
+    printf "%s\n$art\n" '-- default file' > $1/src/main.ascr
     printf 'created project \033[92m%s\033[0m.\n' "$1"
 }
 
-run() {
+build() {
     move_to_root
-    ascr $(cat .ascr | tr '\n' ' ') ./src/main.ascr
+    if [ ! -z "$(find src -newer output)" ]; then
+        fps=$(head -n 1 .ascr/fps | awk '{print $1}')
+        ascr -f $fps src/main.ascr && 
+        mv short_main.sh main.sh output
+    fi
 }
 
-check() {
-    move_to_root
-    ascr -cq ./src/main.ascr
+run() {
+    build
+    ./output/short_main.sh
+}
+
+play() {
+    build
+    ./output/main.sh
 }
 
 print_help() {
@@ -47,7 +56,7 @@ print_help() {
 commands: 
   new NAME   create a new project named NAME
   run        run main file at src/main.ascr
-  check      check for errors; faster than run
+  play       play the output file (looping)
   help       show this help message
   
 You can also use the first letter of each command.
@@ -56,10 +65,10 @@ These can be run from anywhere in your project.
 }
 
 case $1 in
-    new   | n ) new $2 ;;
-    run   | r ) run ;;
-    check | c ) check ;;
-    help  | h | -h | --help ) print_help ;;
+    new  | n ) new $2 ;;
+    run  | r ) run ;;
+    play | p ) play ;;
+    help | h | -h | --help ) print_help ;;
     * ) error "not a command"
 esac
 

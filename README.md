@@ -89,7 +89,7 @@ art 9 5
      |\  .....11..
 end
 ```
-the `9 5` under the name are the length ang height of a frame. Every pixel in
+the `9 5` under the name are the width and height of a frame. Every pixel in
 the art has a corresponding color, the colors being
 ```
 0 black
@@ -114,13 +114,29 @@ multi-line
 comment
 <o>
 
-some code -- comment
+rojo : color
+  red -- comment
+end
+
+containing_dashes : gif
+art 8 3
+--------77777777
+-- \/ --77.11.77 <-+
+--------77777777   |
+end                +- not a comment. for a line to be commented in an art 
+                      block it must both
+                        * begin with `--` and
+                        * the line's length should'n be a valid, aka it
+                          shouldn't be divisible by 2xwidth (the width in this 
+                          case being 8)
 
 bottom_of_triangle : frames
 art 6 2
---   /\  ..11..   make sure it's `-- ` and not `--` to make its length odd
+--   /\  ..11..   comment. use `-- ` and not `--` to make its length odd
  /  \ .1//1.
 /____\111111
+end
+
 ```
 
 ## Built-in values

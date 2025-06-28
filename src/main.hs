@@ -28,10 +28,6 @@ import Types
 
 infix 8 ...
 
--- type Gif           = [Frame]
--- data ValName = Name String [ValName]
--- data OutputFile = Gif | Image deriving Eq
-
 main :: IO ()
 main = getArgs >>= \arg -> case parseArgs arg defaultMods of
   Left e -> exitWithError e
@@ -52,10 +48,10 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
         Left e -> exitWithError Error {errorType = e, errorMark = None}
         Right (width, height, newGif) ->
           let
-            file = d <> "/" <> t <> ".sh"
+            file = t <> ".sh"
+            shortFile = "short_" <> file
             (fileSh, command) = formatShell mods width height messageIn . pipeline $ newGif
           in
-          putStr "\x1b[32;1mSuccess!\x1b[0m\n" >>
           (
             if width > 80
             then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 80 chars in width"
@@ -63,15 +59,10 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
               then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 24 chars in height"
               else pure ()
           ) >>
-          unless c (
-            writeFile file (case o of
-              Looping -> fileSh
-              Single  -> command
-            ) >> 
-            callCommand ("chmod +x " <> file) >>
-            putStrLn ("Saved to " <> colour Cyan file <> ".")
-          ) >> 
-          unless q (callCommand command)-- (callCommand command)
+          writeFile file fileSh >>
+          writeFile shortFile command >>
+          callCommand ("chmod +x " <> file <> " " <> shortFile) >>
+          putStrLn "\x1b[92mcompiled"
 
 dimensions :: RealGif -> Either ErrorType (Int, Int, Int, Int)
 dimensions gif = case concatMap (map fst) gif of
