@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 current_dir=$(pwd)
 
 error() {
@@ -35,8 +37,8 @@ new() {
 build() {
     move_to_root
     if [ ! -z "$(find src -newer output)" ]; then
-        fps=$(head -n 1 .ascr/fps | awk '{print $1}')
-        ascr -f $fps src/main.ascr && 
+        fps=$(awk 'NR == 1 {print $1}' .ascr/fps)
+        ascr -f $fps src/main.ascr
         mv short_main.sh main.sh output
     fi
 }
@@ -51,12 +53,18 @@ play() {
     ./output/main.sh
 }
 
+watch() {
+    move_to_root
+    echo src/* | entr uwu run
+}
+
 print_help() {
     printf 'uwu [command]
 commands: 
   new NAME   create a new project named NAME
   run        run main file at src/main.ascr
   play       play the output file (looping)
+  watch      recompile on changes (requires entr)
   help       show this help message
   
 You can also use the first letter of each command.
@@ -65,10 +73,11 @@ These can be run from anywhere in your project.
 }
 
 case $1 in
-    new  | n ) new $2 ;;
-    run  | r ) run ;;
-    play | p ) play ;;
-    help | h | -h | --help ) print_help ;;
+    new   | n ) new $2 ;;
+    run   | r ) run ;;
+    play  | p ) play ;;
+    watch | w ) watch ;;
+    help  | h | -h | --help ) print_help ;;
     * ) error "not a command"
 esac
 

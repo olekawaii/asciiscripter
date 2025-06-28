@@ -33,7 +33,7 @@ hould appear in `output/main.sh`.
 
 ## Syntax
 The language is very simple; there are no conditionals, pattermatching,
-recursion, or generics. This will change later.
+recursion, or generics. This will change in the future.
 
 ### Types
 There are only a handful of types and you can't create your own (for now). Those 

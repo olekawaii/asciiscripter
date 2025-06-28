@@ -2,7 +2,7 @@
 ascii art of a dragon
 by olekawaii
 <o>
- 
+
 
 extend : fn frames frames
   seq $1 take 1 reverse $1
