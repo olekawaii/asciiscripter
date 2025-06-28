@@ -1,5 +1,5 @@
 main : frames
-robot_juggler dye white dress_red
+  robot_juggler dye white dress_red
 end
 
 robot_juggler : fn frames frames

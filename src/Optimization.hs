@@ -26,7 +26,7 @@ formatShell :: Modifiers -> Int -> Int -> Maybe String -> [Either String Int] ->
 formatShell mods wd ht message renderedFrames = case renderedFrames of
   [Left frame] -> (init2 <> gif <> "\\n'", init2 <> hideprompt <> initMove <> cleanup <> gif <> "'\nsleep 2" <> "\ncleanup")
     where gif = "printf '" <> frame
-  frames  -> (init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> loop <> body <> done, init2 <> initMove <> cleanup <> intro <> alloc <> body <> "\nprintf \x1b[" <> show (ht - 1) <> "A\r\x1b[0J\x1b[1m")
+  frames  -> (init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> loop <> body <> done, init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> body <> "cleanup")
     where 
       newHelper :: [Either String Int] -> String
       newHelper [] = ""
