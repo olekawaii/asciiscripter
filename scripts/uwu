@@ -25,7 +25,7 @@ new() {
     if [ -d "$1" -o -f "$1" ]; then
         error "./$1 already exists"
     fi
-    mkdir "$1" "$1/src" "$1/output" "$1/.ascr"
+    mkdir "$1" "$1/output" "$1/src" "$1/.ascr"
     echo 5 > "$1/.ascr/fps"
     art="main : frames\nart 12 1\nhello world!12345/671234\nend"
     printf "%s\n$art\n" '-- default file' > $1/src/main.ascr

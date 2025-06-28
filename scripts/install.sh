@@ -1,2 +1,2 @@
 cp scripts/uwu /usr/local/bin/uwu
-cp src/main /usr/local/bin/ascr
+mv src/main /usr/local/bin/ascr
