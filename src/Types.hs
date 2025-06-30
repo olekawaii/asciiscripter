@@ -24,7 +24,6 @@ data Modifiers = Modifiers {
 
 data OutputType = Single | Looping deriving Show
 
-data ComplexError = RealError ErrorType | Func (DummyData -> ErrorType) | Success (DummyData, [DummyData]) 
 
 type Coordinate    = (Int,Int)
 type RealGif = [Map Coordinate Character]

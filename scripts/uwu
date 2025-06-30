@@ -55,7 +55,7 @@ play() {
 
 watch() {
     move_to_root
-    echo src/* | entr uwu run
+    echo src/* | entr sh -c 'clear -x && uwu run'
 }
 
 print_help() {

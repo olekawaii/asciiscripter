@@ -9,8 +9,10 @@ end
 
 main : frames
   join move 23 -3 title join
-    skip 3 move_y 7 join skip 6 move_x 30 fire_right move_x -19 fire_left 
-    join
+    skip 3 move_y 7 join 
+      skip 6 move_x 30 fire_right 
+      move_x -19 fire_left 
+    dye join
       move 1 -1 slow 2 join
         dragon_foot_left
         move_x 12 skip 1 dragon_foot_right

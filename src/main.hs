@@ -285,6 +285,7 @@ parseType x = parseTypeSigniture x >>= \case
   _      -> Left $ Custom "Trailing words after the type signiture"
 parseTypeSigniture :: [String] -> Either ErrorType (Type, [String])
 parseTypeSigniture ("frames":xs) = pure (Type Giff, xs)
+parseTypeSigniture ("color":xs) = pure (Type Colour, xs)
 parseTypeSigniture ("int":xs) = pure (Type Int,  xs)
 parseTypeSigniture ("fn":xs)  = 
   parseTypeSigniture xs >>= \(a,b) ->
@@ -461,32 +462,45 @@ isPossible :: Type -> Type -> Bool
 isPossible w f@(Fn a b) = w == f || isPossible w b
 isPossible w got        = w == got
   
-evaluateRealTypes :: Type -> [DummyData] -> Either ErrorType DummyData
-evaluateRealTypes want x = case evaluateTypes want x of
+evaluateRealTypes :: Type -> [Marked DummyData] -> Mark -> Either Error DummyData
+evaluateRealTypes want x body_mark= case evaluateTypes want x of
   RealError x    -> Left x
-  Success (x,[]) -> Right x
-  Success (x,xs) -> Left $ Custom (show x <> " did not expect any arguments")
-  Func f         -> Left $ Custom "TypeMismatch in the first argument"
+  Success (Marked _ x,[]) -> Right x
+  Success (Marked m x,xs) -> mkError m . Left $ Custom (show x <> " did not expect any arguments")
+  Func f         -> mkError body_mark . Left $ Custom "TypeMismatch in the first argument"
 
+data ComplexError = 
+  RealError Error | 
+  Func (Marked DummyData -> Error) | 
+  Success (Marked DummyData, [Marked DummyData]) 
 
-evaluateTypes :: Type -> [DummyData] -> ComplexError
-evaluateTypes want [] = Func (\name -> Custom (show name <> " is missing arguments"))
-evaluateTypes (Type a) (x@Dummy {type_sig = Type b} : xs) = 
-  if a == b then Success (x,xs) else Func $ flip TypeMismatch x  
-evaluateTypes want (x@Dummy {type_sig = tp} : xs) = if
-  | tp == want -> Success (x,xs)
-  | not (isPossible want tp) -> Func $ flip TypeMismatch x
+evaluateTypes :: Type -> [Marked DummyData] -> ComplexError
+evaluateTypes want [] = Func (\(Marked m name) -> Error {
+  errorType = Custom (show name <> " is missing arguments"),
+  errorMark = m
+})
+evaluateTypes (Type a) (Marked m x@Dummy {type_sig = Type b} : xs) = 
+  if a == b then Success (Marked m x,xs) else Func $ \(Marked _ d) -> Error {
+    errorType = TypeMismatch d x,
+    errorMark = m
+  }
+evaluateTypes want (Marked m x@Dummy {type_sig = tp} : xs) = if
+  | tp == want -> Success (Marked m x,xs)
+  | not (isPossible want tp) -> Func $ \(Marked m d) -> Error {
+      errorType = TypeMismatch d x,
+      errorMark = m
+    }
   | otherwise  -> case tp of
     Type a -> error (show want) --Func (flip TypeMismatch want) -- pure (x,xs)
     Fn a b -> case evaluateTypes a xs of
       RealError x             -> RealError x
-      Func f                  -> RealError (f x)
+      Func f                  -> RealError (f (Marked m x))
       Success (arg, leftover) -> 
-        case applyDummy x arg of
+        case applyDummy x (unwrap arg) of
           Left x -> error "evaluateTypes "
-          Right d -> case evaluateTypes want (d:leftover) of 
+          Right d -> case evaluateTypes want (Marked m d:leftover) of 
             RealError x             -> RealError x
-            Func f                  -> RealError (f d)
+            Func f                  -> RealError (f (Marked m d))
             Success (arg, leftover) -> Success (arg, leftover)
 
 applyDummy :: DummyData -> DummyData -> OrError DummyData
@@ -530,23 +544,28 @@ unsafeApplyFn
     function       = f
   } 
 
+-- TODO return Marked for typechecking
 parseScript2 :: NewHeader -> Map Name Data -> [Marked String] -> OrError ([Data] -> ReturnType)
 parseScript2 header@NewHeader {typeSig = tp, block_mark = block_mark} table xs = 
 
   splitBlock xs >>= \(script, art) -> 
   let 
 
-    helperParseScript :: [Marked String] -> OrError [Either (Int, Type) Data]
+    helperParseScript :: [Marked String] -> OrError [Marked (Either (Int, Type) Data)]
     helperParseScript [] = case art of
       Nothing     -> pure []
-      Just (x, y, lns) -> parseGif header x y lns >>= \vid -> pure .  pure . Right $ Data {
-        dummy = Dummy {
-          current_name = new_name header,
-          type_sig = Type Giff
-        },
-        currentArgs = [],
-        function = vid
-      }
+      Just (x, y, lns) -> parseGif header x y lns >>= \vid -> 
+        pure .  
+        pure . 
+        Marked block_mark . 
+        Right $ Data {
+          dummy = Dummy {
+            current_name = new_name header,
+            type_sig = Type Giff
+          },
+          currentArgs = [],
+          function = vid
+        }
     helperParseScript (Marked m ('$':num) : xs) = case readMaybe num of
       Nothing -> Left Error {
         errorType = Custom "$ must be preceded by a number",
@@ -559,7 +578,7 @@ parseScript2 header@NewHeader {typeSig = tp, block_mark = block_mark} table xs =
             errorMark = m
           }
         Just t ->
-          (Left (x,t) :) <$> helperParseScript xs
+          (Marked m (Left (x,t)) :) <$> helperParseScript xs
     helperParseScript (Marked m x : xs) = 
       case readMaybe x of  -- all (`elem` nums) x 
         Just num ->             
@@ -572,20 +591,20 @@ parseScript2 header@NewHeader {typeSig = tp, block_mark = block_mark} table xs =
               currentArgs   = [],
               function      = const (I num)
             }
-          in cons (Right d) <$> helperParseScript xs
+          in cons (Marked m (Right d)) <$> helperParseScript xs
         Nothing -> case lookup x table of
           Nothing -> Left $ Error {
             errorType = Custom "variable not in scope",
             errorMark = m
           }
-          Just x  -> cons (Right x) <$> helperParseScript xs
+          Just x  -> cons (Marked m (Right x)) <$> helperParseScript xs
 
   in
   helperParseScript script >>= \newTable -> 
-  mkError block_mark (evaluateRealTypes (result tp) (map getDummy newTable) :: Either ErrorType DummyData) >>
+  (evaluateRealTypes (result tp) (map (fmap getDummy) newTable) block_mark :: Either Error DummyData) >>
   pure (\args -> 
       let
-        matcher x = case x of
+        matcher (Marked _ x) = case x of
           Left (i,_)  -> args !! (i - 1)
           Right x     -> x
 
