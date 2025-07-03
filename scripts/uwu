@@ -11,33 +11,27 @@ error() {
 }
 
 move_to_root() {
-    if [ "$(pwd)" = '/' ]; then
-        error "not in a project"
-    fi
-    if [ ! -d '.ascr' ]; then
+    until [ -d .ascr ]; do
+        [ "$(pwd)" = '/' ] && error "not in a project"
         cd ..
-        move_to_root
-    fi
+    done
 }
 
 new() {
-    if [ -z "$1" ]; then 
-        error 'missing the name argument'
-    fi
-    if [ -d "$1" -o -f "$1" ]; then
-        error "./$1 already exists"
-    fi
-    mkdir "$1" "$1/output" "$1/src" "$1/.ascr"
-    echo 5 > "$1/.ascr/fps"
+    [ -z "$1" ] && error 'missing the name argument'
+    mkdir $1 || error "./$1 already exists"
+    cd $1
+    mkdir output src .ascr
+    echo 5 > .ascr/fps
     art="main : frames\nart 12 1\nhello world!12345/671234\nend"
-    printf "%s\n$art\n" '-- default file' > $1/src/main.ascr
+    printf "%s\n$art\n" '-- default file' > src/main.ascr
     printf 'created project \033[92m%s\033[0m.\n' "$1"
 }
 
 build() {
     move_to_root
     if [ ! -z "$(find output -not -newer src -or -not -newer .ascr)" ]; then
-        fps=$(awk 'NR == 1 {print $1}' .ascr/fps)
+        fps=$(awk 'NR == 1 { print $1 }' .ascr/fps)
         ascr -f $fps src/main.ascr
         mv short_main.sh main.sh output
     fi
@@ -55,20 +49,20 @@ play() {
 
 watch() {
     move_to_root
-    echo src/* | entr sh -c 'clear -x && uwu run'
+    echo src/* .ascr/* | entr sh -c 'clear -x && run'
 }
 
 print_help() {
     printf 'uwu [command]
 commands: 
   new NAME   create a new project named NAME
-  run        run main file at src/main.ascr
   play       play the output file (looping)
-  watch      recompile on changes (requires entr)
+  run        play the short version of the output
+  watch      recompile and run on changes (requires entr)
   help       show this help message
   
 You can also use the first letter of each command.
-These can be run from anywhere in your project.
+These can be run from anywhere in the project.
 '
 }
 
