@@ -1,16 +1,23 @@
--- ascii art of a dragon
--- by olekawaii
+---
+ascii art of a dragon
+by olekawaii
+<o>
 
 main : frames
-  join move 23 -3 title join
-    move 1 -1 slow 2 join
-      dragon_foot_left
-      move 12 0 skip 1 dragon_foot_right
-    join
-      dragon_body
-      move -10 1 join 
-        skip 2 wing_left 
-        move 29 0 wing_right
+  join 
+    join 
+      shift east shift south slow 2 join
+        dragon_foot_left
+        do 12 shift east rotate dragon_foot_right
+      join
+        dragon_body
+        shift north join 
+          do 10 shift west do 2 rotate wing_left 
+          do 19 shift east wing_right
+    do 
+      23 
+      shift east 
+      do 3 shift south title 
 end
 
 dragon_chill_main : frames
@@ -40,8 +47,10 @@ loop extend art 14 5
    `---^-.~'  ...666666666..   `-'   `.~' ...666...6666.
 end
 
+-- shifting west to allign with dragon_roar_left
+
 dragon_blow_left : frames
-loop extend art 14 5
+shift west loop extend art 14 5
              ,.............7             ,.............7
          __,( .........6677.         __,( .........6677.
  ,^~~---'o )  .666666663/6.. ,^~~-.-'o )  .666666663/6..
@@ -54,8 +63,10 @@ loop extend art 14 5
   `~.-^---'   ..666666666... `~.'   `-'   .6666...666...
 end
 
+-- shifting south to allign with the blow animations
+
 dragon_roar_left : frames
-loop art 13 7
+  do 2 shift south loop art 13 7
             ,............7            ,............7            ,............7
         __,( ........6677.        __,( ........6677.        __,( ........6677.
 ,^~~---'o )  666666663/6..,^~~---'o )  666666663/6..,^~~---'o )  666666663/6..
@@ -66,7 +77,7 @@ loop art 13 7
 end
 
 dragon_roar_right : frames
-loop art 13 7
+  do 2 shift south loop art 13 7
 .            7.............            7.............            7............
  ),__        .7766........ ),__        .7766........ ),__        .7766........
   ( o`---~~^,..6/366666666  ( o`---~~^,..6/366666666  ( o`---~~^,..6/366666666
@@ -78,16 +89,12 @@ end
 
 side_heads : frames
   join 
-    move_y 5 join
-      skip 6 move -9 0 seq 
-        move -1 2 dragon_blow_left 
-        dragon_roar_left
-      move 16 0 seq 
-        move_y 2 dragon_blow_right 
-        dragon_roar_right
-    skip 3 move_y 7 join 
-      skip 6 move 30 0 fire_right 
-      move -19 0 fire_left
+    do 7 shift north join
+      do 9 shift west do 6 rotate seq dragon_blow_left dragon_roar_left
+      do 16 shift east seq dragon_blow_right dragon_roar_right
+    do 7 shift north join 
+      do 9 rotate do 30 shift east fire_right 
+      do 3 rotate do 19 shift west fire_left
 end
 
 dragon_tail : frames
@@ -119,10 +126,6 @@ extend : fn frames frames
   seq $1 take 1 reverse $1
 end
 
-move_y : fn int fn frames frames
-    move 0 $1 $2
-end
-
 fire_right : frames
 art 9 3
          .........         .........         .........         .........
@@ -151,9 +154,9 @@ end
 
 dragon_body : frames
   join side_heads join 
-    slow 1 move 7 -4 dragon_tail 
+    do 7 shift east do 4 shift south dragon_tail 
     join 
-      move 4 3 dragon_chill_main 
+      do 4 shift east do 3 shift north dragon_chill_main 
       loop art 20 9
 /'\              /'\666..............666/'\              /'\666..............666
 \  \            /  /6//6............6//6\  \            /  /6//6............6//6

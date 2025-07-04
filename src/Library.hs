@@ -33,7 +33,14 @@ builtinFns = [
     ("blue"        , blue         ),
     ("magenta"     , magenta      ),
     ("cyan"        , cyan         ),
-    ("white"       , white        )
+    ("white"       , white        ),
+    ("east"        , east         ),
+    ("north"       , north        ),
+    ("south"       , south        ),
+    ("west"        , west         ),
+    ("shift"       , shift        ),
+    ("rotate"      , rotatef      ),
+    ("do"          , dof          )
   ]
   where 
     loop = Data {
@@ -81,6 +88,25 @@ builtinFns = [
         G $ map (map (\((f,g),thing) -> ((f + x, g + y), thing))) z
     }
 
+    shift = Data {
+      dummy = Dummy {
+        current_name   = "shift",
+        type_sig = Fn (Type Direction) (Fn (Type Giff) (Type Giff))
+      },
+      currentArgs   = [],
+      function      = \[b, c] -> 
+        let 
+          Right (D y) = evaluate b
+          Right (G z) = evaluate c
+        in
+        G $ map (map (\((f,g),thing) -> (
+          case y of 
+            East  -> (f + 1, g)
+            North -> (f, g + 1)
+            South -> (f, g - 1)
+            West  -> (f - 1, g)
+        , thing))) z
+    }
     reversef = Data {
       dummy = Dummy {
         current_name   = "reverse",
@@ -108,6 +134,22 @@ builtinFns = [
           
           (fst, snd)  = splitAt (toTake x (length y)) y
         in G $ snd <> fst
+    }
+
+    rotatef = Data {
+      dummy = Dummy {
+        current_name   = "rotate",
+        type_sig = Fn (Type Giff) (Type Giff)
+      },
+      currentArgs   = [],
+      function      = \[b] ->
+        let 
+          Right (G y) = evaluate b
+        in 
+          G (case y of
+            [] -> []
+            (x:xs) -> xs <> [x]
+          )
     }
 
     joinf = Data {
@@ -232,3 +274,51 @@ builtinFns = [
     cyan    = createColor Cyan    
     white   = createColor White
 
+    createDirection :: Direction -> Data
+    createDirection x = Data {
+      dummy = Dummy {
+        current_name = show x,
+        type_sig     = Type Direction
+      },
+      currentArgs   = [],
+      function      = const (D x)
+    }
+
+    north = createDirection North
+    east = createDirection East
+    south = createDirection South
+    west = createDirection West
+
+    dof :: Data
+    dof = Data {
+      dummy = Dummy {
+        current_name = "do",
+        type_sig     = Fn (Type Int) (Fn (Fn (Type Giff) (Type Giff)) (Fn (Type Giff) (Type Giff)))
+      },
+      currentArgs = [],
+      function    = \[a, b, c] ->
+        let 
+          Right (I number) = evaluate a
+
+          helper 0 = c
+          helper x = unsafeApplyFn b (helper (x - 1))
+          
+          Right (G output) = evaluate (helper number)
+        in
+          (G output)
+    }
+          
+
+
+
+    -- frame_countf = Data {
+    --   dummy = Dummy {
+    --     current_name   = "frame_count",
+    --     type_sig = Fn (Type Giff) (Type Int)
+    --   },
+    --   currentArgs   = [],
+    --   function      = \[a] ->
+    --     let
+    --       Right (G x) = evaluate a
+    --     in I $ length x
+    -- }

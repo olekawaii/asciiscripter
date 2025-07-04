@@ -34,7 +34,9 @@ type RealGif = [Map Coordinate Character]
 
 data Type = Type SimpleType | Fn Type Type deriving Eq
 
-data SimpleType = Int | Giff | Colour deriving Eq
+data SimpleType = Int | Giff | Colour | Direction deriving Eq
+
+data Direction = East | West | North | South deriving (Show, Eq)
 
 data Data = Data {
   dummy         :: DummyData,
@@ -47,7 +49,7 @@ data DummyData = Dummy {
   type_sig       :: Type
 }
 
-data ReturnType = I Int | G RealGif | C Color -- deriving Show
+data ReturnType = I Int | G RealGif | C Color | D Direction -- deriving Show
 data Character = Space | Character Char Color deriving Eq
 
 type OrError       = Either Error
