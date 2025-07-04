@@ -49,7 +49,7 @@ play() {
 
 watch() {
     move_to_root
-    echo src/* .ascr/* | entr sh -c 'clear -x && run'
+    ls src/* .ascr/* | entr sh -c 'clear -x && uwu run'
 }
 
 print_help() {

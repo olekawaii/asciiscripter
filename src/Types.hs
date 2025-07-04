@@ -5,6 +5,10 @@ type Map a b       = [(a,b)]
 type Dependencies  = Map Name [Name]
 type Frame         = [Colored Char]
 
+data Kind = Star | KingFn Kind Kind
+
+data HashMap a b = HashMap [(a, b)]
+
 data NewHeader = NewHeader {
   new_name    :: String,
   typeSig     :: Type,

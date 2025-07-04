@@ -25,6 +25,7 @@ import Name
 import Error
 import Evaluate
 import Types
+import HashMap
 
 infix 8 ...
 
@@ -657,7 +658,7 @@ parseGif header w h lns =
           then pure lnlen
           else Left Error {
             errorType = Custom $
-              "A gif's chars per line should be divisible by the header's width.\nYou have "
+              "An art's chars per line should be divisible by the header's width.\nYou have "
               <> show lnlen <> " chars.",
             errorMark = getMark x
           }

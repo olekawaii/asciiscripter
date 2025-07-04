@@ -12,7 +12,7 @@ instance Show DummyData where
 
 instance Show SimpleType where
   show Int    = "int"
-  show Giff   = "gif"
+  show Giff   = "frames"
   show Colour = "color"
 
 instance Show Type where

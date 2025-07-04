@@ -1,7 +1,6 @@
 #!/bin/sh
 
-if [ $(tput cols) -lt 58 -o $(tput lines) -lt 16 ]
-then
+if [ $(tput cols) -lt 58 -o $(tput lines) -lt 16 ]; then
     printf "\33[91mterminal is too small\nmust be at least 58 by 16 cells\33[0m\n" >&2
     exit 1
 fi

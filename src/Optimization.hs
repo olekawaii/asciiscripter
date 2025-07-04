@@ -35,7 +35,7 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
       intro = "draw() {\n    printf \"$move_up$1\"\n    sleep " <> 
         show (frameTime mods) <> "\n}\n\n"
       alloc = "yes '' | head -n " <> show (ht - 1) <> "\n\n"
-      loop = "while true\ndo\n"
+      loop = "while true; do\n"
       body = newHelper frames
       done = "done"
   where
@@ -43,7 +43,7 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
     initMove = "move_up=\"\\33[" <> show (ht - 1) <> "F\"\n\n"
     cleanup = "cleanup() {\n    printf \"$move_up\\33[0J\\33[0m\\33[?25h\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT\n\n"
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
-    sizeCheck = "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <> " ]\nthen\n    printf \"\\33[91mterminal is too small\\nmust be at least " <> show wd <> " by " <> show ht <> " cells\\33[0m\\n\" >&2\n    exit 1\nfi\n\n" 
+    sizeCheck = "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <> " ]; then\n    printf \"\\33[91mterminal is too small\\nmust be at least " <> show wd <> " by " <> show ht <> " cells\\33[0m\\n\" >&2\n    exit 1\nfi\n\n" 
     init2 = comment <> sizeCheck
 
 pipeline :: [[[Character]]] -> [Either String Int]
