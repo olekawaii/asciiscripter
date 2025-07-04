@@ -13,10 +13,8 @@ import Control.Arrow
 
 builtinFns :: Map Name Data 
 builtinFns = [
-    ("move"        , movef        ),
     ("loop"        , loop         ),
     ("reverse"     , reversef     ),
-    ("skip"        , skipf        ),
     ("join"        , joinf        ),
     ("slow"        , slowf        ),
     ("null"        , nullf        ),
@@ -73,21 +71,6 @@ builtinFns = [
         G (tail x)
     }
 
-    movef = Data {
-      dummy = Dummy {
-        current_name   = "move",
-        type_sig = Fn (Type Int) (Fn (Type Int) (Fn (Type Giff) (Type Giff)))
-      },
-      currentArgs   = [],
-      function      = \[a, b, c] -> 
-        let 
-          Right (I x) = evaluate a 
-          Right (I y) = evaluate b
-          Right (G z) = evaluate c
-        in
-        G $ map (map (\((f,g),thing) -> ((f + x, g + y), thing))) z
-    }
-
     shift = Data {
       dummy = Dummy {
         current_name   = "shift",
@@ -107,6 +90,7 @@ builtinFns = [
             West  -> (f - 1, g)
         , thing))) z
     }
+
     reversef = Data {
       dummy = Dummy {
         current_name   = "reverse",
@@ -116,24 +100,6 @@ builtinFns = [
       function      = \[a] ->
         let Right (G x) = evaluate a in
         G $ reverse x
-    }
-
-    skipf = Data {
-      dummy = Dummy {
-        current_name   = "skip",
-        type_sig = Fn (Type Int) (Fn (Type Giff) (Type Giff))
-      },
-      currentArgs   = [],
-      function      = \[a,b] ->
-        let 
-          Right (I x) = evaluate a 
-          Right (G y) = evaluate b
-          
-          toTake :: Int -> Int -> Int
-          toTake x y = if x <= y then x else toTake (x - y) y
-          
-          (fst, snd)  = splitAt (toTake x (length y)) y
-        in G $ snd <> fst
     }
 
     rotatef = Data {
