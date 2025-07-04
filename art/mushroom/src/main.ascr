@@ -1,11 +1,13 @@
 main : frames
   join
-    move 10 0 join
+    do 10 shift east join
       small_mushroom
-      move 2 2 title
-    join
-      big_mushroom
-      move -1 0 anchor
+      do 3 shift north do 4 shift east title
+    big_mushroom
+end
+
+compose : fn fn frames frames fn fn frames frames fn frames frames
+  $1 $2 $3
 end
 
 big_mushroom : frames
@@ -27,7 +29,7 @@ art 6 3
 end
 
 title : frames
-art 8 2
-Muchomor00000000
-     ovb.....000
+art 9 2
+ muchomor.00000000
+olekawaii000000000
 end
