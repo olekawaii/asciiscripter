@@ -7,6 +7,14 @@ type Frame         = [Colored Char]
 
 data Kind = Star | KingFn Kind Kind
 
+data RealType = Function RealType RealType | Actual DataType
+
+data DataType = DataType {
+  dataName     :: String,
+  kind         :: Kind,
+  constructors :: [HashMap String [RealType]]
+}
+
 data HashMap a b = HashMap [(a, b)]
 
 data NewHeader = NewHeader {
