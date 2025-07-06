@@ -164,13 +164,13 @@ anchor : frames
 `anchor` is a single frame with a space character. Useful for expanding the
 field of view 
 ```
-move : fn int fn int fn frames frames
+shift : fn direction fn frames frames
 ```
-`move a b c` moves the video c (a in the x, b in the y)
+shifts all coordinates in all frames to the direction
 ```
-skip : fn int fn frames frames 
+rotate : fn frames frames 
 ```
-`skip a b` moves the first a frames of b to the back
+`rotate a` moves the first frame to the back
 ```
 take : fn int fn frames frames
 ```
@@ -184,4 +184,8 @@ loop : fn frames frames
 ```
 `loop a` sequences a with the trimmed (reverse of a) making a smooth 
 animathion
+```
+do : fn int fn fn frames frames fn frames frames
+```
+do a f b applies f to b a times
 
