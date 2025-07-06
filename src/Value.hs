@@ -99,7 +99,6 @@ unsafeEval = (fst .) . unsafeEvaluateExpression
         let (arg, leftover) = unsafeEvaluateExpression a xs in
         unsafeEvaluateExpression want (unsafeApplyFn x arg : leftover) 
 
-
 unsafeApplyFn :: Data -> Data -> Data
 unsafeApplyFn 
   Data {dummy = d@Dummy {type_sig = Fn a b}, currentArgs = args, function = f} 

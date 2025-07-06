@@ -9,6 +9,10 @@ data Kind = Star | KingFn Kind Kind
 
 data RealType = Function RealType RealType | Actual DataType
 
+data Expression = ValueTree Root [Expression] | Match Expression (HashMap String Expression)
+
+data Root = DataConstructor String | Other String 
+
 data DataType = DataType {
   dataName     :: String,
   kind         :: Kind,
