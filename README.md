@@ -39,7 +39,7 @@ recursion, or generics. This will change in the future.
 There are only a handful of types and you can't create your own (for now). Those 
 types are:
 ```
-int        integer. data int = one | succ int
+int        regular integer
 frames     a sequence of frames, a frame being a Map Coordinate Character
 fn a b     a function from a b
 color      black | green | yellow | blue | magenta | cyan | white
