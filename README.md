@@ -42,8 +42,8 @@ types are:
 int        integer. data int = one | succ int
 frames     a sequence of frames, a frame being a Map Coordinate Character
 fn a b     a function from a b
-bool       true | false
 color      black | green | yellow | blue | magenta | cyan | white
+direction  south | east | north | west
 ```
 Types use Polish notation. a function from an `int` to a `bool` is `fn int
 bool`. A function from (a function from an `int` to a `bool`) to `frames` is
