@@ -11,8 +11,8 @@ printf '\33[?25l'
 move_up="\33[6F"
 
 cleanup() {
-    stty echo
     printf "$move_up\33[0J\33[0m\33[?25h"
+    stty echo
     exit 0
 }
 

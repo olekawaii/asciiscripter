@@ -107,8 +107,8 @@ All variables are immutable. Syntax for declaring a variable
     add_five : fn int int
       add five $1
 
-Here `$1` refers to the first argument of the function.
-Here is an art block
+Here `$1` refers to the first argument of the function. These are art blocks,
+beginning with the art keyword
 
     bird : frames
     art 9 5
@@ -145,7 +145,7 @@ in the art has a corresponding color, the colors being
     .  - transparent
     /  - space
 
-colors 0-7 are only for non-spaces. / and . are for spaces
+colors `0-7` are only for non-spaces. `/` and `.` are for spaces
 
 
 Syntax -- Comments
@@ -185,10 +185,15 @@ Syntax -- Comments
 Built-in Values
 ---------------
 
+Once I finish implementing algebraic datatypes and patternmatching, these 
+functions (and the types) will be moved out of the language and into a standard
+library.
+
+
 join : fn frames fn frames frames
-    `join a b` layers a on top of b and makes the output video loopable. Joining a
-    (video with 2 frames) and (one with 3 frames) results in a (video with 6 frames) so
-    it loops after after every 6 frames.
+    `join a b` layers a on top of b and makes the output video loopable. Joining
+    a (video with 2 frames) and (one with 3 frames) results in a (video with 6 
+    frames) so it loops after after every 6 frames.
 
 seq : fn frames fn frames frames
     `seq a b` combines a and b so that b plays after a
