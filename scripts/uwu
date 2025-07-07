@@ -30,7 +30,7 @@ new() {
 
 build() {
     move_to_root
-    if [ ! -z "$(find output -not -newer src -or -not -newer .ascr)" ]; then
+    if [ -z "$(find . -name output -newer src -newer .ascr)" ]; then
         fps=$(awk 'NR == 1 { print $1 }' .ascr/fps)
         ascr -f $fps src/main.ascr
         mv short_main.sh main.sh output

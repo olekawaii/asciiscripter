@@ -4,20 +4,20 @@ by olekawaii
 <o>
 
 main : frames
-  join 
-    join 
+  join
+    join
       shift east shift south slow 2 join
         dragon_foot_left
         do 12 shift east rotate dragon_foot_right
       join
         dragon_body
-        shift north join 
-          do 10 shift west do 2 rotate wing_left 
+        shift north join
+          do 10 shift west do 2 rotate wing_left
           do 19 shift east wing_right
-    do 
-      23 
-      shift east 
-      do 3 shift south title 
+    do
+      23
+      shift east
+      do 3 shift south title
 end
 
 dragon_chill_main : frames
@@ -30,7 +30,7 @@ dragon_chill_main : frames
    )     \  ...6/////6..  /      \  ..6//////6..  /     (   ..6/////6...
   /       \ ..6///////6. /        \ .6////////6. /       \  .6///////6..
  '         ).6/////////6(          )6//////////6(         ` 6/////////6.
-          ' ..////////6.            .//////////. `          .6////////.. 
+          ' ..////////6.            .//////////. `          .6////////..
 end
 
 dragon_blow_right : frames
@@ -88,12 +88,12 @@ dragon_roar_right : frames
 end
 
 side_heads : frames
-  do 7 shift north join 
+  do 7 shift north join
     join
       do 9 shift west do 6 rotate seq dragon_blow_left dragon_roar_left
       do 16 shift east seq dragon_blow_right dragon_roar_right
-    join 
-      do 9 rotate do 30 shift east fire_right 
+    join
+      do 9 rotate do 30 shift east fire_right
       do 3 rotate do 19 shift west fire_left
 end
 
@@ -146,17 +146,17 @@ art 9 3
          .........         .........         .........     .   .....3...
          .........   _     ...3.....   _     ...3.....   _     ...1.....
   (___.  ..33111..  (__    ..331....  (_`    ..113....  ' )    ..1.3....
-   _.    ...31.... ._,     .331......_       31........        1........ 
+   _.    ...31.... ._,     .331......_       31........        1........
    _     ...1.....         .........         .........         .........
    _)    ...31....  __,    ..311.... __      .11......_        1........
          .........         .........         .........         .........
 end
 
 dragon_body : frames
-  join side_heads join 
-    do 7 shift east do 4 shift south dragon_tail 
-    join 
-      do 4 shift east do 3 shift north dragon_chill_main 
+  join side_heads join
+    do 7 shift east do 4 shift south dragon_tail
+    join
+      do 4 shift east do 3 shift north dragon_chill_main
       loop art 20 9
 /'\              /'\666..............666/'\              /'\666..............666
 \  \            /  /6//6............6//6\  \            /  /6//6............6//6
@@ -166,7 +166,7 @@ dragon_body : frames
   /                )..6////////////////6(                  )6//////////////////6
  (                / .6////////////////6. \                / .6////////////////6.
   \              /  ..6//////////////6..  \              /  ..6//////////////6..
-   `''--.__.--'''   ...66666666666666...   `''--.__.--'''   ...66666666666666...   
+   `''--.__.--'''   ...66666666666666...   `''--.__.--'''   ...66666666666666...
 /'\              /'\666..............666
 \  \            /  /6//6............6//6
  \  \          /  / .6//6..........6//6.
