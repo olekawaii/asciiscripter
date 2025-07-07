@@ -298,7 +298,7 @@ parseTypeSigniture x = Left $ Custom ("Unknown type: " <> show x)
 cleanInput :: [Marked String] -> OrError [Marked String]
 cleanInput [] = pure []
 cleanInput (Marked m s : xs) = case trim s of
-  ""    -> cleanInput xs
+  -- ""    -> cleanInput xs
   "---" -> findClosing xs >>= cleanInput
   "<o>" -> Left Error {
     errorType = BadDelimiter "<o>",
@@ -396,6 +396,7 @@ findDependencies table = fmap nub . getDependencies []
 
 parseChunks :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
 parseChunks [] = pure []
+parseChunks (Marked _ "" : xs) = parseChunks xs
 parseChunks (Marked m ('-':'-':_) : xs) = parseChunks xs 
 parseChunks all@(Marked m x : xs) = 
   parseHeader (Marked m x)  >>= \header -> 
@@ -411,13 +412,13 @@ parseChunks all@(Marked m x : xs) =
         ((new_name header, (header, lines)):) <$> parseChunks other
   where 
     find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
-    find_leftover [] = Left Error {
-      errorType = Parse "code block" "end" "EOF",
-      errorMark = m
-    }
-    find_leftover (Marked m a : as) = case trim a of
-      "end" -> pure ([],as)
-      _     -> first (Marked m a :) <$> find_leftover as
+    find_leftover [] = pure ([], [])
+    -- find_leftover (Marked m a : as) = case trim a of
+    --   "end" -> pure ([],as)
+    --   _     -> first (Marked m a :) <$> find_leftover as
+    find_leftover (Marked m ln : lns) = case ln of
+      "" -> pure ([], lns)
+      other -> first (Marked m other :) <$> find_leftover lns
 
 isComment :: String -> Bool
 isComment ('-':'-':_) = True

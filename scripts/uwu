@@ -23,8 +23,7 @@ new() {
     cd $1
     mkdir output src .ascr
     echo 5 > .ascr/fps
-    art="main : frames\nart 12 1\nhello world!12345/671234\nend"
-    printf "%s\n$art\n" '-- default file' > src/main.ascr
+    printf "%s\nmain : frames\n  null" '-- default file' > src/main.ascr
     printf 'created project \033[92m%s\033[0m.\n' "$1"
 }
 

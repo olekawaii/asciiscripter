@@ -54,7 +54,6 @@ Paste these lines to src/main.ascr
 
 main : frames
   triangle
-end
 
 triangle : frames
   art 8 4
@@ -62,7 +61,6 @@ triangle : frames
   /  \  ..5//5..  /  \  ..6//6..
  /    \ .5////5. /    \ .6////6.
 /______\55555555/______\66666666
-end
 
 
 Compile and run the main function with `uwu play` (from anywhere in the
@@ -105,11 +103,9 @@ All variables are immutable. Syntax for declaring a variable
 
     five : int
       5
-    end
 
     add_five : fn int int
       add five $1
-    end
 
 Here `$1` refers to the first argument of the function.
 Here is an art block
@@ -121,7 +117,6 @@ Here is an art block
        ( \   ...1/1...
     ---YY----222332222
          |\  .....11..
-    end
 
     three_frames : frames
     art 9 5
@@ -135,7 +130,6 @@ Here is an art block
        ( \   ...1/1...
     ---YY----222332222
          |\  .....11..
-    end
 
 the `9 5` after the art keyword are the width and height of a frame. Every pixel
 in the art has a corresponding color, the colors being
@@ -151,6 +145,8 @@ in the art has a corresponding color, the colors being
     .  - transparent
     /  - space
 
+colors 0-7 are only for non-spaces. / and . are for spaces
+
 
 Syntax -- Comments
 ------------------
@@ -165,14 +161,12 @@ Syntax -- Comments
 
     rojo : color
       red -- comment
-    end
 
     containing_dashes : frames
-    art 8 3
+      art 8 3
     --------77777777
     -- \/ --77.11.77 <-+
     --------77777777   |
-    end                |
 
         Not a comment. For a line to be commented in an art
         block, it must both
@@ -186,7 +180,6 @@ Syntax -- Comments
     --   /\  ..11..   comment. use `-- ` and not `--` to make its length odd
      /  \ .1//1.
     /____\111111
-    end
 
 
 Built-in Values

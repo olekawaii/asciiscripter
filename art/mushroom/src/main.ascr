@@ -4,11 +4,9 @@ main : frames
       small_mushroom
       do 3 shift north do 4 shift east title
     big_mushroom
-end
 
 compose : fn fn frames frames fn fn frames frames fn frames frames
   $1 $2 $3
-end
 
 big_mushroom : frames
 art 13 7
@@ -19,17 +17,14 @@ art 13 7
      | |     .....7/7.....
      |"|     .....777.....
      | |     .....7/7.....
-end
 
 small_mushroom : frames
 art 6 3
   __  ..11..
 (c_o_)171711
  (..) .7777.
-end
 
 title : frames
 art 9 2
  muchomor.00000000
 olekawaii000000000
-end
