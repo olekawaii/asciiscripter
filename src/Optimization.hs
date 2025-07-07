@@ -41,7 +41,7 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
   where
     hideprompt = "stty -echo\nprintf '\\33[?25l'\n\n"
     initMove = "move_up=\"\\33[" <> show (ht - 1) <> "F\"\n\n"
-    cleanup = "cleanup() {\n    printf \"$move_up\\33[0J\\33[0m\\33[?25h\"\n    stty echo\n    exit 0\n}\n\ntrap cleanup INT\n\n"
+    cleanup = "cleanup() {\n    stty echo\n    printf \"$move_up\\33[0J\\33[0m\\33[?25h\"\n    exit 0\n}\n\ntrap cleanup INT\n\n"
     comment = "#!/bin/sh\n" <> maybe "" (('\n' :) . unlines . map ("# " <>) . lines) message <> "\n"
     sizeCheck = "if [ $(tput cols) -lt " <> show wd <> " -o $(tput lines) -lt " <> show ht <> " ]; then\n    printf \"\\33[91mterminal is too small\\nmust be at least " <> show wd <> " by " <> show ht <> " cells\\33[0m\\n\" >&2\n    exit 1\nfi\n\n" 
     init2 = comment <> sizeCheck
