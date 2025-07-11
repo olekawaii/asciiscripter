@@ -20,7 +20,7 @@ trap cleanup INT
 
 draw() {
     printf "$move_up$1"
-    sleep 0.2
+    sleep 0.22222222
 }
 
 yes '' | head -n 15

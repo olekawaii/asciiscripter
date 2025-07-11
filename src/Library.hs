@@ -21,7 +21,7 @@ builtinFns = [
     ("anchor"      , anchorf      ),
     ("seq"         , seqf         ),
     ("take"        , takef        ),
-    ("tail"        , tailf        ),
+    -- ("tail"        , tailf        ),
     ("frame_count" , frame_countf ),
     ("dye"         , dyef         ),
     ("black"       , black        ),

@@ -7,10 +7,10 @@ main : frames
   join
     join
       shift east shift south slow 2 join
-        dragon_foot_left
-        do 12 shift east rotate dragon_foot_right
+        foot_left
+        do 12 shift east rotate foot_right
       join
-        dragon_body
+        body
         shift north join
           do 10 shift west do 2 rotate wing_left
           do 19 shift east wing_right
@@ -19,7 +19,7 @@ main : frames
       shift east
       do 3 shift south title
 
-dragon_chill_main : frames
+center_head : frames
   loop art 12 9
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
   ((__))    ..776677....   ((__))   ...776677...    ((__))  ....776677..
@@ -31,7 +31,7 @@ dragon_chill_main : frames
  '         ).6/////////6(          )6//////////6(         ` 6/////////6.
           ' ..////////6.            .//////////. `          .6////////..
 
-dragon_blow_right : frames
+blow_right : frames
   loop extend art 14 5
 .             7..............             7.............
  ),__         .7766......... ),__         .7766.........
@@ -44,9 +44,9 @@ dragon_blow_right : frames
       `  -^V  ..////6//677..      )__   < ..////666///6.
    `---^-.~'  ...666666666..   `-'   `.~' ...666...6666.
 
--- shifting west to allign with dragon_roar_left
+-- shifting west to allign with roar_left
 
-dragon_blow_left : frames
+blow_left : frames
   shift west loop extend art 14 5
              ,.............7             ,.............7
          __,( .........6677.         __,( .........6677.
@@ -61,7 +61,7 @@ dragon_blow_left : frames
 
 -- shifting south to allign with the blow animations
 
-dragon_roar_left : frames
+roar_left : frames
   do 2 shift south loop art 13 7
             ,............7            ,............7            ,............7
         __,( ........6677.        __,( ........6677.        __,( ........6677.
@@ -71,7 +71,7 @@ dragon_roar_left : frames
              ............. `~.----'    .66666666.... ,A,A,/  /   .777776//6/..
              .............             ............. `~.----'    .66666666....
 
-dragon_roar_right : frames
+roar_right : frames
   do 2 shift south loop art 13 7
 .            7.............            7.............            7............
  ),__        .7766........ ),__        .7766........ ),__        .7766........
@@ -83,16 +83,15 @@ dragon_roar_right : frames
 
 side_heads : frames
   do 7 shift north join
-    join
-      do 9 shift west do 6 rotate seq dragon_blow_left dragon_roar_left
-      do 16 shift east seq dragon_blow_right dragon_roar_right
-    join
-      do 9 rotate do 30 shift east fire_right
-      do 3 rotate do 19 shift west fire_left
+    do 16 shift east join
+      do 9 rotate do 14 shift east fire_right
+      seq blow_right roar_right
+    do 3 rotate do 9 shift west join
+      do 10 shift west fire_left
+      do 3 rotate seq blow_left roar_left
 
-dragon_tail : frames
+tail : frames
   art 6 4
--- \   ( 6///6. )   /.6///6
  \   ).6///6(   / 6///6.
   ) / ..6/6. \ (  .6/6..
  ( /  .6/6..  \ ) ..6/6.
@@ -139,12 +138,12 @@ fire_left : frames
    _)    ...31....  __,    ..311.... __      .11......_        1........
          .........         .........         .........         .........
 
-dragon_body : frames
-  join side_heads join
-    do 7 shift east do 4 shift south dragon_tail
-    join
-      do 4 shift east do 3 shift north dragon_chill_main
-      loop art 20 9
+body : frames
+  join
+    join side_heads join
+      do 7 shift east do 4 shift south tail
+      do 4 shift east do 3 shift north center_head
+    loop art 20 9
 /'\              /'\666..............666/'\              /'\666..............666
 \  \            /  /6//6............6//6\  \            /  /6//6............6//6
  \  \          /  / .6//6..........6//6. \  \          /  / .6//6..........6//6.
@@ -169,12 +168,12 @@ title : frames
    dragon...000000
 olekawaii000000000
 
-dragon_foot_left : frames
+foot_left : frames
   art 6 2
   ) /`..6/66  \ (`..6/66
 mn_(  6666.. mn_| .6666.
 
-dragon_foot_right : frames
+foot_right : frames
   art 6 2
 '\ (  66/6..') /  66/6..
   )_nm..6666 |_nm .6666.

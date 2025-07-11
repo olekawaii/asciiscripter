@@ -5,19 +5,30 @@ type Map a b       = [(a,b)]
 type Dependencies  = Map Name [Name]
 type Frame         = [Colored Char]
 
-data Kind = Star | KingFn Kind Kind
 
-data RealType = Function RealType RealType | Actual DataType
+-- data Kind = Star | KindFn Kind Kind
 
-data Expression = ValueTree Root [Expression] | Match Expression (HashMap String Expression)
+data RealType = 
+  Function RealType RealType | 
+  Actual DataType | 
+  Kind
 
-data Root = DataConstructor String | Other String 
+-- parsing Maybe data block just gives us functions (None : fn * Maybe $1) 
+-- and (Some : fn * fn $1 Maybe $1) labeled as dataconstructors
+-- and also a function (Maybe : fn * *) labeled as a datatype nothing special
+--
+-- 
+
+data Expression = ValueTree Name [Expression] | Match Expression (HashMap String Expression)
 
 data DataType = DataType {
   dataName     :: String,
-  kind         :: Kind,
+  kind         :: RealType,
   constructors :: [HashMap String [RealType]]
 }
+
+type AllConstructors = HashMap String
+
 
 data HashMap a b = HashMap [(a, b)]
 
