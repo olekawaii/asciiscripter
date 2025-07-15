@@ -14,10 +14,7 @@ main : frames
         shift north join
           do 10 shift west do 2 rotate wing_left
           do 19 shift east wing_right
-    do
-      23
-      shift east
-      do 3 shift south title
+    do 23 shift east do 3 shift south title
 
 center_head : frames
   loop art 12 9

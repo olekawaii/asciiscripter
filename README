@@ -15,8 +15,7 @@ The source code for the compiler is located in the src/ directory. There is
 also a useful script `uwu` at scripts/uwu . The only dependencies are ghc and
 optionally `entr`. Install the compiler and uwu to /usr/local/bin by running
 
-    scripts/build.sh
-    sudo scripts/install.sh
+    make install
 
 The compiler is `ascr`. See `ascr -h` for options. You can use uwu for building
 and running the project. See 'uwu help'.
