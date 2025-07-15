@@ -1,4 +1,3 @@
-GHC       = ghc -Wall
 MAIN      = main.hs
 TARGET    = main
 
@@ -8,8 +7,7 @@ all: $(TARGET)
 
 $(TARGET): $(HS_FILES)
 	@mkdir -p build
-	# cd src && $(GHC) $(GHCFLAGS) -o $(TARGET) -outputdir ../build $(MAIN) && mv main ..
-	$(GHC) $(GHCFLAGS) -o $(TARGET) -isrc -outputdir build src/$(MAIN)
+	ghc $(GHCFLAGS) -o $(TARGET) -Wall -isrc -outputdir build src/$(MAIN)
 
 clean:
 	rm -f $(TARGET) build/*.o build/*.hi
