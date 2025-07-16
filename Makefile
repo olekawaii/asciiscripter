@@ -1,5 +1,5 @@
 MAIN      = main.hs
-TARGET    = main
+TARGET    = ascr
 
 HS_FILES  = $(wildcard src/*.hs)
 
