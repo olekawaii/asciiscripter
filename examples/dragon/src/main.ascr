@@ -1,8 +1,3 @@
-title : frames
-  art 9 2
-   dragon...000000
-olekawaii000000000
-
 main : frames
   join
     join
@@ -172,3 +167,9 @@ foot_right : frames
   art 6 2
 '\ (  66/6..') /  66/6..
   )_nm..6666 |_nm .6666.
+
+title : frames
+  art 9 2
+   dragon...000000
+olekawaii000000000
+

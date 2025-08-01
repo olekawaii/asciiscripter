@@ -404,12 +404,7 @@ parseChunks all@(Marked m x : xs) =
     case map (flip addMarkBlock (new_name header)) inside of
       [] -> Left Error {errorType = MissingBody, errorMark = block_mark header}
       all@(Marked m ln:lns) ->
-        let
-          lines = case traverse readMaybe $ words ln of
-            Just [a, b] -> (filter (not . isArtComment a . unwrap) lns)
-            Nothing     -> all
-        in
-        ((new_name header, (header, lines)):) <$> parseChunks other
+        ((new_name header, (header, all)):) <$> parseChunks other
   where 
     find_leftover :: [Marked String] -> OrError ([Marked String],[Marked String])
     find_leftover [] = pure ([], [])

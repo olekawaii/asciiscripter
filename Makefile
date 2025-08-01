@@ -1,20 +1,17 @@
-MAIN      = main.hs
-TARGET    = ascr
+EXECUTABLE = ascr
 
-HS_FILES  = $(wildcard src/*.hs)
+all: $(EXECUTABLE)
 
-all: $(TARGET)
-
-$(TARGET): $(HS_FILES)
-	@mkdir -p build
-	ghc $(GHCFLAGS) -o $(TARGET) -Wall -isrc -outputdir build src/$(MAIN)
+$(EXECUTABLE): $(wildcard src/*.hs)
+	mkdir -p build
+	ghc -o $(EXECUTABLE) -isrc -outputdir build src/main.hs
 
 clean:
-	rm -f $(TARGET) build/*.o build/*.hi
+	rm -rf build $(EXECUTABLE)
 
-run: $(TARGET)
-	./$(TARGET)
+run: $(EXECUTABLE)
+	$(EXECUTABLE)
 
-install : $(TARGET)
-	doas cp ./scripts/uwu ./$(TARGET) /usr/local/bin
+install : $(EXECUTABLE)
+	doas cp scripts/uwu $(EXECUTABLE) /usr/local/bin
 	  

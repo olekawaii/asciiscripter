@@ -11,9 +11,8 @@ Work in progress. Check out some examples in the art/ directory
 Installing asciiscripter
 ------------------------
 
-The source code for the compiler is located in the src/ directory. There is
-also a useful script `uwu` at scripts/uwu . The only dependencies are ghc and
-optionally `entr`. Install the compiler and uwu to /usr/local/bin by running
+The only dependencies are ghc and optionally `entr`. Install the compiler and 
+the script uwu to /usr/local/bin by running
 
     make install
 
