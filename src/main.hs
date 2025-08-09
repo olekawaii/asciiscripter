@@ -567,20 +567,11 @@ parseScript2 header@NewHeader {typeSig = tp, block_mark = block_mark} table xs =
               function      = const (I num)
             }
           in cons (Marked m (Right d)) <$> helperParseScript xs
-        Nothing -> case lookup x table of
-          Nothing -> case parse_roman x of
-            Nothing -> Left $ Error {
+        Nothing ->  case lookup x table of
+          Nothing ->  Left $ Error {
                 errorType = Custom "variable not in scope",
                 errorMark = m
               }
-            Just num -> cons (Marked m (Right Data {
-              dummy = Dummy {
-                current_name  = x,
-                type_sig      = Type Int
-              },
-              currentArgs   = [],
-              function      = const (I num)
-            })) <$> helperParseScript xs
           Just x  -> cons (Marked m (Right x)) <$> helperParseScript xs
 
   in

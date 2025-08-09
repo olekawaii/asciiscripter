@@ -1,6 +1,6 @@
 main : frames
-  join
-    do x shift east join
+  layer
+    do x shift east layer
       small_mushroom
       do iii shift north do iv shift east title
     big_mushroom

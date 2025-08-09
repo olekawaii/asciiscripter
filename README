@@ -188,8 +188,8 @@ functions (and the types) will be moved out of the language and into a standard
 library.
 
 
-join : fn frames fn frames frames
-    `join a b` layers a on top of b and makes the output video loopable. Joining
+layer : fn frames fn frames frames
+    `layer a b` layers a on top of b and makes the output video loopable. Joining
     a (video with 2 frames) and (one with 3 frames) results in a (video with 6 
     frames) so it loops after after every 6 frames.
 

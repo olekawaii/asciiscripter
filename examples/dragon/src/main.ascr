@@ -1,12 +1,12 @@
 main : frames
-  join
-    join
-      shift east shift south slow ii join
+  layer
+    layer
+      shift east shift south slow ii layer
         foot_left
         do xii shift east rotate foot_right
-      join
+      layer
         body
-        shift north join
+        shift north layer
           do x shift west do ii rotate wing_left
           do xix shift east wing_right
     do 
@@ -84,11 +84,11 @@ roar_right : frames
              .............             .............    `----.~' ....66666666.
 
 side_heads : frames
-  do vii shift north join
-    do xvi shift east join
+  do vii shift north layer
+    do xvi shift east layer
       do ix rotate do xiv shift east fire_right
       seq blow_right roar_right
-    do iii rotate do ix shift west join
+    do iii rotate do ix shift west layer
       do ix shift west fire_left
       do iii rotate seq blow_left roar_left
 
@@ -134,8 +134,8 @@ fire_left : frames
         ........        ........
 
 body : frames
-  join
-    join side_heads join
+  layer
+    layer side_heads layer
       do vii shift east do iv shift south tail
       do iv shift east do iii shift north center_head
     loop art xx ix

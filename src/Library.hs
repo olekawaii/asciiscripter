@@ -15,7 +15,7 @@ builtinFns :: Map Name Data
 builtinFns = [
     ("loop"        , loop         ),
     ("reverse"     , reversef     ),
-    ("join"        , joinf        ),
+    ("layer"        , layerf        ),
     ("slow"        , slowf        ),
     ("null"        , nullf        ),
     ("anchor"      , anchorf      ),
@@ -118,9 +118,9 @@ builtinFns = [
           )
     }
 
-    joinf = Data {
+    layerf = Data {
       dummy = Dummy {
-        current_name   = "join",
+        current_name   = "layer",
         type_sig = Fn (Type Giff) (Fn (Type Giff) (Type Giff))
       },
       currentArgs   = [],

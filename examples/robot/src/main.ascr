@@ -10,17 +10,17 @@ compose : fn fn frames frames fn fn frames frames fn frames frames
   $1 $2 $3
 
 robot_juggler : fn frames frames
-  join
-    join 
-      do ii shift north join
+  layer
+    layer 
+      do ii shift north layer
         do iii rotate left_arm 
         do v rotate do viii shift east right_arm 
-      do iv shift east slow ii join 
+      do iv shift east slow ii layer 
         do iii shift north robot 
-        join 
+        layer 
           slow ii $1 
           slow iii shift east legs
-    join 
+    layer 
       shift south shift west wheel
       do xiii shift east signiture 
 
@@ -73,13 +73,13 @@ ball_cycle : frames
 
 wheel : frames
   -- first i 0
-  join helper i ii v join helper i iii v join helper ii iv v join helper iii v
-  vi join helper v vii vi join helper vi viii vi join helper vii ix vi join 
-  helper viii x v join helper ix xi iv join helper x xiii v join helper xi xiii
-  vi join helper xii xiii vii join helper xiii xiii viii join helper xiv xii ix 
-  join helper xv xi x join helper xvi ix xi join helper xvii vii xi join helper 
-  xviii v xi join helper xix iii x join helper xx ii ix join helper xxi i viii 
-  join helper xxii i vii helper xxiii i vi 
+  layer helper i ii v layer helper i iii v layer helper ii iv v layer helper iii v
+  vi layer helper v vii vi layer helper vi viii vi layer helper vii ix vi layer 
+  helper viii x v layer helper ix xi iv layer helper x xiii v layer helper xi xiii
+  vi layer helper xii xiii vii layer helper xiii xiii viii layer helper xiv xii ix 
+  layer helper xv xi x layer helper xvi ix xi layer helper xvii vii xi layer helper 
+  xviii v xi layer helper xix iii x layer helper xx ii ix layer helper xxi i viii 
+  layer helper xxii i vii helper xxiii i vi 
 
 helper : fn int fn int fn int frames
   do $1 rotate do $2 shift east do $3 shift north ball_cycle
