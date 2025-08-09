@@ -54,7 +54,7 @@ main : frames
   triangle
 
 triangle : frames
-  art 8 4
+  art viii iv
    /\   ...55...   /\   ...66...
   /  \  ..5//5..  /  \  ..6//6..
  /    \ .5////5. /    \ .6////6.
@@ -80,7 +80,7 @@ Syntax -- Types
 There are only a handful of types and you can't create your own (for now). Those
 types are:
 
-    int        regular integer
+    int        regular integer (may use roman numerals)
     frames     a sequence of frames that make up the video
     fn a b     a function from a b
     color      black | green | yellow | blue | magenta | cyan | white
@@ -90,8 +90,8 @@ Types use Polish notation. a function from an `int` to a `bool` is `fn int
 bool`. A function from (a function from an int to a bool) to frames is
 `fn fn int bool frames`, which in standard notation would be `fn (fn int bool)
 frames`. Functions are curried; `add : fn int fn int int` is the addition
-function. `add 3 4 = 7` however `add 3 : fn int int` is a partially-applied
-function which when given a 4 evaluates to a 7.
+function. `add iii iv = vii` however `add iii : fn int int` is a partially-applied
+function which when given a iv evaluates to a vii.
 
 
 Syntax - Values
@@ -100,7 +100,7 @@ Syntax - Values
 All variables are immutable. Syntax for declaring a variable
 
     five : int
-      5
+      v
 
     add_five : fn int int
       add five $1
@@ -109,7 +109,7 @@ Here `$1` refers to the first argument of the function. These are art blocks,
 beginning with the art keyword
 
     bird : frames
-    art 9 5
+    art ix v
         ,,   ....11...
       <')    ..371....
        ( \   ...1/1...
@@ -117,7 +117,7 @@ beginning with the art keyword
          |\  .....11..
 
     three_frames : frames
-    art 9 5
+    art ix v
     1   ,,   7...11...2   ,,   7...11...
       <')    ..371....  <')    ..371....
        ( \   ...1/1...   ( \   ...1/1...
@@ -129,7 +129,7 @@ beginning with the art keyword
     ---YY----222332222
          |\  .....11..
 
-the `9 5` after the art keyword are the width and height of a frame. Every pixel
+the `ix v` after the art keyword are the width and height of a frame. Every pixel
 in the art has a corresponding color, the colors being
 
     0  - black
@@ -161,7 +161,7 @@ Syntax -- Comments
       red -- comment
 
     containing_dashes : frames
-      art 8 3
+      art viii iii
     --------77777777
     -- \/ --77.11.77 <-+
     --------77777777   |
@@ -174,7 +174,7 @@ Syntax -- Comments
             this case being 8)
 
     bottom_of_triangle : frames
-    art 6 2
+    art vi ii
     --   /\  ..11..   comment. use `-- ` and not `--` to make its length odd
      /  \ .1//1.
     /____\111111
