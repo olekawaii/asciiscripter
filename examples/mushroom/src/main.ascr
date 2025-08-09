@@ -1,15 +1,15 @@
 main : frames
   join
-    do 10 shift east join
+    do x shift east join
       small_mushroom
-      do 3 shift north do 4 shift east title
+      do iii shift north do iv shift east title
     big_mushroom
 
 compose : fn fn frames frames fn fn frames frames fn frames frames
   $1 $2 $3
 
 big_mushroom : frames
-art 13 7
+art xiii vii
   __c__,___  ..117117111..
 (_c_,O_/\_3_)1171771111711
      | |     .....7/7.....
@@ -19,12 +19,12 @@ art 13 7
      | |     .....7/7.....
 
 small_mushroom : frames
-art 6 3
+art vi iii
   __  ..11..
 (c_o_)171711
  (..) .7777.
 
 title : frames
-art 9 2
+art ix ii
  muchomor.00000000
 olekawaii000000000

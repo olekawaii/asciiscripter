@@ -1,21 +1,21 @@
 main : frames
   join
     join
-      shift east shift south slow 2 join
+      shift east shift south slow ii join
         foot_left
-        do 12 shift east rotate foot_right
+        do xii shift east rotate foot_right
       join
         body
         shift north join
-          do 10 shift west do 2 rotate wing_left
-          do 19 shift east wing_right
+          do x shift west do ii rotate wing_left
+          do xix shift east wing_right
     do 
-      23 
+      xxiii
       shift east 
-      do 3 shift south title
+      do iii shift south title
 
 center_head : frames
-  loop art 12 9
+  loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
   ((__))    ..776677....   ((__))   ...776677...    ((__))  ....776677..
   /o..o\    ..636636....   /o..o\   ...636636...    /o..o\  ....636636..
@@ -27,14 +27,14 @@ center_head : frames
           ' ..////////6.            .//////////. `          .6////////..
 
 tail : frames
-  art 6 4
+  art vi iv
  \   ).6///6(   / 6///6.
   ) / ..6/6. \ (  .6/6..
  ( /  .6/6..  \ ) ..6/6.
   V   ..6...   V  ...6..
 
 blow_right : frames
-  loop extend art 14 5
+  loop extend art xiv v
 .             7..............             7.............
  ),__         .7766......... ),__         .7766.........
   ( o`---~~^, ..6/366666666.  ( o`-.-~~^, ..6/366666666.
@@ -49,7 +49,7 @@ blow_right : frames
 -- shifting west to allign with roar_left
 
 blow_left : frames
-  shift west loop extend art 14 5
+  shift west loop extend art xiv v
              ,.............7             ,.............7
          __,( .........6677.         __,( .........6677.
  ,^~~---'o )  .666666663/6.. ,^~~-.-'o )  .666666663/6..
@@ -64,7 +64,7 @@ blow_left : frames
 -- shifting south to allign with the blow animations
 
 roar_left : frames
-  do 2 shift south loop art 13 7
+  do ii shift south loop art xiii vii
             ,............7            ,............7            ,............7
         __,( ........6677.        __,( ........6677.        __,( ........6677.
 ,^~~---'o )  666666663/6..,^~~---'o )  666666663/6..,^~~---'o )  666666663/6..
@@ -74,7 +74,7 @@ roar_left : frames
              .............             ............. `~.----'    .66666666....
 
 roar_right : frames
-  do 2 shift south loop art 13 7
+  do ii shift south loop art xiii vii
 .            7.............            7.............            7............
  ),__        .7766........ ),__        .7766........ ),__        .7766........
   ( o`---~~^,..6/366666666  ( o`---~~^,..6/366666666  ( o`---~~^,..6/366666666
@@ -84,33 +84,33 @@ roar_right : frames
              .............             .............    `----.~' ....66666666.
 
 side_heads : frames
-  do 7 shift north join
-    do 16 shift east join
-      do 9 rotate do 14 shift east fire_right
+  do vii shift north join
+    do xvi shift east join
+      do ix rotate do xiv shift east fire_right
       seq blow_right roar_right
-    do 3 rotate do 9 shift west join
-      do 9 shift west fire_left
-      do 3 rotate seq blow_left roar_left
+    do iii rotate do ix shift west join
+      do ix shift west fire_left
+      do iii rotate seq blow_left roar_left
 
 wing_left : frames
-  loop art 11 4
+  loop art xi iv
      ./|\  .....2222..         /\.........22           ...........
    .'/ | \ ...222/2/2.        / (........2/2          ...........2
  .' /._|' \.22/22222.2       //' .......222.          |..........2
 /"''       2222.......      '    ......2....          '..........2
 
 wing_right : frames
-  loop art 11 4
+  loop art xi iv
   /|\.     ..2222...../\         22.........           ...........
  / | \`.   .2/2/222...) \        2/2.........          2..........
 / `|_.\ `. 2.22222/22. `\\       .222.......|          2..........
        ``"\.......2222    `      ....2......'          2..........
 
 extend : fn frames frames
-  seq $1 take 1 reverse $1
+  seq $1 take i reverse $1
 
 fire_right : frames
-  art 8 3
+  art viii iii
         ........        ........        ........        ........        ........
 -       3.......-.      33......-._     133.....-.___   11133... .___)  .11133..
         ........        ........        ........  .     ..3.....   ._   ...13...
@@ -122,7 +122,7 @@ fire_right : frames
         ........        ........
 
 fire_left : frames
-  art 8 3
+  art viii iii
         ........        ........        ........        ........        ........
        -.......3      .-......33     _.-.....331   ___.-...33111  (___. ..33111.
         ........        ........        ........     .  .....3..   _.   ...31...
@@ -136,9 +136,9 @@ fire_left : frames
 body : frames
   join
     join side_heads join
-      do 7 shift east do 4 shift south tail
-      do 4 shift east do 3 shift north center_head
-    loop art 20 9
+      do vii shift east do iv shift south tail
+      do iv shift east do iii shift north center_head
+    loop art xx ix
 /'\              /'\666..............666/'\              /'\666..............666
 \  \            /  /6//6............6//6\  \            /  /6//6............6//6
  \  \          /  / .6//6..........6//6. \  \          /  / .6//6..........6//6.
@@ -159,17 +159,17 @@ body : frames
    `''--.__.--'''   ...66666666666666...
 
 foot_left : frames
-  art 6 2
+  art vi ii
   ) /`..6/66  \ (`..6/66
 mn_(  6666.. mn_| .6666.
 
 foot_right : frames
-  art 6 2
+  art vi ii
 '\ (  66/6..') /  66/6..
   )_nm..6666 |_nm .6666.
 
 title : frames
-  art 9 2
+  art ix ii
    dragon...000000
 olekawaii000000000
 

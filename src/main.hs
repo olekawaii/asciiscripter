@@ -111,7 +111,7 @@ changeFormat x = dimensions x >>= \(x_min, x_max, y_min, y_max) ->
   pure (x_max - x_min + 1, y_max - y_min + 1, map convertFrame x) 
 
 parseInt :: String -> String -> Either ErrorType Int
-parseInt x y = case readMaybe x of
+parseInt x y = case parse_roman x of
   Just x  -> pure x
   Nothing -> Left $ Parse y "an int" x
 
@@ -353,6 +353,13 @@ result :: Type -> Type
 result (Type x) = Type x
 result (Fn _ b) = result b
 
+nextWord :: [Marked String] -> Maybe (Marked String, [Marked String])
+nextWord [] = Nothing
+nextWord (Marked m x : xs) = case words x of
+  [] -> nextWord xs
+  ("--" : _) -> nextWord xs 
+  (word : other) -> Just (Marked m word, Marked m (unwords other) : xs)
+
 splitBlock :: [Marked String] -> OrError ([Marked Name], Maybe (Int, Int, [Marked String]))
 splitBlock [] = pure ([], Nothing)
 splitBlock (Marked _ ('-':'-':_): xs) = splitBlock xs
@@ -360,13 +367,63 @@ splitBlock (Marked m s : xs) = helper (words s) >>= \(ws, art) -> case art of
   Just (x, y) -> pure (ws, pure (x, y, filter (not . isArtComment x . unwrap) xs))
   Nothing -> first (ws <>) <$> splitBlock xs
   where 
-    helper :: [String] -> OrError ([Marked Name], Maybe (Int, Int))
+    -- helper :: [String] -> OrError ([Marked Name], Maybe (Int, Int))
+    -- helper x = case nextWord x of
+    --   Nothing             -> pure ([], Nothing)
+    --   Just (word@Marked m w, leftover)  -> case w of
+    --     "art" -> case nextWord leftover >>= \(x_len, leftover) -> 
+    --                   nextWord leftover >>= \(y_len, leftover) -> 
+    --                   traverse read (map unwrap [x_len, y_len])
+    --              of
+    --                Nothing -> mkError m . Left $ Custom "bad art syntax"
+    --                Just [a,b] -> pure (leftover, Just (x_len, y_len)))
+    --     word  -> first (word :) <$> helper leftover
+
     helper [] = pure ([], Nothing)
     helper ("--" : other) = pure ([], Nothing)
-    helper ("art" : other) = case traverse readMaybe other of
+    helper ("art" : other) = case traverse parse_roman other of
       Just [a, b] -> pure ([], Just (a, b))
       _ -> mkError m . Left $ Custom "bad art syntax"
     helper (w : other) = first (Marked m w :) <$> helper other
+
+numerals = [
+  ("c", 100),
+  ("xc", 90),
+  ("l",  50),
+  ("xl", 40),
+  ("x",  10),
+  ("ix",  9),
+  ("v",   5),
+  ("iv",  4),
+  ("i",   1)
+ ]
+
+parse_roman :: String -> Maybe Int
+parse_roman x = parse_roman_numeral x numerals 0 ""
+
+parse_roman_numeral :: String -> [(String, Int)] -> Int -> String -> Maybe Int
+parse_roman_numeral _ _ 4 _ = Nothing
+parse_roman_numeral [] _ _ _ = Just 0
+parse_roman_numeral _ [] _ _ = Nothing
+parse_roman_numeral str nums@((numeral, value) : lesser) number_of_times previous =
+  case matching numeral str of
+    Nothing -> parse_roman_numeral str lesser 0 numeral
+    Just x  -> let isRepeating = previous == numeral in
+               if isRepeating && (length numeral == 2 || number_of_times == 2)
+               then Nothing 
+               else (+ value) <$> parse_roman_numeral 
+                 x 
+                 nums 
+                 (if isRepeating then number_of_times + 1 else number_of_times)
+                 numeral
+  where 
+    matching :: String -> String -> Maybe String
+    matching [] string = Just string
+    matching (_:_) [] = Nothing
+    matching (n : umeral) (s : tring) = if n == s
+                                        then matching umeral tring 
+                                        else Nothing
+
 
 -- Header only needed for the error message TODO
 findDependencies :: Map Name (NewHeader, [Marked String]) -> Marked Name -> OrError (Map Name [Name])
@@ -392,12 +449,17 @@ findDependencies table = fmap nub . getDependencies []
       -- helper . markList . map (fmap words) $ lns
         where
           helper :: [Marked String] -> [Marked String]
-          helper = filter (\(Marked m x) -> notElem x (map fst builtinFns) && not (all (`elem` ('$':nums)) x))
+          helper = filter 
+            (\(Marked m x) -> isNothing (parse_roman x) &&
+            notElem x (map fst builtinFns) && 
+            not (all (`elem` ('$':nums)) x))
 
 parseChunks :: [Marked String] -> OrError (Map Name (NewHeader, [Marked String]))
 parseChunks [] = pure []
 parseChunks (Marked _ "" : xs) = parseChunks xs
 parseChunks (Marked m ('-':'-':_) : xs) = parseChunks xs 
+-- parseChunks (Marked m x : xs) = 
+
 parseChunks all@(Marked m x : xs) = 
   parseHeader (Marked m x)  >>= \header -> 
   find_leftover xs           >>= \(inside, other) ->
@@ -493,7 +555,7 @@ parseScript2 header@NewHeader {typeSig = tp, block_mark = block_mark} table xs =
         Just t ->
           (Marked m (Left (x,t)) :) <$> helperParseScript xs
     helperParseScript (Marked m x : xs) = 
-      case readMaybe x of  -- all (`elem` nums) x 
+      case parse_roman x of  -- all (`elem` nums) x 
         Just num ->             
           let 
             d = Data {
@@ -506,10 +568,19 @@ parseScript2 header@NewHeader {typeSig = tp, block_mark = block_mark} table xs =
             }
           in cons (Marked m (Right d)) <$> helperParseScript xs
         Nothing -> case lookup x table of
-          Nothing -> Left $ Error {
-            errorType = Custom "variable not in scope",
-            errorMark = m
-          }
+          Nothing -> case parse_roman x of
+            Nothing -> Left $ Error {
+                errorType = Custom "variable not in scope",
+                errorMark = m
+              }
+            Just num -> cons (Marked m (Right Data {
+              dummy = Dummy {
+                current_name  = x,
+                type_sig      = Type Int
+              },
+              currentArgs   = [],
+              function      = const (I num)
+            })) <$> helperParseScript xs
           Just x  -> cons (Marked m (Right x)) <$> helperParseScript xs
 
   in

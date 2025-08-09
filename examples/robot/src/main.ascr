@@ -12,20 +12,20 @@ compose : fn fn frames frames fn fn frames frames fn frames frames
 robot_juggler : fn frames frames
   join
     join 
-      do 2 shift north join
-        do 3 rotate left_arm 
-        do 5 rotate do 8 shift east right_arm 
-      do 4 shift east slow 2 join 
-        do 3 shift north robot 
+      do ii shift north join
+        do iii rotate left_arm 
+        do v rotate do viii shift east right_arm 
+      do iv shift east slow ii join 
+        do iii shift north robot 
         join 
-          slow 2 $1 
-          slow 3 shift east legs
+          slow ii $1 
+          slow iii shift east legs
     join 
       shift south shift west wheel
-      do 13 shift east signiture 
+      do xiii shift east signiture 
 
 robot : frames
-art 5 7
+art v vii
  c O .6.5.  O  ..5.. O o .5.6.o   o5...6 c O .5.6.  O  ..6.. O o .6.5.o   o6...5
   V  ..5..  |  ..5..  V  ..5.. \./ .526.  V  ..6..  |  ..6..  V  ..6.. \./ .675.
 [_ ]]77/72 [ ] .7/2.[[_ ]722/2[__ ]222/2[_ ]]22/27 [ ] .2/7.[[_ ]277/7[__ ]777/7
@@ -35,54 +35,56 @@ art 5 7
   \  ..6.. ( ) .6.5. ( ) .6.5.  \  ..5..  \  ..5.. ( ) .5.6. ( ) .5.6.  \  ..6..
 
 dress_white : frames
-art 5 4
+art v iv
  ._. .777. ._. .777.
  ) ( .7/7. ) ( .7/7.
 //..\77777/,.\\77777
 /,|\\77777//|.\77777
 
 dress_red : frames
-shift north art 5 3
+shift north art v iii
  ._. .111.
  ) ( .1/1.
 /___\11111
 
 right_arm : frames
-art 5 2
+art v ii
  |   .7...  |  ..7..    /....7    /....7    /....7  /  ..7/. /   .7//. |   .7...
 W    2....VV   22...\/\/ 2222.\/\/ 2222.\/\/ 2222.VV   22...W    2....W    2....
 
 left_arm : frames
-art 5 3
+art v iii
      .....     .....__   77...__   77... |   /7...  /  //7..     .....     .....
  __  .77.. __  .77..  \__..222  \__..222  \__./222  \__..222  |  ..7..  \  ..7..
    \/...22   \/...22     .....     .....     .....     .....   \/...22   \/...22
 
 legs : frames
-loop art 3 1
+loop art iii i
  )\.22( )2.2/( 22.
 
 ball : frames
-art 1 1
+art i i
 O7c7.7
 
 ball_cycle : frames
-  seq dye red ball seq take 5 null
-  seq dye blue ball seq take 5 null
-  seq dye yellow ball take 5 null
+  seq dye red ball seq take v null
+  seq dye blue ball seq take v null
+  seq dye yellow ball take v null
 
 wheel : frames
-  join helper 0 2 5 join helper 1 3 5 join helper 2 4 5 join helper 3 5 6 
-  join helper 5 7 6 join helper 6 8 6 join helper 7 9 6 join helper 8 10 5 
-  join helper 9 11 4 join helper 10 13 5 join helper 11 13 6 join helper 12 13 7 
-  join helper 13 13 8 join helper 14 12 9 join helper 15 11 10 join helper 16 9 11
-  join helper 17 7 11 join helper 18 5 11 join helper 19 3 10 join helper 20 2 9 
-  join helper 21 1 8 join helper 22 1 7 helper 23 1 6 
+  -- first i 0
+  join helper i ii v join helper i iii v join helper ii iv v join helper iii v
+  vi join helper v vii vi join helper vi viii vi join helper vii ix vi join 
+  helper viii x v join helper ix xi iv join helper x xiii v join helper xi xiii
+  vi join helper xii xiii vii join helper xiii xiii viii join helper xiv xii ix 
+  join helper xv xi x join helper xvi ix xi join helper xvii vii xi join helper 
+  xviii v xi join helper xix iii x join helper xx ii ix join helper xxi i viii 
+  join helper xxii i vii helper xxiii i vi 
 
 helper : fn int fn int fn int frames
   do $1 rotate do $2 shift east do $3 shift north ball_cycle
 
 signiture : frames
-art 5 2
+art v ii
 Robot00000
   ovb..000
