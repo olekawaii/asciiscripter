@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt, rc::Rc};
 pub enum Id {
     Thunk(Rc<Expression>),
     LambdaArg(u32),
-    Variable(u32),
+    Variable(usize),
     DataConstructor(u32),
 }
 
@@ -26,13 +26,13 @@ pub enum Expression {
 
 impl Expression {
     // rewrite expression until it starts with either a lambda or a data constructor
-    pub fn simplify(&mut self, definitions: &HashMap<u32, Expression>) {
+    pub fn simplify(&mut self, definitions: &ExpressionCache) {
         match self {
             Expression::Tree { root, arguments } => {
                 let mut output = match root {
                     Id::DataConstructor(_) => return (),
                     Id::Thunk(exp) => (**exp).clone(),
-                    Id::Variable(index) => definitions.get(&index).unwrap().clone(),
+                    Id::Variable(index) => definitions.get(*index),
                     Id::LambdaArg(_) => unreachable!(),
                 };
                 for i in arguments {
@@ -91,8 +91,8 @@ impl Expression {
 
     // evaluate an expression strictly, leavivg only a tree of data constructors.
     // can't be called on functions
-    pub fn evaluate_strictly(&mut self, definitions: &HashMap<u32, Expression>) {
-        self.simplify(&*definitions);
+    pub fn evaluate_strictly(&mut self, definitions: &ExpressionCache) {
+        self.simplify(definitions);
         match self {
             Expression::Tree {
                 root: Id::DataConstructor(_),
@@ -102,7 +102,18 @@ impl Expression {
                     i.evaluate_strictly(definitions);
                 }
             }
+            Expression::Lambda { .. } => panic!("attempted to evaluate a function"),
             _ => unreachable!(),
         }
+    }
+}
+
+pub struct ExpressionCache {
+    pub expressions: Vec<Expression>,
+}
+
+impl ExpressionCache {
+    fn get(&self, index: usize) -> Expression {
+        self.expressions[index].clone()
     }
 }
