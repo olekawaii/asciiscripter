@@ -1,0 +1,430 @@
+use std::collections::HashMap;
+use std::env;
+use std::fmt;
+use std::fs;
+
+fn main() {
+    match real_main() {
+        Ok(_) => (),
+        Err(x) => println!("{x}"),
+    }
+}
+
+fn real_main() -> Result<ResultType, Error> {
+    let (mods, Path(file)) = arguments()?;
+    let input = fs::read_to_string(&file).expect("couldn't read file");
+    let binding = input
+        .lines()
+        .map(|s| s.trim_end())
+        .enumerate()
+        .filter(|(_, s)| !s.is_empty)
+        .map(|(a, b)| Marked {
+            mark: Mark::File {
+                file_path: Path(file.clone()),
+                line: a as u32,
+                block: None,
+            },
+            val: b,
+        })
+        .collect::<Vec<Marked<&str>>>()
+        .split(|Marked { mark: _, val: s }| s.to_string() == "end")
+        .for_each(|x| {
+            parse_block(x.to_owned().into_iter());
+        });
+    Ok(ResultType::Int(6))
+}
+
+fn parse_block<'a>(mut input: impl Iterator<Item = Marked<&'a str>>) {
+    let dummy = input.next().unwrap().apply_fn(|x| parse_header(x)).unwrap();
+    let Marked { val: v, .. } = input.next().unwrap();
+    let mut nums = v.split_whitespace();
+    let x: u8 = nums.next().unwrap().parse().unwrap();
+    let y: u8 = nums.next().unwrap().parse().unwrap();
+    println!("{dummy}, {x}, {y}");
+}
+
+fn parse_line(s: &str, width: u8) -> HashMap<Coordinate, (Color, char)> {
+    todo!()
+}
+
+fn arguments() -> Result<(Mods, Path), Error> {
+    let mut args: std::env::Args = env::args();
+    args.next();
+    parse_args(args, Mods::default())
+}
+
+fn parse_args(mut args: std::env::Args, mut mods: Mods) -> Result<(Mods, Path), Error> {
+    match args
+        .next()
+        .ok_or(Error {
+            mark: Mark::Arguments,
+            error: ErrorType::BadArgument,
+        })?
+        .as_str()
+    {
+        "-q" => {
+            mods.quiet = true;
+            parse_args(args, mods)
+        }
+        "-c" => {
+            mods.check = true;
+            parse_args(args, mods)
+        }
+        "-m" => {
+            mods.comment = true;
+            parse_args(args, mods)
+        }
+        f => Ok((mods, Path(f.to_string()))),
+    }
+}
+
+fn testing() {
+    let mut add: DummyData = DummyData {
+        name: Name("add".to_string()),
+        type_signiture: Type::Fn(Box::new(Type::Int), Box::new(Type::Gif)),
+    };
+    let five: DummyData = DummyData {
+        name: Name("five".to_string()),
+        type_signiture: Type::Int,
+    };
+
+    // println!(
+    //     "{}",
+    //     Error {
+    //         mark: Mark::File {
+    //             file_path: Path("~/your/mom".to_string()),
+    //             line: 17,
+    //             block: Some(Name("robot".to_string()))
+    //         },
+    //         error: ErrorType::TypeError(add, five)
+    //     }
+
+    match add.dummy_apply(five) {
+        Ok(x) => println!("{x}"),
+        Err(x) => println!("{x}"),
+    };
+
+    let hd: Marked<&str> = Marked {
+        mark: Mark::Arguments,
+        val: "tree : fn fn int gif gif",
+    };
+
+    match hd.apply_fn(parse_header) {
+        Ok(x) => println!("{x}"),
+        Err(x) => println!("{x}"),
+    }
+}
+
+fn parse_header(s: &str) -> Result<DummyData, ErrorType> {
+    let mut words = s.split_whitespace(); //.collect::<Vec<&str>>();
+    let name: Name = words
+        .next()
+        .ok_or(ErrorType::BadHeader)
+        .and_then(|x| Name::new(x.to_string()))?;
+
+    match words.next() {
+        None => return Err(ErrorType::BadHeader),
+        Some(":") => (),
+        _ => return Err(ErrorType::BadHeader),
+    };
+
+    Ok(DummyData {
+        name,
+        type_signiture: parse_type(words)?,
+    })
+}
+
+fn parse_type(str: std::str::SplitWhitespace) -> Result<Type, ErrorType> {
+    let (t, l) = parse_type_signiture(str)?;
+    match l.count() {
+        0 => Ok(t),
+        _ => Err(ErrorType::Parse("type signiture")),
+    }
+}
+
+fn parse_type_signiture(
+    mut str: std::str::SplitWhitespace,
+) -> Result<(Type, std::str::SplitWhitespace), ErrorType> {
+    match str.next().ok_or(ErrorType::Parse("type signiture"))? {
+        "int" => Ok((Type::Int, str)),
+        "gif" => Ok((Type::Gif, str)),
+        "fn" => {
+            let (arg1, leftover1) = parse_type_signiture(str)?;
+            let (arg2, leftover2) = parse_type_signiture(leftover1)?;
+            Ok((Type::Fn(Box::new(arg1), Box::new(arg2)), leftover2))
+        }
+        _ => Err(ErrorType::Parse("type signiture")),
+    }
+}
+
+#[derive(Debug)]
+struct Error {
+    mark: Mark,
+    error: ErrorType,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\x1b[31;1mError\x1b[0m {}\n{}", self.mark, self.error)
+    }
+}
+
+#[derive(Debug)]
+enum ErrorType {
+    InvalidName(String),
+    TypeError(DummyData, DummyData),
+    EvaluateFn(DummyData),
+    BadHeader,
+    Parse(&'static str),
+    BadArgument,
+}
+
+impl fmt::Display for ErrorType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}.",
+            match self {
+                Self::InvalidName(str) => format!("`{str}` is not a valid name"),
+                Self::TypeError(t1, t2) => match t1.type_signiture.clone() {
+                    Type::Fn(a, _) => format!(
+                        "{t1} expected a value of type {}. However, {t2} could never evaluate to {}",
+                        *a, *a
+                    ),
+                    _ => format!("{t1} doesn't take any arguments. However {t2} was applied to it"),
+                },
+                Self::EvaluateFn(t) => format!("{t} can't be evaluated because it's a function"),
+                Self::BadHeader => "Couldn't parse header. Expected `name : type`".to_string(),
+                Self::Parse(x) => String::from("Couldn't parse ") + x,
+                Self::BadArgument => "Arguments should be `ascr [options] file.ascr`".to_string(),
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Path(String);
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", colorize(self.0.clone(), Color::Cyan))
+    }
+}
+
+#[derive(Debug, Clone)]
+enum Mark {
+    None,
+    Arguments,
+    File {
+        file_path: Path,
+        line: u32,
+        block: Option<Name>,
+    },
+}
+
+impl fmt::Display for Mark {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}:",
+            match self {
+                Mark::None => String::from("somewhere"),
+                Mark::Arguments => String::from("in the arguments"),
+                Mark::File {
+                    file_path: f,
+                    line: l,
+                    block: b,
+                } => format!(
+                    "at line {} in {f}{}",
+                    l + 1,
+                    match b {
+                        None => String::new(),
+                        Some(name) => format!(" (in the declaration of {name})"),
+                    }
+                ),
+            }
+        )
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Name(String);
+
+impl Name {
+    fn new(s: String) -> Result<Self, ErrorType> {
+        if true {
+            Ok(Name(s))
+        } else {
+            Err(ErrorType::InvalidName(s))
+        }
+    }
+
+    fn add_arg(&mut self, arg: Self) -> &mut Self {
+        self.0 = format!(
+            "{} {}",
+            self.0,
+            if arg.0.split_whitespace().collect::<Vec<&str>>().len() > 1 {
+                format!("({})", arg.0)
+            } else {
+                arg.0
+            }
+        );
+        self
+    }
+}
+
+impl fmt::Display for Name {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", colorize(self.0.clone(), Color::Magenta))
+    }
+}
+
+#[derive(PartialEq, Clone, Debug)]
+enum Type {
+    Int,
+    Color,
+    Gif,
+    Fn(Box<Type>, Box<Type>),
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Fn(a, b) => write!(f, "\x1b[34mfn {} {}", *a, *b),
+            Self::Int => write!(f, "{}", colorize(String::from("int"), Color::Blue)),
+            Self::Color => write!(f, "{}", colorize(String::from("color"), Color::Blue)),
+            Self::Gif => write!(f, "{}", colorize(String::from("gif"), Color::Blue)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DummyData {
+    name: Name,
+    type_signiture: Type,
+}
+
+impl DummyData {
+    fn dummy_apply(&mut self, new: Self) -> Result<&mut Self, ErrorType> {
+        if let Type::Fn(a, b) = self.type_signiture.clone() {
+            if new.type_signiture == *a {
+                self.type_signiture = *b;
+                self.name.add_arg(new.name);
+                Ok(self)
+            } else {
+                Err(ErrorType::TypeError(self.clone(), new))
+            }
+        } else {
+            Err(ErrorType::TypeError(self.clone(), new))
+        }
+    }
+}
+
+impl fmt::Display for DummyData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} : {}", self.name, self.type_signiture)
+    }
+}
+
+#[derive(Debug)]
+struct Data {
+    debug: DummyData,
+    args: Vec<Data>,
+    function: fn(Vec<Data>) -> ResultType,
+}
+
+impl Data {
+    fn apply(&mut self, new: Self) -> &mut Self {
+        self.debug.dummy_apply(new.debug.clone()).unwrap();
+        self.args.push(new);
+        self
+    }
+
+    fn evaluate(self) -> Result<ResultType, ErrorType> {
+        match self.debug.type_signiture {
+            Type::Fn(_, _) => Err(ErrorType::EvaluateFn(self.debug)),
+            _ => Ok((self.function)(self.args)),
+        }
+    }
+}
+#[derive(Debug)]
+struct Frame(HashMap<Coordinate, (Color, char)>);
+
+#[derive(Debug)]
+struct Video(Vec<Frame>);
+
+#[derive(Debug)]
+enum ResultType {
+    Int(i32),
+    Vid(Video),
+    Color(Color),
+}
+
+#[derive(Debug)]
+struct Coordinate {
+    x: i32,
+    y: i32,
+}
+
+#[derive(Debug)]
+enum Color {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+}
+
+fn colorize(s: String, c: Color) -> String {
+    format!("\x1b[3{}m{s}\x1b[0m", c as u8)
+}
+
+#[derive(Debug)]
+struct Mods {
+    frame_time: f32,
+    directory: Path,
+    comment: bool,
+    quiet: bool,
+    check: bool,
+    target: Name,
+}
+
+impl Default for Mods {
+    fn default() -> Self {
+        Mods {
+            frame_time: 0.2,
+            directory: Path(String::from(".")),
+            comment: false,
+            quiet: false,
+            check: false,
+            target: Name(String::from("main")),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Marked<T> {
+    mark: Mark,
+    val: T,
+}
+
+impl<T> Marked<T> {
+    fn apply_fn<A>(self, f: impl Fn(T) -> Result<A, ErrorType>) -> Result<A, Error> {
+        match f(self.val) {
+            Err(e) => Err(Error {
+                error: e,
+                mark: self.mark,
+            }),
+            Ok(x) => Ok(x),
+        }
+    }
+}
+
+impl<T: std::fmt::Display> fmt::Display for Marked<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} : {}", self.mark, self.val)
+    }
+}
