@@ -1,25 +1,32 @@
 use std::{collections::HashMap, env, fmt, fs, rc::Rc};
 // save unchanging in map, only leave variables in expression!
 
-mod runtime;
 mod parse;
+mod runtime;
+mod r#type;
 
 use crate::{
-    runtime::{Expression, Id, ExpressionCache},
-    parse::{SyntaxTree, tokenize, build_syntax_tree}
+    parse::{parse_data, SyntaxTree, build_syntax_tree, extract_signiture, tokenize},
+    runtime::{Expression, ExpressionCache, Id},
 };
 
-
 fn main() {
-    let string: Vec<String> = 
-"match f a b
+    let string: Vec<String> = "match f a b
   cons a b to lambda a b match b
     a b to d
   nil to just six"
         .lines()
         .map(str::to_string)
         .collect();
-    dbg!(build_syntax_tree(tokenize(string).unwrap()));
+    // dbg!(build_syntax_tree(tokenize(string).unwrap()));
+    let string: Vec<String> = "data bool contains\n  true int\n  false"
+        .lines()
+        .map(str::to_string)
+        .collect();
+    let mut tokens = tokenize(string).unwrap();
+    let mut map: HashMap<String, u32> = HashMap::from([(String::from("int"), 1)]);
+    extract_signiture(&mut tokens);
+    dbg!(parse_data(tokens, &map));
 }
 
 fn test() {
@@ -39,7 +46,9 @@ fn test() {
         }),
     );
 
-    let h = ExpressionCache { expressions: Vec::new() };
+    let h = ExpressionCache {
+        expressions: Vec::new(),
+    };
     initial.simplify(&h);
 
     dbg!(initial);

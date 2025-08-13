@@ -1,3 +1,6 @@
+use crate::r#type::Type;
+use std::collections::HashMap;
+
 pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
     match tokens.next_non_newline()? {
         Token::NewLine(_) => build_syntax_tree(tokens),
@@ -16,15 +19,16 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
                 let mut indent: u32;
                 let mut pattern = Vec::new();
                 loop {
-                    match tokens.next()? { // fail if no branches
+                    match tokens.next()? {
+                        // fail if no branches
                         Token::NewLine(num) => {
                             indent = num;
-                            break
+                            break;
                         }
                         Token::Variable(ValueToken::Value(word)) => {
                             pattern.push(word);
                         }
-                        _ => panic!("f")
+                        _ => panic!("f"),
                     }
                 }
                 let branches: Vec<(String, Vec<String>, Box<SyntaxTree>)> = tokens
@@ -73,23 +77,22 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
 fn parse_branch(mut tokens: TokenStream) -> Option<(String, Vec<String>, Box<SyntaxTree>)> {
     let constructor = match tokens.next().expect("a") {
         Token::Variable(ValueToken::Value(name)) => name,
-        _ => panic!("d")
+        _ => panic!("d"),
     };
     let mut args = Vec::new();
     loop {
         match tokens.next().expect("b") {
             Token::Variable(ValueToken::Value(name)) => args.push(name),
             Token::Keyword(Keyword::To) => break,
-            _ => panic!("bad match syntax")
+            _ => panic!("bad match syntax"),
         }
     }
     Some((
-        constructor, 
-        args, 
-        Box::new(build_syntax_tree(tokens).expect("c"))
+        constructor,
+        args,
+        Box::new(build_syntax_tree(tokens).expect("c")),
     ))
 }
-
 
 #[derive(Clone, Debug)]
 pub enum SyntaxTree {
@@ -121,6 +124,8 @@ enum Keyword {
     As,
     Art,
     To,
+    Data,
+    Contains,
 }
 
 #[derive(Debug, Clone)]
@@ -147,7 +152,7 @@ impl TokenStream {
     fn next(&mut self) -> Option<Token> {
         if self.0.is_empty() {
             None
-        } else { 
+        } else {
             Some(self.0.remove(0))
         }
     }
@@ -168,8 +173,10 @@ impl TokenStream {
         let mut current: Vec<Token> = Vec::new();
         while let Some(token) = self.next() {
             if matches!(&token, Token::NewLine(i) if *i == indentation) {
-                output.push(TokenStream::new(current));
-                current = Vec::new();
+                if !current.is_empty() {
+                    output.push(TokenStream::new(current));
+                    current = Vec::new();
+                }
             } else {
                 current.push(token)
             }
@@ -208,6 +215,8 @@ pub fn tokenize(input: Vec<String>) -> Option<TokenStream> {
                     "as" => Token::Keyword(Keyword::As),
                     "to" => Token::Keyword(Keyword::To),
                     "lambda" => Token::Keyword(Keyword::Lambda),
+                    "data" => Token::Keyword(Keyword::Data),
+                    "contains" => Token::Keyword(Keyword::Contains),
                     word => Token::Variable(ValueToken::Value(word.to_string())),
                 }),
             }
@@ -226,34 +235,90 @@ fn indentation_length(input: &str) -> u32 {
     counter
 }
 
-enum Signiture {
+#[derive(Debug)]
+pub enum Signiture {
     Value(String, Vec<String>),
-    Type(String)
+    Type(String),
 }
 
-fn extract_signiture(input: &mut TokenStream) -> Option<Signiture> {
+pub fn extract_signiture(input: &mut TokenStream) -> Option<Signiture> {
     match input.next_non_newline()? {
-        Token::Keyword(Keyword::Define) => {
-            match input.next_non_newline()? {
-                Token::Variable(ValueToken::Value(name)) => {
-                    if !matches!(input.next()?, Token::Keyword(Keyword::Of_type)) {
-                        return None
-                    }
-                    let mut type_strings: Vec<String> = Vec::new();
-                    loop {
-                        match input.next_non_newline()? {
-                            Token::Variable(ValueToken::Value(word)) => type_strings.push(word),
-                            Token::Keyword(Keyword::As) => break,
-                            _ => panic!("bad type")
-                        }
-                    }
-                    Some(Signiture::Value(name, type_strings))
+        Token::Keyword(Keyword::Define) => match input.next_non_newline()? {
+            Token::Variable(ValueToken::Value(name)) => {
+                if !matches!(input.next()?, Token::Keyword(Keyword::Of_type)) {
+                    return None;
                 }
-                _ => panic!("extract")
+                let mut type_strings: Vec<String> = Vec::new();
+                loop {
+                    match input.next_non_newline()? {
+                        Token::Variable(ValueToken::Value(word)) => type_strings.push(word),
+                        Token::Keyword(Keyword::As) => break,
+                        _ => panic!("bad type"),
+                    }
+                }
+                Some(Signiture::Value(name, type_strings))
             }
+            _ => panic!("extract"),
+        },
+        Token::Keyword(Keyword::Data) => match input.next_non_newline()? {
+            Token::Variable(ValueToken::Value(name)) => {
+                if matches!(
+                    input.next_non_newline(), 
+                    Some(Token::Keyword(Keyword::Contains))
+                ) {
+                    Some(Signiture::Type(name))
+                } else {
+                    panic!("expected 'contains' keyword")
+                }
+            }
+            _ => panic!("expected a name")
         }
-        // Token::Keyword(
-        _ => todo!()
+        _ => todo!(),
     }
 }
 
+fn parse_type(
+    strings: &mut impl Iterator<Item = String>,
+    table: &HashMap<String, u32>,
+) -> Option<Type> {
+    match strings.next()?.as_str() {
+        "fn" => {
+            let arg1 = parse_type(strings, table)?;
+            let arg2 = parse_type(strings, table)?;
+            Some((Type::Function(Box::new(arg1), Box::new(arg2))))
+        }
+        word => {
+            let index = table.get(word)?.clone();
+            Some(Type::Type(index))
+        }
+    }
+}
+
+pub fn parse_data(
+    mut tokens: TokenStream, 
+    types: &HashMap<String, u32>
+) -> Option<Vec<(String, Vec<Type>)>> {
+    let mut output = Vec::new();
+    for mut i in tokens.get_with_indentation(2).into_iter() {
+        let name = if let Token::Variable(ValueToken::Value(word)) = i.next_non_newline()? {
+            word
+        } else {
+            return None
+        };
+        let mut type_strings = Vec::new();
+        for i in i.0.into_iter() {
+            match i {
+                Token::Variable(ValueToken::Value(word)) => type_strings.push(word),
+                Token::NewLine(_) => continue,
+                _ => return None
+            }
+        }
+        let mut strings = type_strings.into_iter().peekable();
+        let mut arg_types: Vec<Type> = Vec::new();
+        while strings.peek().is_some() {
+            arg_types.push(parse_type(&mut strings, types)?)
+        }
+        output.push((name, arg_types))
+    }
+    Some(output)
+}
