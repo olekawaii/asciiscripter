@@ -441,7 +441,8 @@ findDependencies table = fmap nub . getDependencies []
           errorType = NoMatchingName target (findSimilarName target (map fst table)),
           errorMark = m
         }
-        Just lines  -> extract . fst <$> splitBlock lines >>= \x -> cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
+        Just lines  -> extract . fst <$> splitBlock lines >>= \x -> 
+          cons (target, map unwrap x) . concat <$> traverse (getDependencies (target:used)) x
         
     extract :: [Marked String] -> [Marked Name]
     extract lns = 

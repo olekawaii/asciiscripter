@@ -42,34 +42,46 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
         },
         Token::Variable(ValueToken::Art(x, y, art)) => Some(SyntaxTree::Art(x, y, art)),
         Token::Variable(ValueToken::Value(word)) => {
-            let mut regular: Vec<String> = Vec::from([word]);
-            let mut last: Option<Box<SyntaxTree>>;
+            let root = word;
+            let mut args = Vec::new();
             loop {
-                if matches!(tokens.peek(), Some(Token::NewLine(_))) {
-                    tokens.next();
-                }
                 match tokens.peek() {
-                    None => {
-                        last = None;
-                        break;
-                    }
-                    Some(next) => {
-                        if matches!(next, Token::Keyword(_)) {
-                            last = Some(Box::new(build_syntax_tree(tokens)?));
-                            break;
-                        }
+                    None => break,
+                    Some(x) if matches!(x, Token::Keyword(_)) => {
+                        args.push(Group(Box::new(build_syntax_tree(tokens)?)));
                     }
                 }
-                match tokens.next_non_newline().unwrap() {
-                    Token::Variable(ValueToken::Art(x, y, art)) => {
-                        last = Some(Box::new(SyntaxTree::Art(x, y, art)));
-                        break;
-                    }
-                    Token::Variable(ValueToken::Value(w)) => regular.push(w),
-                    _ => unreachable!(),
-                }
-            }
-            Some(SyntaxTree::Tree(regular, last))
+                match tokens.next().unwrap() { // unwrap is safe
+                    Token::Variable
+
+            // let mut regular: Vec<String> = Vec::from([word]);
+            // let mut last: Option<Box<SyntaxTree>>;
+            // loop {
+            //     if matches!(tokens.peek(), Some(Token::NewLine(_))) {
+            //         tokens.next();
+            //     }
+            //     match tokens.peek() {
+            //         None => {
+            //             last = None;
+            //             break;
+            //         }
+            //         Some(next) => {
+            //             if matches!(next, Token::Keyword(_)) {
+            //                 last = Some(Box::new(build_syntax_tree(tokens)?));
+            //                 break;
+            //             }
+            //         }
+            //     }
+            //     match tokens.next_non_newline().unwrap() {
+            //         Token::Variable(ValueToken::Art(x, y, art)) => {
+            //             last = Some(Box::new(SyntaxTree::Art(x, y, art)));
+            //             break;
+            //         }
+            //         Token::Variable(ValueToken::Value(w)) => regular.push(w),
+            //         _ => unreachable!(),
+            //     }
+            // }
+            Some(SyntaxTree::Tree(root, args))
         }
     }
 }
@@ -94,6 +106,39 @@ fn parse_branch(mut tokens: TokenStream) -> Option<(String, Vec<String>, Box<Syn
     ))
 }
 
+build_tree(
+    expected_type: Type, 
+    input: SyntaxTree, 
+    mut variables: HashMap<String, (u32, Type)>
+    mut local_vars_count: u32,
+    global_vars: &HashMap<String, u32>,
+    var_types: &Vec<Type>
+) -> Option<Expression> {
+    match input {
+        SyntaxTree::Lambda(name, tree) => {
+            if let Function(a, b) = expected_type {
+                local_vars_count += 1;
+                variables.insert(name, (local_vars_count, a);
+                build_tree(
+                    b,
+                    tree, 
+                    variables,
+                    local_vars_count,
+                    global_vars,
+                    var_types,
+                )
+            } else {
+                None
+            }
+        },
+    SyntaxTree::Tree(vec, last) {
+
+    }
+        _ => todo!()
+    }
+}
+
+
 #[derive(Clone, Debug)]
 pub enum SyntaxTree {
     Lambda(
@@ -101,8 +146,8 @@ pub enum SyntaxTree {
         Box<SyntaxTree>, // body
     ),
     Tree(
-        Vec<String>,             // regular values
-        Option<Box<SyntaxTree>>, // optoional last one
+        String,             // root
+        Vec<Argument>,      // arguments
     ),
     Match(
         Vec<String>, // pattern
@@ -113,6 +158,11 @@ pub enum SyntaxTree {
         )>,
     ),
     Art(String, String, Vec<String>),
+}
+
+enum Argument {
+    Ungrouped(String),
+    Grouped(Box<SyntaxTree>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -263,7 +313,7 @@ pub fn extract_signiture(input: &mut TokenStream) -> Option<Signiture> {
         Token::Keyword(Keyword::Data) => match input.next_non_newline()? {
             Token::Variable(ValueToken::Value(name)) => {
                 if matches!(
-                    input.next_non_newline(), 
+                    input.next_non_newline(),
                     Some(Token::Keyword(Keyword::Contains))
                 ) {
                     Some(Signiture::Type(name))
@@ -271,8 +321,8 @@ pub fn extract_signiture(input: &mut TokenStream) -> Option<Signiture> {
                     panic!("expected 'contains' keyword")
                 }
             }
-            _ => panic!("expected a name")
-        }
+            _ => panic!("expected a name"),
+        },
         _ => todo!(),
     }
 }
@@ -295,22 +345,22 @@ fn parse_type(
 }
 
 pub fn parse_data(
-    mut tokens: TokenStream, 
-    types: &HashMap<String, u32>
+    mut tokens: TokenStream,
+    types: &HashMap<String, u32>,
 ) -> Option<Vec<(String, Vec<Type>)>> {
     let mut output = Vec::new();
     for mut i in tokens.get_with_indentation(2).into_iter() {
         let name = if let Token::Variable(ValueToken::Value(word)) = i.next_non_newline()? {
             word
         } else {
-            return None
+            return None;
         };
         let mut type_strings = Vec::new();
         for i in i.0.into_iter() {
             match i {
                 Token::Variable(ValueToken::Value(word)) => type_strings.push(word),
                 Token::NewLine(_) => continue,
-                _ => return None
+                _ => return None,
             }
         }
         let mut strings = type_strings.into_iter().peekable();

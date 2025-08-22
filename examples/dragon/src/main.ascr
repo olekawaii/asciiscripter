@@ -9,9 +9,9 @@ main : frames
         shift north layer
           do x shift west do ii rotate wing_left
           do xix shift east wing_right
-    do 
+    do
       xxiii
-      shift east 
+      shift east
       do iii shift south title
 
 center_head : frames
@@ -172,4 +172,3 @@ title : frames
   art ix ii
    dragon...000000
 olekawaii000000000
-

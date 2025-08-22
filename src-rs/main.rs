@@ -6,7 +6,7 @@ mod runtime;
 mod r#type;
 
 use crate::{
-    parse::{parse_data, SyntaxTree, build_syntax_tree, extract_signiture, tokenize},
+    parse::{SyntaxTree, build_syntax_tree, extract_signiture, parse_data, tokenize},
     runtime::{Expression, ExpressionCache, Id},
 };
 
@@ -19,7 +19,7 @@ fn main() {
         .map(str::to_string)
         .collect();
     // dbg!(build_syntax_tree(tokenize(string).unwrap()));
-    let string: Vec<String> = "data bool contains\n  true int\n  false"
+    let string: Vec<String> = "data bool contains\n  true fn int int int\n  false"
         .lines()
         .map(str::to_string)
         .collect();
@@ -37,7 +37,6 @@ fn test() {
             arguments: Vec::new(),
         }]),
     };
-
     initial.substitute(
         Id::LambdaArg(5),
         Rc::new(Expression::Tree {
@@ -45,11 +44,9 @@ fn test() {
             arguments: Vec::new(),
         }),
     );
-
     let h = ExpressionCache {
         expressions: Vec::new(),
     };
     initial.simplify(&h);
-
     dbg!(initial);
 }
