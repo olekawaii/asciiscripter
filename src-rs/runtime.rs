@@ -33,25 +33,33 @@ impl Expression {
                     Id::DataConstructor(_) => return (),
                     Id::Thunk(exp) => (**exp).clone(),
                     Id::Variable(index) => definitions.get(*index),
-                    Id::LambdaArg(_) => unreachable!(),
+                    Id::LambdaArg(_) => unreachable!()
                 };
                 for i in arguments {
                     output.simplify(definitions);
-                    match &mut output {
-                        Expression::Lambda { id, body } => {
-                            body.substitute(Id::LambdaArg(id.clone()), Rc::new(i.clone()))
+                    match output {
+                        Expression::Lambda { id, mut body } => {
+                            body.substitute(Id::LambdaArg(id.clone()), Rc::new(i.clone()));
+                            output = *body;
                         }
-                        Expression::Tree { arguments, .. } => arguments.push(i.clone()),
+                        Expression::Tree { mut arguments, root } => {
+                            arguments.push(i.clone());
+                            output = Expression::Tree {
+                                root,
+                                arguments,
+                            }
+                        }
                         _ => unreachable!(),
                     }
                 }
+                output.simplify(definitions);
                 *self = output;
             }
             Expression::Match { pattern, branches } => {
                 pattern.simplify(definitions);
                 match *(*pattern).clone() {
                     Expression::Tree { root, arguments } => {
-                        let (vec, output) = match root {
+                        let (vec, mut output) = match root {
                             Id::DataConstructor(root) => branches.get(&root).unwrap().clone(),
                             _ => todo!(),
                         };
@@ -59,7 +67,7 @@ impl Expression {
                         for (id, expression) in vec.into_iter().zip(arguments.into_iter()) {
                             self.substitute(Id::LambdaArg(id), Rc::new(expression));
                         }
-                        // *self = output.clone();
+                        self.simplify(definitions);
                     }
                     _ => todo!(),
                 }
