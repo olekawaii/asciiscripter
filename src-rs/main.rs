@@ -7,6 +7,7 @@ mod r#type;
 
 use crate::{
     parse::{
+        Index,
         parse_type,
         TokenStream,
         Signiture,
@@ -18,12 +19,24 @@ use crate::{
         tokenize,
         tokenize_file,
         build_type,
+        Mark,
     },
     runtime::{Expression, ExpressionCache, Id},
     r#type::Type
 };
 
 fn main() {
+    let mark: Mark = Mark {
+        file_name: Rc::new(String::from("main.ascr")),
+        file: Rc::new(vec![String::from("hellow there how are you")]),
+        line: 0,
+        block: None,
+        word_index: Index::Expression(2),
+    };
+    println!("{}", mark)
+}
+
+fn main_real() {
     let file = String::from(
 "data nat contains 
   one

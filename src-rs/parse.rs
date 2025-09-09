@@ -3,7 +3,10 @@ use crate::runtime::{
     Expression,
     Id,
 };
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    rc::Rc,
+};
 
 pub fn tokenize_file(input: String) -> Option<Vec<TokenStream>> {
     input
@@ -313,6 +316,106 @@ enum Keyword {
     To,
     Data,
     Contains,
+}
+
+#[derive(Debug, Clone)]
+struct MarkedToken {
+    value: Token,
+    mark: Mark
+}
+
+pub struct Error {
+    error_message: ErrorType,
+    mark: Mark
+}
+
+pub enum ErrorType {
+    Empty
+}
+
+impl std::fmt::Display for ErrorType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::Empty => write!(f, "empty error message")
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Index {
+    Expression(usize),
+    Art(usize),
+}
+
+#[derive(Debug, Clone)]
+pub struct Mark {
+    pub file_name: Rc<String>,
+    pub file: Rc<Vec<String>>,
+    pub line: usize,
+    pub block: Option<Rc<String>>,
+    pub word_index: Index,
+}
+
+impl std::fmt::Display for Mark {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let seporator = "\x1b[91m|\x1b[0m ";
+        let mut number = self.line.to_string();
+        number.push(' ');
+        let indentation = number.chars().count();
+        let line: &str = &self.file[self.line];
+        let mut length_of_word: usize = 0;
+        let mut length_to_word: usize = 0;
+        let mut output_string = String::from("\x1b[91m");
+        output_string.push_str(&number);
+        output_string.push_str(seporator);
+        if let Index::Expression(size) = self.word_index {
+            let words = (*line).split_whitespace();
+            let mut reached = false;
+            for (i, word) in words.enumerate() {
+                let word_len = word.chars().count() + 1;   // +1 for the space
+                if i == size {
+                    length_of_word = word_len;
+                    //output_string.push_str("\x1b[91m");
+                    output_string.push_str(word);
+                    output_string.push(' ');
+                    //output_string.push_str("\x1b[0m ");
+                    reached = true;
+                } else {
+                    output_string.push_str(word);
+                    output_string.push(' ');
+                    if !reached {
+                        length_to_word += word_len;
+                    }
+                }
+            }
+        }
+        let mut line0 = " ".repeat(indentation);
+        line0.push_str(seporator);
+
+        let mut underline = line0.clone();
+        for _ in 0..length_to_word {
+            underline.push(' ');
+        }
+        underline.push_str("\x1b[91m");
+        for _ in 1..length_of_word {
+            underline.push('^');
+        }
+        underline.push_str("\x1b[0m");
+
+        write!(
+            f, 
+            "in {} at line {}{}\n{}\n{}\n{}", 
+            self.file_name,
+            self.line,
+            match &self.block {
+                None => String::from(""),
+                Some(name) => format!(", in the definition of {}", (*name).clone())
+            },
+            line0,
+            output_string,
+            underline
+        )
+    }
 }
 
 #[derive(Debug, Clone)]

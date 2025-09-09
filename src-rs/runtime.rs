@@ -25,6 +25,7 @@ pub enum Expression {
 }
 
 impl Expression {
+    // TODO make simplify non-recursive so it doesn't blow the stack
     // rewrite expression until it starts with either a lambda or a data constructor
     pub fn simplify(&mut self, definitions: &ExpressionCache) {
         match self {
