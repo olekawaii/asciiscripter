@@ -13,19 +13,24 @@ impl Type {
             Self::Function(_, b) => b.final_type(),
         }
     }
-    
+
     pub fn is_possible(&self, test: &Self) -> bool {
-        *self == *test || match self {
-            Self::Type(_) => false,
-            Self::Function(_, output) => output.is_possible(test)
-        }
+        *self == *test
+            || match self {
+                Self::Type(_) => false,
+                Self::Function(_, output) => output.is_possible(test),
+            }
     }
 
     pub fn apply_type(self, arg: Self) -> Option<Self> {
         match self {
             Self::Type(u32) => None,
             Self::Function(x, y) => {
-                if arg == *x { Some(*y) } else { None }
+                if arg == *x {
+                    Some(*y)
+                } else {
+                    None
+                }
             }
         }
     }
@@ -34,13 +39,12 @@ impl Type {
         let mut current_type = self;
         loop {
             match current_type {
-                Type::Function(a,b) => {
+                Type::Function(a, b) => {
                     args.push(*a);
                     current_type = *b;
-                },
-                Type::Type(_) => return args
+                }
+                Type::Type(_) => return args,
             }
         }
     }
 }
-

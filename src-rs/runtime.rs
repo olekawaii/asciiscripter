@@ -34,7 +34,7 @@ impl Expression {
                     Id::DataConstructor(_) => return (),
                     Id::Thunk(exp) => (**exp).clone(),
                     Id::Variable(index) => definitions.get(*index),
-                    Id::LambdaArg(_) => unreachable!()
+                    Id::LambdaArg(_) => unreachable!(),
                 };
                 for i in arguments {
                     output.simplify(definitions);
@@ -43,12 +43,12 @@ impl Expression {
                             body.substitute(Id::LambdaArg(id.clone()), Rc::new(i.clone()));
                             output = *body;
                         }
-                        Expression::Tree { mut arguments, root } => {
+                        Expression::Tree {
+                            mut arguments,
+                            root,
+                        } => {
                             arguments.push(i.clone());
-                            output = Expression::Tree {
-                                root,
-                                arguments,
-                            }
+                            output = Expression::Tree { root, arguments }
                         }
                         _ => unreachable!(),
                     }
