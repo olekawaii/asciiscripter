@@ -5,36 +5,36 @@ use std::{collections::HashMap, rc::Rc};
 type Result<T> = std::result::Result<T, Error>;
 
 pub fn tokenize_file(input: String, file_name: Rc<String>) -> Result<Vec<TokenStream>> {
-    //input
-    //    .lines()
-    //    .map(str::trim_end)
-    //    .enumerate()
-    //    .collect::<Vec<(_,_)>>()
-    //    .as_slice()
-    //    .split(|(_, x)| x.len() == 0)
-    //    .map(|x| x.into_iter().map(|(a, x)| (a, x.to_string())).collect())
-    //    .map(|x| tokenize(x, file_name))
-    //    .collect::<Option<Vec<TokenStream>>>()
     let file_lines: Rc<Vec<String>> =
         Rc::new(input.lines().map(|x| x.trim_end().to_string()).collect());
     let mut output: Vec<TokenStream> = Vec::new();
     let mut current_block: Vec<(usize, String)> = Vec::new();
-    for (line_number, string) in file_lines.iter().enumerate() {
-        if string.len() == 0 {
-            if !current_block.is_empty() {
-                output.push(tokenize(
-                    current_block,
-                    Rc::clone(&file_name),
-                    Rc::clone(&file_lines),
-                )?);
-                current_block = Vec::new();
-            } else {
-                continue;
-            }
-        } else if string.split_whitespace().next().unwrap() == "--" {
-            continue;
+    let mut file = remove_multiline_comments(
+        file_lines.iter().map(|x| x.as_str()).enumerate(),
+        &file_name,
+        &file_lines
+    )?.into_iter();
+    while let Some((line_number, string)) = file.next() {
+        if string.len() == 0 || string.split_whitespace().next().unwrap() == "--" {
+            continue
         } else {
             current_block.push((line_number, string.to_string()));
+            'good_lines: loop {
+                match file.next() {
+                    None | Some((_, "")) => {
+                        output.push(tokenize(
+                            current_block,
+                            Rc::clone(&file_name),
+                            Rc::clone(&file_lines),
+                        )?);
+                        current_block = Vec::new();
+                        break 'good_lines
+                    }
+                    Some((line_number, string)) => {
+                        current_block.push((line_number, string.to_string()));
+                    }
+                }
+            }
         }
     }
     if !current_block.is_empty() {
@@ -45,7 +45,7 @@ pub fn tokenize_file(input: String, file_name: Rc<String>) -> Result<Vec<TokenSt
         )?);
         current_block = Vec::new();
     }
-    return Ok(output);
+    Ok(output)
 }
 
 fn error_to_option<T>(error: Result<T>) -> Option<T> {
@@ -56,6 +56,61 @@ fn error_to_option<T>(error: Result<T>) -> Option<T> {
             None
         }
     }
+}
+
+fn remove_multiline_comments<'a>(
+    mut input: impl Iterator<Item = (usize, &'a str)>,
+    file_name: &Rc<String>,
+    file: &Rc<Vec<String>>
+) -> Result<Vec<(usize, &'a str)>> {
+    let mut output = Vec::new();
+    loop {
+        match input.next() {
+            None => return Ok(output),
+            Some((line, string)) => match string {
+                "<o>" => return Err(Error {
+                    mark: Mark {
+                        file_name: Rc::clone(file_name),
+                        file: Rc::clone(file),
+                        line,
+                        block: None,
+                        word_index: Index::Expression(0),
+                    },
+                    error_message: ErrorType::Empty
+                }),
+                "---" => 'multi_line_comment: loop {
+                    match input.next() {
+                        None => return Err(Error {
+                            mark: Mark {
+                                file_name: Rc::clone(file_name),
+                                file: Rc::clone(file),
+                                line,
+                                block: None,
+                                word_index: Index::Expression(0),
+                            },
+                            error_message: ErrorType::Empty
+                        }),
+                        Some((line, x)) => match x {
+                            "<o>" => break 'multi_line_comment,
+                            "---" => return Err(Error {
+                                mark: Mark {
+                                    file_name: Rc::clone(file_name),
+                                    file: Rc::clone(file),
+                                    line,
+                                    block: None,
+                                    word_index: Index::Expression(0),
+                                },
+                                error_message: ErrorType::Empty
+                            }),
+                            _ => continue 'multi_line_comment
+                        }
+                    }
+                }
+                _ => output.push((line, string))
+            }
+        }
+    }
+    Ok(output)
 }
 
 //parse_file(input: String) ->
