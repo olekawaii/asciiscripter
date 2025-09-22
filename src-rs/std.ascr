@@ -1,0 +1,418 @@
+define eq_int of_type fn int fn int bool as
+   lambda x lambda y match x
+      zero to match y
+         zero to true
+         negative _ to false
+         positive _ to false
+      negative a to match y
+         zero to false
+         negative b to eq_nat a b
+         positive _ to false
+      positive a to match y
+         zero to false
+         negative _ to false
+         positive b to eq_nat a b
+
+data bool contains
+   true
+   false
+
+define and of_type fn bool fn bool bool as
+   lambda x match x
+      false to const_bool_bool false
+      true to id_bool
+
+define or of_type fn bool fn bool bool as
+   lambda x match x
+      true to const_bool_bool true
+      false to id_bool
+
+define id_bool of_type fn bool bool as lambda x x
+
+define const_bool_bool of_type fn bool fn bool bool as
+   lambda x lambda _ x
+
+define eq_nat of_type fn nat fn nat bool as
+   lambda x lambda y match x
+      one to match y
+         one to true
+         succ _ to false
+      succ a to match y
+         one to false
+         succ b to eq_nat a b
+
+define eq_coordinate of_type fn coordinate fn coordinate bool as
+   lambda coord_i lambda coord_ii match coord_i
+      coordinate a b to match coord_ii
+         coordinate c d to and eq_int a c eq_int b d
+
+define insert of_type fn cell fn frame frame as
+   lambda cell lambda frame match cell
+      cell coord char to match frame
+         unsafe_cons_cell head tail to match head
+            cell coord_ii _ to match eq_coordinate coord_ii coord
+               true to unsafe_cons_cell cell tail
+               false to unsafe_cons_cell head insert cell tail
+         empty_frame to unsafe_cons_cell cell empty_frame
+
+data option_nat contains
+   some_nat nat
+   none_nat
+
+data option_whole contains
+   some_whole whole
+   none_whole
+
+data whole contains
+   whole_zero
+   whole nat
+
+define subtract_exactly of_type fn whole fn whole option_whole as
+   lambda x lambda y match x
+      whole a to match y
+         whole_zero to some_whole whole a
+         whole b to subtract_exactly
+            match a
+               one to whole_zero
+               succ n to whole n
+            match b
+               one to whole_zero
+               succ n to whole n
+      whole_zero to match y
+         whole_zero to some_whole whole_zero
+         whole _ to none_whole
+
+define divide_exactly of_type fn whole fn whole option_whole as
+   lambda x match x
+      whole_zero to lambda _ some_whole whole_zero
+      whole _ to lambda y match subtract_exactly x y
+         none_whole to none_whole
+         some_whole a to map_option_whole
+            lambda x match x
+               whole_zero to whole one
+               whole a to whole succ a
+            divide_exactly a y
+
+define map_option_whole of_type fn fn whole whole fn option_whole option_whole as
+   lambda f lambda x match x
+      none_whole to none_whole
+      some_whole a to some_whole f a
+
+define sum_nat of_type fn nat fn nat nat as
+   lambda x match x
+      one to succ
+      succ a to lambda y succ sum_nat a y
+
+define product_nat of_type fn nat fn nat nat as 
+   lambda x lambda y match x
+      one to y
+      succ a to sum_nat y product_nat a y
+
+data list_whole contains
+   cons_whole whole list_whole
+   nil_whole
+
+data option_list_whole contains
+   some_list_whole list_whole
+   none_list_whole
+
+define map_option_list_whole of_type 
+   fn 
+      fn list_whole list_whole 
+      fn option_list_whole option_list_whole 
+as
+   lambda f lambda x match x
+      some_list_whole a to some_list_whole f a
+      none_list_whole to none_list_whole
+
+define greater_than of_type fn nat fn nat bool as 
+   lambda a lambda b match a
+      one to false
+      succ c to match b
+         one to true
+         succ d to greater_than c d
+
+define divisible of_type fn whole fn whole bool as
+   lambda x lambda y match divide_exactly x y
+      some_whole _ to true
+      none_whole to false
+
+define gcd of_type fn nat fn nat nat as
+   lambda x lambda y gcd_helper i ii x y
+
+define gcd_helper of_type fn nat fn nat fn nat fn nat nat as 
+   lambda output lambda try lambda x lambda y
+      match or greater_than try x greater_than try y
+         false to 
+            gcd_helper
+               match and divisible whole x whole try divisible whole y whole try
+                  true to try
+                  false to output
+               succ try
+               x
+               y
+         true to output
+
+define lcm of_type fn nat fn nat nat as
+   lambda x lambda y match divide_exactly whole product_nat x y whole gcd x y
+      none_whole to i
+      some_whole x to match x
+        whole x to x
+        whole_zero to i
+
+define prime_factors of_type fn nat fn whole list_whole as
+   lambda x lambda y match y
+      whole aaa to match aaa
+         one to nil_whole 
+         succ _ to match divide_exactly y whole x
+            some_whole a to cons_whole whole x prime_factors x a
+            none_whole to prime_factors succ x y
+      whole_zero to nil_whole 
+
+define loop_video_forever of_type fn video video as 
+   lambda x seq x loop_video_forever x
+
+define seq of_type fn video fn video video as
+   lambda a lambda b match a
+      cons_frame head tail to cons_frame head seq tail b
+      empty_video to b
+
+define take of_type fn nat fn video video as 
+   lambda counter lambda frames match counter
+      one to match frames
+         cons_frame head tail to cons_frame head empty_video
+         empty_video to empty_video
+      succ a to match frames
+         cons_frame head tail to cons_frame head take a tail
+         empty_video to empty_video
+
+define layer_frames of_type fn frame fn frame frame as
+   lambda top lambda bottom match top
+      unsafe_cons_cell head tail to insert head layer_frames tail bottom
+      empty_frame to bottom
+
+define increment_whole of_type fn whole whole as lambda x match x
+   whole_zero to whole one
+   whole x to whole succ x
+
+define video_length of_type fn video whole as
+   lambda x match x
+      empty_video to whole_zero
+      cons_frame head tail to increment_whole video_length tail
+
+define layer_videos of_type fn video fn video video as
+   lambda top lambda bottom match video_length top
+      whole_zero to bottom
+      whole top_len to match video_length bottom
+         whole_zero to top
+         whole bottom_len to layer_helper 
+            take lcm top_len bottom_len loop_video_forever top
+            take lcm top_len bottom_len loop_video_forever bottom
+
+define layer_helper of_type fn video fn video video as
+   lambda top lambda bottom match top
+      cons_frame top_head top_tail to match bottom
+         cons_frame bottom_head bottom_tail to 
+            cons_frame 
+               layer_frames top_head bottom_head 
+               layer_helper top_tail bottom_tail
+        
+define i of_type nat as one
+
+define ii of_type nat as succ i
+
+define iii of_type nat as succ ii
+
+define iv of_type nat as succ iii
+
+define v of_type nat as succ iv
+
+define vi of_type nat as succ v
+
+define vii of_type nat as succ vi
+
+define viii of_type nat as succ vii
+
+define ix of_type nat as succ viii
+
+define x of_type nat as succ ix
+
+define xi of_type nat as succ x
+
+define xii of_type nat as succ xi
+
+define xiii of_type nat as succ xii
+
+define xiv of_type nat as succ xiii
+
+define xv of_type nat as succ xiv
+
+define xvi of_type nat as succ xv
+
+define xvii of_type nat as succ xvi
+
+define xviii of_type nat as succ xvii
+
+define xix of_type nat as succ xviii
+
+define xx of_type nat as succ xix
+
+define xxi of_type nat as succ xx
+
+define xxii of_type nat as succ xxi
+
+define xxiii of_type nat as succ xxii
+
+define xxiv of_type nat as succ xxiii
+
+define xxv of_type nat as succ xxiv
+
+define xxvi of_type nat as succ xxv
+
+define xxvii of_type nat as succ xxvi
+
+define xxviii of_type nat as succ xxvii
+
+define xxix of_type nat as succ xxviii
+
+define xxx of_type nat as succ xxix
+
+define xxxi of_type nat as succ xxx
+
+define xxxii of_type nat as succ xxxi
+
+define xxxiii of_type nat as succ xxxii
+
+define xxxiv of_type nat as succ xxxiii
+
+define xxxv of_type nat as succ xxxiv
+
+define xxxvi of_type nat as succ xxxv
+
+define xxxvii of_type nat as succ xxxvi
+
+define xxxviii of_type nat as succ xxxvii
+
+define xxxix of_type nat as succ xxxviii
+
+define xl of_type nat as succ xxxix
+
+define xli of_type nat as succ xl
+
+define xlii of_type nat as succ xli
+
+define xliii of_type nat as succ xlii
+
+define xliv of_type nat as succ xliii
+
+define xlv of_type nat as succ xliv
+
+define xlvi of_type nat as succ xlv
+
+define xlvii of_type nat as succ xlvi
+
+define xlviii of_type nat as succ xlvii
+
+define xlix of_type nat as succ xlviii
+
+define l of_type nat as succ xlix
+
+define li of_type nat as succ l
+
+define lii of_type nat as succ li
+
+define liii of_type nat as succ lii
+
+define liv of_type nat as succ liii
+
+define lv of_type nat as succ liv
+
+define lvi of_type nat as succ lv
+
+define lvii of_type nat as succ lvi
+
+define lviii of_type nat as succ lvii
+
+define lix of_type nat as succ lviii
+
+define lx of_type nat as succ lix
+
+define lxi of_type nat as succ lx
+
+define lxii of_type nat as succ lxi
+
+define lxiii of_type nat as succ lxii
+
+define lxiv of_type nat as succ lxiii
+
+define lxv of_type nat as succ lxiv
+
+define lxvi of_type nat as succ lxv
+
+define lxvii of_type nat as succ lxvi
+
+define lxviii of_type nat as succ lxvii
+
+define lxix of_type nat as succ lxviii
+
+define lxx of_type nat as succ lxix
+
+define lxxi of_type nat as succ lxx
+
+define lxxii of_type nat as succ lxxi
+
+define lxxiii of_type nat as succ lxxii
+
+define lxxiv of_type nat as succ lxxiii
+
+define lxxv of_type nat as succ lxxiv
+
+define lxxvi of_type nat as succ lxxv
+
+define lxxvii of_type nat as succ lxxvi
+
+define lxxviii of_type nat as succ lxxvii
+
+define lxxix of_type nat as succ lxxviii
+
+define lxxx of_type nat as succ lxxix
+
+define lxxxi of_type nat as succ lxxx
+
+define lxxxii of_type nat as succ lxxxi
+
+define lxxxiii of_type nat as succ lxxxii
+
+define lxxxiv of_type nat as succ lxxxiii
+
+define lxxxv of_type nat as succ lxxxiv
+
+define lxxxvi of_type nat as succ lxxxv
+
+define lxxxvii of_type nat as succ lxxxvi
+
+define lxxxviii of_type nat as succ lxxxvii
+
+define lxxxix of_type nat as succ lxxxviii
+
+define xc of_type nat as succ lxxxix
+
+define xci of_type nat as succ xc
+
+define xcii of_type nat as succ xci
+
+define xciii of_type nat as succ xcii
+
+define xciv of_type nat as succ xciii
+
+define xcv of_type nat as succ xciv
+
+define xcvi of_type nat as succ xcv
+
+define xcvii of_type nat as succ xcvi
+
+define xcviii of_type nat as succ xcvii
+
+define xcix of_type nat as succ xcviii
+
+define c of_type nat as succ xcix

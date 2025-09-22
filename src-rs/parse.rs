@@ -4,46 +4,37 @@ use std::{collections::HashMap, rc::Rc};
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn tokenize_file(input: String, file_name: Rc<String>) -> Result<Vec<TokenStream>> {
+pub fn tokenize_file(input: String, file_name: &Rc<String>) -> Result<Vec<TokenStream>> {
     let file_lines: Rc<Vec<String>> =
         Rc::new(input.lines().map(|x| x.trim_end().to_string()).collect());
     let mut output: Vec<TokenStream> = Vec::new();
     let mut current_block: Vec<(usize, String)> = Vec::new();
     let mut file = remove_multiline_comments(
         file_lines.iter().map(|x| x.as_str()).enumerate(),
-        &file_name,
+        file_name,
         &file_lines
     )?.into_iter();
     while let Some((line_number, string)) = file.next() {
         if string.len() == 0 || string.split_whitespace().next().unwrap() == "--" {
             continue
-        } else {
-            current_block.push((line_number, string.to_string()));
-            'good_lines: loop {
-                match file.next() {
-                    None | Some((_, "")) => {
-                        output.push(tokenize(
-                            current_block,
-                            Rc::clone(&file_name),
-                            Rc::clone(&file_lines),
-                        )?);
-                        current_block = Vec::new();
-                        break 'good_lines
-                    }
-                    Some((line_number, string)) => {
-                        current_block.push((line_number, string.to_string()));
-                    }
+        } 
+        current_block.push((line_number, string.to_string()));
+        'good_lines: loop {
+            match file.next() {
+                None | Some((_, "")) => {
+                    output.push(tokenize(
+                        current_block,
+                        Rc::clone(file_name),
+                        Rc::clone(&file_lines),
+                    )?);
+                    current_block = Vec::new();
+                    break 'good_lines
+                }
+                Some((line_number, string)) => {
+                    current_block.push((line_number, string.to_string()));
                 }
             }
         }
-    }
-    if !current_block.is_empty() {
-        output.push(tokenize(
-            current_block,
-            Rc::clone(&file_name),
-            Rc::clone(&file_lines),
-        )?);
-        current_block = Vec::new();
     }
     Ok(output)
 }
@@ -68,16 +59,6 @@ fn remove_multiline_comments<'a>(
         match input.next() {
             None => return Ok(output),
             Some((line, string)) => match string {
-                "<o>" => return Err(Error {
-                    mark: Mark {
-                        file_name: Rc::clone(file_name),
-                        file: Rc::clone(file),
-                        line,
-                        block: None,
-                        word_index: Index::Expression(0),
-                    },
-                    error_message: ErrorType::Empty
-                }),
                 "---" => 'multi_line_comment: loop {
                     match input.next() {
                         None => return Err(Error {
@@ -88,24 +69,34 @@ fn remove_multiline_comments<'a>(
                                 block: None,
                                 word_index: Index::Expression(0),
                             },
-                            error_message: ErrorType::Empty
+                            error_message: ErrorType::UnclosedComment
                         }),
-                        Some((line, x)) => match x {
+                        Some((line2, x)) => match x {
                             "<o>" => break 'multi_line_comment,
                             "---" => return Err(Error {
                                 mark: Mark {
                                     file_name: Rc::clone(file_name),
                                     file: Rc::clone(file),
-                                    line,
+                                    line: line2,
                                     block: None,
                                     word_index: Index::Expression(0),
                                 },
-                                error_message: ErrorType::Empty
+                                error_message: ErrorType::UnexpectedOpeningComment(line)
                             }),
-                            _ => continue 'multi_line_comment
+                            _ => ()
                         }
                     }
-                }
+                },
+                "<o>" => return Err(Error {
+                    mark: Mark {
+                        file_name: Rc::clone(file_name),
+                        file: Rc::clone(file),
+                        line,
+                        block: None,
+                        word_index: Index::Expression(0),
+                    },
+                    error_message: ErrorType::UnexpectedClosingComment
+                }),
                 _ => output.push((line, string))
             }
         }
@@ -113,7 +104,51 @@ fn remove_multiline_comments<'a>(
     Ok(output)
 }
 
-//parse_file(input: String) ->
+pub fn parse_roman_numeral(mut numeral: &str) -> Option<u32> {
+    let mut numerals: Vec<(&str, u32)> = vec![
+        ("i",   1),
+        ("iv",  4),
+        ("v",   5),
+        ("ix",  9),
+        ("x",  10),
+        ("xl", 40),
+        ("l",  50),
+        ("xc", 90),
+        ("c", 100),
+    ];
+    let mut starting_index = 0;
+    let mut consecutive_times = 0;
+    let mut output = 0;
+    // unwrap is safe assuming numerals vec is not empty
+    let mut tuple = numerals.pop().unwrap();
+    loop {
+        let pattern = tuple.0;
+        let value = tuple.1;
+        let pattern_len = pattern.len();
+        let numeral_len = numeral.len() - starting_index;
+        if numeral_len == 0 { return Some(output) };
+        if numeral_len < pattern_len || &numeral[starting_index .. starting_index + pattern_len] != pattern {
+            tuple = numerals.pop()?;
+            consecutive_times = 0;
+        } else {
+            output += value;
+            starting_index += pattern_len;
+            if consecutive_times != 0 && ( pattern_len > 1 || consecutive_times > 3 ) {
+                return None
+            };
+            let skips = match value.to_string().chars().next().unwrap() {
+                '1'        => 0,
+                '4' | '5'  => 1,
+                '9'        => 3,
+                _          => unreachable!()
+            };
+            for _ in 0..skips {
+                numerals.pop();
+            }
+            consecutive_times += 1;
+        }
+    }
+}
 
 pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
     let Marked::<Token> {
@@ -123,14 +158,14 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
     match token {
         Token::Keyword(keyword) => match keyword {
             Keyword::Lambda => {
-                let Marked::<Token> { mark, value: token } = next_non_newline(&mut tokens)?;
+                let Marked::<Token> { mark, value: token } = next_non_newline(&mut tokens).expect("athues");
                 if let Token::Variable(ValueToken::Value(arg)) = token {
                     Some(SyntaxTree::Lambda(
                         arg,
-                        Box::new(build_syntax_tree(tokens)?),
+                        Box::new(build_syntax_tree(tokens).expect("ahuesahus")),
                     ))
                 } else {
-                    None
+                    panic!("ashuesa")
                 }
             }
             Keyword::Match => {
@@ -154,12 +189,13 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
                     get_with_indentation(tokens, indent)
                         .into_iter()
                         .map(parse_branch)
-                        .collect::<Option<Vec<_>>>()?;
+                        .collect::<Option<Vec<_>>>().expect("sane");
                 Some(SyntaxTree::Match(pattern, branches))
             }
             _ => None,
         },
-        Token::Variable(ValueToken::Art(x, y, art)) => Some(SyntaxTree::Art(x, y, art)),
+        Token::Variable(ValueToken::Art(x, y, art)) => 
+            Some(SyntaxTree::Art(x, y, art)),
         Token::Variable(ValueToken::Value(word)) => {
             let root = word;
             let mut args = Vec::new();
@@ -168,7 +204,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
                     None => break,
                     Some(x) => {
                         if matches!(x.value, Token::Keyword(_)) {
-                            args.push(Argument::Grouped(build_syntax_tree(tokens)?));
+                            args.push(Argument::Grouped(build_syntax_tree(tokens).expect("saguf")));
                             break;
                         }
                     }
@@ -184,7 +220,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
                             .into_iter()
                             .map(build_syntax_tree);
                         for i in arg_groups {
-                            args.push(Argument::Grouped(i?));
+                            args.push(Argument::Grouped(i.expect("saueh")));
                         }
                         break;
                     }
@@ -198,14 +234,14 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Option<SyntaxTree> {
 }
 
 fn parse_branch(mut tokens: TokenStream) -> Option<(String, Vec<String>, SyntaxTree)> {
-    let Marked::<Token> { mark, value: token } = tokens.next()?;
+    let Marked::<Token> { mark, value: token } = tokens.next().expect("uwu");
     let constructor = match token {
         Token::Variable(ValueToken::Value(name)) => name,
         _ => panic!("d"),
     };
     let mut args = Vec::new();
     loop {
-        let Marked::<Token> { mark, value: token } = tokens.next()?;
+        let Marked::<Token> { mark, value: token } = tokens.next().expect("blauh");
         match token {
             Token::Variable(ValueToken::Value(name)) => args.push(name),
             Token::Keyword(Keyword::To) => break,
@@ -221,14 +257,14 @@ pub fn build_tree(
     mut variables: HashMap<String, (u32, Type)>,
     mut local_vars_count: u32,
     global_vars: &HashMap<String, (usize, Type, bool)>,
-) -> Option<Expression> {
+) -> Result<Expression> {
     match input {
         SyntaxTree::Lambda(name, tree) => {
             if let Type::Function(a, b) = expected_type {
                 local_vars_count += 1;
                 variables.insert(name, (local_vars_count, *a));
                 let body = build_tree(*b, *tree, variables, local_vars_count, global_vars)?;
-                Some(Expression::Lambda {
+                Ok(Expression::Lambda {
                     id: local_vars_count,
                     body: Box::new(body),
                 })
@@ -258,7 +294,7 @@ pub fn build_tree(
             let tp = match variables.get(root) {
                 Some((_, tp)) => tp,
                 None => match global_vars.get(root) {
-                    None => return None,
+                    None => panic!("uwu"),
                     Some((_, tp, _)) => tp,
                 },
             };
@@ -274,12 +310,14 @@ pub fn build_tree(
             .expect("shhh");
             let mut branches = HashMap::new();
             for (name, args, expression) in syntax_branches {
+                //dbg!(&name);
                 let (id, tp, is_constructor) = global_vars.get(&name).expect("sh");
                 if !(tp.clone().final_type() == pattern_type) {
                     panic!("bbb")
                 }
                 let arg_types = tp.clone().arg_types();
                 if !(arg_types.len() == args.len()) {
+                    dbg!(&arg_types);
                     panic!("ccc");
                 }
                 let mut local_vars = variables.clone();
@@ -301,12 +339,11 @@ pub fn build_tree(
                             local_vars,
                             local_var_count,
                             global_vars,
-                        )
-                        .expect("sahe"),
+                        )?
                     ),
                 );
             }
-            Some(Expression::Match {
+            Ok(Expression::Match {
                 pattern: Box::new(pattern_expression),
                 branches: branches,
             })
@@ -314,18 +351,26 @@ pub fn build_tree(
         SyntaxTree::Art(a, b, c) => todo!(),
     }
 }
-//Match {
-//    pattern: Box<Expression>,
-//    branches: HashMap<u32, (Vec<u32>, Expression)>,
-//},
-//Match(
-//    Vec<String>, // pattern
-//    Vec<(
-//        String,          // constructor
-//        Vec<String>,     // constructor argument names
-//        Box<SyntaxTree>, // body
-//    )>,
-//),
+
+fn parse_art(
+    width: u32, 
+    height: u32, 
+    strings: Vec<(usize, String)>, 
+    local_vars: HashMap<String, (u32, Type)>,
+    global_vars: &HashMap<String, (usize, Type, bool)>
+) -> Result<Expression> {
+    for (line_number, i) in strings.into_iter() {
+        let mut line: Vec<Marked<char>> = Vec::new();
+        for character in i.chars() {
+            line.push(Marked::<char> {
+                mark: todo!(),
+                value: character
+            })
+        }
+    }
+    todo!()
+}
+
 
 fn evaluate_arguments(
     mut expected_type: Type,
@@ -333,8 +378,8 @@ fn evaluate_arguments(
     local_vars: &HashMap<String, (u32, Type)>,
     local_var_count: u32,
     argument_stream: &mut impl Iterator<Item = Argument>,
-) -> Option<Expression> {
-    match argument_stream.next()? {
+) -> Result<Expression> {
+    match argument_stream.next().expect("sathe") {
         Argument::Grouped(syntaxtree) => build_tree(
             expected_type,
             syntaxtree,
@@ -355,9 +400,11 @@ fn evaluate_arguments(
                     b,
                 )
             } else {
+                dbg!(&name);
                 panic!("ddd")
             };
             if !root_type.is_possible(&expected_type) {
+                dbg!(&name);
                 panic!("ccc");
             }
             let mut output_args = Vec::new();
@@ -377,7 +424,7 @@ fn evaluate_arguments(
                 )?;
                 output_args.push(next_arg);
             }
-            Some(Expression::Tree {
+            Ok(Expression::Tree {
                 root: root_id,
                 arguments: output_args,
             })
@@ -403,7 +450,7 @@ pub enum SyntaxTree {
             SyntaxTree,  // body
         )>,
     ),
-    Art(String, String, Vec<(usize, String)>),
+    Art(u32, u32, Vec<(usize, String)>),
 }
 
 #[derive(Clone, Debug)]
@@ -452,6 +499,10 @@ impl std::fmt::Display for Error {
 pub enum ErrorType {
     Empty,
     Custom(String),
+    UnexpectedClosingComment,
+    UnexpectedOpeningComment(usize),
+    UnclosedComment,
+    InvalidName,
 }
 
 impl std::fmt::Display for ErrorType {
@@ -459,7 +510,32 @@ impl std::fmt::Display for ErrorType {
         match self {
             Self::Custom(s) => write!(f, "{s}"),
             Self::Empty => write!(f, "empty error message"),
+            Self::UnexpectedClosingComment => 
+                write!(f, "unexpected closing delimiter"),
+            Self::UnexpectedOpeningComment(line) => 
+                write!(f, 
+"unexpected opening delimiter.
+expected a closing delimiter for '---' on line {}
+", line + 1),
+            Self::UnclosedComment => 
+                write!(f, "unclosed multi-line comment"),
+            Self::InvalidName => 
+                write!(f, "invalid keyword or variable name"),
         }
+    }
+}
+
+struct Line(usize);
+
+impl Line {
+    fn new(line: usize) -> Line {
+        Self(line)
+    }
+}
+
+impl std::fmt::Display for Line {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0 + 1)
     }
 }
 
@@ -481,7 +557,7 @@ pub struct Mark {
 }
 
 pub fn show_mark(mark: Mark) -> String {
-    dbg!(&mark);
+    //dbg!(&mark);
     let mut number = (mark.line + 1).to_string();
     number.push(' ');
     let indentation = number.chars().count();
@@ -532,7 +608,7 @@ pub fn show_mark(mark: Mark) -> String {
 #[derive(Debug, Clone)]
 enum ValueToken {
     Value(String),
-    Art(String, String, Vec<(usize, String)>),
+    Art(u32, u32, Vec<(usize, String)>),
 }
 
 #[derive(Debug, Clone)]
@@ -624,13 +700,47 @@ pub fn tokenize(
             match word {
                 "--" => break 'words,
                 "art" => {
+                    let x = match words.next() {
+                        None => return Err(Error {
+                            mark: Mark {
+                                word_index: Index::EndOfWord(word_index),
+                                ..mark
+                            },
+                            error_message: ErrorType::Empty,
+                        }),
+                        Some(x) => match parse_roman_numeral(x) {
+                            None => return Err(Error {
+                                mark: Mark {
+                                    word_index: Index::Expression(word_index + 1),
+                                    ..mark
+                                },
+                                error_message: ErrorType::Empty,
+                            }),
+                            Some(x) => x
+                        }
+                    };
+                    let y = match words.next() {
+                        None => return Err(Error {
+                            mark: Mark {
+                                word_index: Index::EndOfWord(word_index),
+                                ..mark
+                            },
+                            error_message: ErrorType::Empty,
+                        }),
+                        Some(x) => match parse_roman_numeral(x) {
+                            None => return Err(Error {
+                                mark: Mark {
+                                    word_index: Index::Expression(word_index + 2),
+                                    ..mark
+                                },
+                                error_message: ErrorType::Empty,
+                            }),
+                            Some(x) => x
+                        }
+                    };
                     output.push(Marked::<Token> {
                         mark: mark,
-                        value: Token::Variable(ValueToken::Art(
-                            words.next().expect("e").to_string(),
-                            words.next().expect("f").to_string(),
-                            block.collect(),
-                        )),
+                        value: Token::Variable(ValueToken::Art( x, y, block.collect(),)),
                     });
                     break 'lines;
                 }
@@ -642,7 +752,7 @@ pub fn tokenize(
                             if !other.chars().all(|x| x.is_lowercase() || x == '_') {
                                 return Err(Error {
                                     mark: mark,
-                                    error_message: ErrorType::Empty,
+                                    error_message: ErrorType::InvalidName,
                                 });
                             }
                             Token::Variable(ValueToken::Value(other.to_string()))
@@ -791,7 +901,7 @@ pub fn parse_data(
     parent_type: u32,
 ) -> Option<Vec<(String, Type)>> {
     let mut output = Vec::new();
-    for mut i in get_with_indentation(tokens, 2).into_iter() {
+    for mut i in get_with_indentation(tokens, 3).into_iter() {
         let Marked::<Token> {
             mark: root_mark,
             value: token,

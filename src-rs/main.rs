@@ -9,7 +9,7 @@ use crate::{
     parse::{
         Error, Index, Mark, Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree,
         build_tree, build_type, extract_signiture, parse_data, parse_type, show_mark, tokenize,
-        tokenize_file,
+        tokenize_file, parse_roman_numeral
     },
     runtime::{Expression, ExpressionCache, Id},
     r#type::Type,
@@ -33,11 +33,20 @@ fn main_test() -> std::io::Result<()> {
 }
 
 fn parse_file(
-    file: String,
-    file_name: String,
+    file_names: Vec<String>,
 ) -> Result<(Vec<Expression>, HashMap<String, (usize, Type, bool)>), Error> {
+    let mut files: Vec<(String, String)> = Vec::new();
+    for i in file_names.into_iter() {
+        let file = read_to_string(&i).unwrap();
+        files.push((i, file))
+    }
+    let mut blocks = Vec::new();
+    for (file_name, file) in files.into_iter() {
+        let mut vec_blocks = tokenize_file(file, &Rc::new(file_name))?;
+        blocks.append(&mut vec_blocks);
+    }
     let (type_blocks, values): (Vec<(Signiture, TokenStream)>, _) =
-        tokenize_file(file, Rc::new(file_name))?
+        blocks
             .into_iter()
             .map(|mut x| {
                 let signiture = extract_signiture(&mut x)?;
@@ -110,9 +119,14 @@ fn parse_file(
 }
 
 fn main() -> std::io::Result<()> {
-    let file_name = String::from("main.ascr");
-    let file: String = read_to_string(&file_name)?;
-    match parse_file(file, file_name) {
+    //dbg!(parse_roman_numeral("iv"));
+    let file_names = Vec::from([
+        String::from("main.ascr"),
+        String::from("std.ascr"),
+        String::from("core.ascr")
+    ]);
+    //let file: String = read_to_string(&file_name)?;
+    match parse_file(file_names) {
         Err(x) => println!("{x}"),
         Ok((vars, vars_dummy)) => {
             let (main_index, _, _) = vars_dummy.get("main").unwrap();

@@ -26,6 +26,11 @@ pub enum Expression {
 
 impl Expression {
     // TODO make simplify non-recursive so it doesn't blow the stack
+    // this means adding an attempt_to_simplify finction and calling it in a loop
+    // for match expressions only simplify what's in the pattern, with increasing depth
+    // for trees if there are arguments, just add them to the root arguments, otherwise
+    // substitute them in the root
+
     // rewrite expression until it starts with either a lambda or a data constructor
     pub fn simplify(&mut self, definitions: &ExpressionCache) {
         match self {
