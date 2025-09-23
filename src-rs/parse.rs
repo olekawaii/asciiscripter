@@ -318,7 +318,7 @@ pub fn build_tree(
                 let arg_types = tp.clone().arg_types();
                 if !(arg_types.len() == args.len()) {
                     dbg!(&arg_types);
-                    panic!("ccc");
+                    panic!("ccac");
                 }
                 let mut local_vars = variables.clone();
                 let mut local_var_count = local_vars_count;
@@ -352,24 +352,80 @@ pub fn build_tree(
     }
 }
 
-fn parse_art(
+fn parse_art_block(
     width: u32, 
     height: u32, 
-    strings: Vec<(usize, String)>, 
-    local_vars: HashMap<String, (u32, Type)>,
-    global_vars: &HashMap<String, (usize, Type, bool)>
+    local_vars: &HashMap<String, (u32, Type)>,
+    global_vars: &HashMap<String, (usize, Type, bool)>,
+    text: Vec<(usize, String)>
 ) -> Result<Expression> {
-    for (line_number, i) in strings.into_iter() {
-        let mut line: Vec<Marked<char>> = Vec::new();
-        for character in i.chars() {
-            line.push(Marked::<char> {
-                mark: todo!(),
-                value: character
-            })
-        }
-    }
+    let mut output = todo!();
     todo!()
 }
+
+enum Color {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+}
+
+pub fn parse_art(
+    width: usize, 
+    height: usize, 
+    text: Vec<Vec<Marked<char>>>
+) -> Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>> {
+    let mut output: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>> = Vec::new();
+    let mut current_index = 0;
+    let mut current_starting_line = 0;
+    let mut current_starting_char = 0;
+    loop {
+        let mut current_map = HashMap::new();
+        for x in 0..width as usize {
+            for y in 0..height as usize {
+                let art_char = text[y + current_starting_line][x + current_starting_char].clone();
+                let color_char = text[y + current_starting_line][x + current_starting_char + width].clone();
+                current_map.insert(
+                    ((x + (current_starting_char / (width * 2)) as usize) as u32, height as u32 - y as u32 - 1), 
+                    ( art_char, color_char)
+                );
+            }
+        }
+        //dbg!("added");
+        output.push(current_map);
+        current_starting_char += width * 2;
+        if current_starting_char + 1 >= text[current_starting_line].len() {
+            current_starting_char = 0;
+            current_starting_line += height;
+            if current_starting_line + 1 > text.len() {
+                return output
+            }
+        }
+    }
+}
+
+//fn parse_art(
+//    width: u32, 
+//    height: u32, 
+//    strings: Vec<(usize, String)>, 
+//    local_vars: HashMap<String, (u32, Type)>,
+//    global_vars: &HashMap<String, (usize, Type, bool)>
+//) -> Result<Expression> {
+//    for (line_number, i) in strings.into_iter() {
+//        let mut line: Vec<Marked<char>> = Vec::new();
+//        for character in i.chars() {
+//            line.push(Marked::<char> {
+//                mark: todo!(),
+//                value: character
+//            })
+//        }
+//    }
+//    todo!()
+//}
 
 
 fn evaluate_arguments(
@@ -702,18 +758,12 @@ pub fn tokenize(
                 "art" => {
                     let x = match words.next() {
                         None => return Err(Error {
-                            mark: Mark {
-                                word_index: Index::EndOfWord(word_index),
-                                ..mark
-                            },
+                            mark: Mark { word_index: Index::EndOfWord(word_index), ..mark },
                             error_message: ErrorType::Empty,
                         }),
                         Some(x) => match parse_roman_numeral(x) {
                             None => return Err(Error {
-                                mark: Mark {
-                                    word_index: Index::Expression(word_index + 1),
-                                    ..mark
-                                },
+                                mark: Mark { word_index: Index::Expression(word_index + 1), ..mark },
                                 error_message: ErrorType::Empty,
                             }),
                             Some(x) => x
@@ -721,27 +771,43 @@ pub fn tokenize(
                     };
                     let y = match words.next() {
                         None => return Err(Error {
-                            mark: Mark {
-                                word_index: Index::EndOfWord(word_index),
-                                ..mark
-                            },
+                            mark: Mark { word_index: Index::EndOfWord(word_index), ..mark },
                             error_message: ErrorType::Empty,
                         }),
                         Some(x) => match parse_roman_numeral(x) {
                             None => return Err(Error {
-                                mark: Mark {
-                                    word_index: Index::Expression(word_index + 2),
-                                    ..mark
-                                },
+                                mark: Mark { word_index: Index::Expression(word_index + 2), ..mark },
                                 error_message: ErrorType::Empty,
                             }),
                             Some(x) => x
                         }
                     };
-                    output.push(Marked::<Token> {
-                        mark: mark,
-                        value: Token::Variable(ValueToken::Art( x, y, block.collect(),)),
-                    });
+                    let art: Vec<(usize, Vec<(usize, char)>)> = 
+                        block.map(|(index, line)| (index, line.chars().enumerate().collect())).collect();
+                    let mut new_output = Vec::new();
+                    for (line_index, line) in art.into_iter() {
+                        let mut temp = Vec::new();
+                        for (char_index, character) in line.into_iter() {
+                            let marked_char = Marked::<char> {
+                                value: character,
+                                mark: Mark {
+                                    line: line_index,
+                                    word_index: Index::Art(char_index),
+                                    ..mark.clone()
+                                }
+                            };
+                            temp.push(marked_char);
+                        }
+                        new_output.push(temp);
+                    }
+                    let aaa = parse_art(x as usize, y as usize, new_output);
+                    for i in build_tokens_from_art(mark, aaa) {
+                        output.push(i);
+                    }
+                    //output.push(Marked::<Token> {
+                    //    mark: mark,
+                    //    value: Token::Variable(ValueToken::Art( x, y, block.collect(),)),
+                    //});
                     break 'lines;
                 }
                 other => output.push(Marked::<Token> {
@@ -765,6 +831,200 @@ pub fn tokenize(
         }
     }
     Ok(output.into_iter().peekable())
+}
+
+fn build_tokens_from_art(
+    mark: Mark, 
+    input: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>
+) -> TokenStream {
+    let mut output = Vec::new();
+    for i in input.into_iter() {
+        output.push(Marked::<Token> {
+            mark: mark.clone(),
+            value: Token::Variable(ValueToken::Value("cons_frame".to_string()))
+        });
+        for ((x, y), (c1, c2)) in i.into_iter() {
+            let c1_char = c1.value;
+            let c2_char = c2.value;
+            if c1_char == ' ' && c2_char == '.' { continue }
+            output.push(Marked::<Token> {
+                mark: mark.clone(),
+                value: Token::Variable(ValueToken::Value("unsafe_cons_cell".to_string()))
+            });
+            output.push(Marked::<Token> {
+                mark: mark.clone(),
+                value: Token::Variable(ValueToken::Value("cell".to_string()))
+            });
+            output.push(Marked::<Token> {
+                mark: mark.clone(),
+                value: Token::Variable(ValueToken::Value("coordinate".to_string()))
+            });
+            output.push(Marked::<Token> {
+                mark: mark.clone(),
+                value: Token::Variable(ValueToken::Value("positive".to_string()))
+            });
+            for _ in 0..x {
+                output.push(Marked::<Token> {
+                    mark: mark.clone(),
+                    value: Token::Variable(ValueToken::Value("succ".to_string()))
+                });
+            }
+            output.push(Marked::<Token> {
+                mark: mark.clone(),
+                value: Token::Variable(ValueToken::Value("one".to_string()))
+            });
+            output.push(Marked::<Token> {
+                mark: mark.clone(),
+                value: Token::Variable(ValueToken::Value("positive".to_string()))
+            });
+            for _ in 0..y {
+                output.push(Marked::<Token> {
+                    mark: mark.clone(),
+                    value: Token::Variable(ValueToken::Value("succ".to_string()))
+                });
+            }
+            output.push(Marked::<Token> {
+                mark: mark.clone(),
+                value: Token::Variable(ValueToken::Value("one".to_string()))
+            });
+            if c1_char == ' ' && c2_char == '/' {
+                output.push(Marked::<Token> {
+                    mark: mark.clone(),
+                    value: Token::Variable(ValueToken::Value("space".to_string()))
+                });
+            } else {
+                output.push(Marked::<Token> {
+                    mark: mark.clone(),
+                    value: Token::Variable(ValueToken::Value("char".to_string()))
+                });
+                let character = match c1_char {
+                    '!' => "bang",
+                    '"' => "double_quotes",
+                    '#' => "pound",
+                    '$' => "dollar",
+                    '%' => "percent",
+                    '&' => "ampersand",
+                    '\'' => "single_quote",
+                    '(' => "open_paranthesis",
+                    ')' => "close_paranthesis",
+                    '*' => "asterisk",
+                    '+' => "plus",
+                    ',' => "comma",
+                    '-' => "hyphen",
+                    '.' => "period",
+                    '/' => "slash",
+                    '0' => "digit_zero",
+                    '1' => "digit_one",
+                    '2' => "digit_two",
+                    '3' => "digit_three",
+                    '4' => "digit_four",
+                    '5' => "digit_five",
+                    '6' => "digit_six",
+                    '7' => "digit_seven",
+                    '8' => "digit_eight",
+                    '9' => "digit_nine",
+                    ':' => "colon",
+                    ';' => "semicolon",
+                    '<' => "less_than",
+                    '=' => "equals",
+                    '>' => "greater_than",
+                    '?' => "question_mark",
+                    '@' => "at_sign",
+                    'A' => "uppercase_a",
+                    'B' => "uppercase_b",
+                    'C' => "uppercase_c",
+                    'D' => "uppercase_d",
+                    'E' => "uppercase_e",
+                    'F' => "uppercase_f",
+                    'G' => "uppercase_g",
+                    'H' => "uppercase_h",
+                    'I' => "uppercase_i",
+                    'J' => "uppercase_j",
+                    'K' => "uppercase_k",
+                    'L' => "uppercase_l",
+                    'M' => "uppercase_m",
+                    'N' => "uppercase_n",
+                    'O' => "uppercase_o",
+                    'P' => "uppercase_p",
+                    'Q' => "uppercase_q",
+                    'R' => "uppercase_r",
+                    'S' => "uppercase_s",
+                    'T' => "uppercase_t",
+                    'U' => "uppercase_u",
+                    'V' => "uppercase_v",
+                    'W' => "uppercase_w",
+                    'X' => "uppercase_x",
+                    'Y' => "uppercase_y",
+                    'Z' => "uppercase_z",
+                    '[' => "opening_bracket",
+                    '\\' => "backslash",
+                    ']' => "closing_bracket",
+                    '^' => "caret",
+                    '_' => "underscore",
+                    '`' => "grave_accent",
+                    'a' => "lowercase_a",
+                    'b' => "lowercase_b",
+                    'c' => "lowercase_c",
+                    'd' => "lowercase_d",
+                    'e' => "lowercase_e",
+                    'f' => "lowercase_f",
+                    'g' => "lowercase_g",
+                    'h' => "lowercase_h",
+                    'i' => "lowercase_i",
+                    'j' => "lowercase_j",
+                    'k' => "lowercase_k",
+                    'l' => "lowercase_l",
+                    'm' => "lowercase_m",
+                    'n' => "lowercase_n",
+                    'o' => "lowercase_o",
+                    'p' => "lowercase_p",
+                    'q' => "lowercase_q",
+                    'r' => "lowercase_r",
+                    's' => "lowercase_s",
+                    't' => "lowercase_t",
+                    'u' => "lowercase_u",
+                    'v' => "lowercase_v",
+                    'w' => "lowercase_w",
+                    'x' => "lowercase_x",
+                    'y' => "lowercase_y",
+                    'z' => "lowercase_z",
+                    '{' => "opening_brace",
+                    '|' => "vertical_bar",
+                    '}' => "closing_brace",
+                    '~' => "tilde",
+                    _ => panic!("bad char")
+                }.to_string();
+                output.push(Marked::<Token> {
+                    mark: mark.clone(),
+                    value: Token::Variable(ValueToken::Value(character))
+                });
+                let color = match c2_char {
+                    '0' => "black".to_string(),
+                    '1' => "red".to_string(),
+                    '2' => "green".to_string(),
+                    '3' => "yellow".to_string(),
+                    '4' => "blue".to_string(),
+                    '5' => "magenta".to_string(),
+                    '6' => "cyan".to_string(),
+                    '7' => "white".to_string(),
+                    x   => String::from(x)
+                };
+                output.push(Marked::<Token> {
+                    mark: mark.clone(),
+                    value: Token::Variable(ValueToken::Value(color))
+                });
+            }
+        }
+        output.push(Marked::<Token> {
+            mark: mark.clone(),
+            value: Token::Variable(ValueToken::Value("empty_frame".to_string()))
+        });
+    }
+    output.push(Marked::<Token> {
+        mark: mark.clone(),
+        value: Token::Variable(ValueToken::Value("empty_video".to_string()))
+    });
+    output.into_iter().peekable()
 }
 
 fn indentation_length(input: &str) -> u32 {

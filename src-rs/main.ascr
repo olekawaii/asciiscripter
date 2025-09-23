@@ -1,10 +1,8 @@
-define main of_type nat as lcm iii iv
+define test of_type nat as lcm iii iv
 
----
-define bird of_type nat as art ix v
+define main of_type video as art ix v
     ,,   ....11...    ,,   ....11...
   <')    ..371....  <')    ..371....
    ( \   ...1/1...   ( \   ...1/1...
 ---YY----222332222---YY----222332222
      |\  .....11..     |\  .....11..
-<o>

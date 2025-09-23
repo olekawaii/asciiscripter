@@ -9,7 +9,7 @@ use crate::{
     parse::{
         Error, Index, Mark, Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree,
         build_tree, build_type, extract_signiture, parse_data, parse_type, show_mark, tokenize,
-        tokenize_file, parse_roman_numeral
+        tokenize_file, parse_roman_numeral, parse_art
     },
     runtime::{Expression, ExpressionCache, Id},
     r#type::Type,
@@ -119,6 +119,11 @@ fn parse_file(
 }
 
 fn main() -> std::io::Result<()> {
+    //dbg!(parse_art(1, 3, vec![
+    //    vec!['a', 'a', 'b', 'b', 'c', 'c'], 
+    //    vec!['d', 'd', 'e', 'e', 'f', 'f'],
+    //    vec!['g', 'g', 'h', 'h', 'i', 'i']
+    //]));
     //dbg!(parse_roman_numeral("iv"));
     let file_names = Vec::from([
         String::from("main.ascr"),
@@ -134,7 +139,7 @@ fn main() -> std::io::Result<()> {
             let global_vars = ExpressionCache { expressions: vars };
             main.simplify(&global_vars);
             main.evaluate_strictly(&global_vars);
-            dbg!(&main);
+            //dbg!(&main);
         }
     }
     Ok(())

@@ -13,6 +13,11 @@ define eq_int of_type fn int fn int bool as
          negative _ to false
          positive b to eq_nat a b
 
+define recolor_character of_type fn color fn character character as
+   lambda color lambda character match character
+      space to space
+      char a _ to char a color
+
 data bool contains
    true
    false

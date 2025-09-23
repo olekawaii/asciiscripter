@@ -1,4 +1,4 @@
--- core types
+-- core language types
 -- DO NOT EDIT
 
 data int contains
@@ -17,9 +17,11 @@ data video contains
    empty_video
    cons_frame frame video
 
+-- use insert from std to insert cells
+
 data frame contains
    empty_frame
-   unsafe_cons_cell cell frame  -- use 'insert' from std to insert cells
+   unsafe_cons_cell cell frame  
 
 data cell contains
    cell coordinate character
