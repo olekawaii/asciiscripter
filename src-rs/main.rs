@@ -1,4 +1,5 @@
 use std::{collections::HashMap, env, fmt, fs, fs::read_to_string, rc::Rc};
+use std::sync::Mutex;
 // save unchanging in map, only leave variables in expression!
 
 mod parse;
@@ -11,7 +12,7 @@ use crate::{
         build_tree, build_type, extract_signiture, parse_data, parse_type, show_mark, tokenize,
         tokenize_file, parse_roman_numeral, parse_art
     },
-    runtime::{Expression, ExpressionCache, Id},
+    runtime::{Expression, counter, ExpressionCache, Id},
     r#type::Type,
 };
 
@@ -81,12 +82,16 @@ fn parse_file(
             .into_iter()
             .enumerate()
         {
-            global_vars_dummy.insert(name, (number_of_values, tp, true));
+            if num +1 == 22 {dbg!(&name);}
+            match global_vars_dummy.insert(name, (number_of_values, tp, true)) {
+                None => {}
+                Some(x) => {dbg!(x);}
+            }
             number_of_values += 1;
             global_vars.push(Expression::Tree {
                 root: Id::DataConstructor(num as u32),
                 arguments: Vec::new(),
-            })
+            });
         }
     }
 
@@ -138,10 +143,11 @@ fn main() -> std::io::Result<()> {
             let mut main = vars[*main_index].clone();
             let global_vars = ExpressionCache { expressions: vars };
             main.simplify(&global_vars);
-            main.evaluate_strictly(&global_vars);
-            //dbg!(&main);
+            //main.evaluate_strictly(&global_vars);
+            //println!("{:?}",&main);
         }
     }
+    unsafe {dbg!(counter);};
     Ok(())
 }
 
@@ -241,11 +247,11 @@ fn test() {
         }]),
     };
     initial.substitute(
-        Id::LambdaArg(5),
-        Rc::new(Expression::Tree {
+        5,
+        Rc::new(Mutex::new(Expression::Tree {
             root: Id::DataConstructor(7),
             arguments: Vec::new(),
-        }),
+        })),
     );
     let h = ExpressionCache {
         expressions: Vec::new(),

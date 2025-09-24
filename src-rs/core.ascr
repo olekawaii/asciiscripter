@@ -38,7 +38,7 @@ data color contains
    magenta
    cyan
    white
-   gray
+   black
 
 data visible_character contains
    bang

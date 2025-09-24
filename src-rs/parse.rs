@@ -461,6 +461,7 @@ fn evaluate_arguments(
             };
             if !root_type.is_possible(&expected_type) {
                 dbg!(&name);
+                dbg!(&root_type);
                 panic!("ccc");
             }
             let mut output_args = Vec::new();

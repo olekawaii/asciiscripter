@@ -1,3 +1,96 @@
+define rotate of_type fn video video as 
+   lambda vid match vid
+      empty_video to empty_video
+      cons_frame head tail to seq tail cons_frame head empty_video
+
+define do of_type fn nat fn fn video video fn video video as 
+   lambda counter lambda fn lambda vid match counter
+      one to fn vid
+      succ a to do a fn fn vid
+
+define extend of_type fn video video as lambda x match x
+   empty_video to empty_video
+   cons_frame head tail to cons_frame head match tail
+      empty_video to cons_frame head empty_video
+      cons_frame _ _ to extend tail
+
+data direction contains
+   north
+   south
+   east
+   west
+
+define shift_video of_type fn direction fn video video as
+   lambda dir map_video map_frame shift_cell dir
+
+define map_video of_type fn fn frame frame fn video video as
+   lambda f lambda vid match vid
+      empty_video to empty_video
+      cons_frame head tail to cons_frame f head map_video f tail
+
+define map_frame of_type fn fn cell cell fn frame frame as
+   lambda f lambda frame match frame
+      empty_frame to empty_frame
+      unsafe_cons_cell head tail to unsafe_cons_cell f head map_frame f tail
+
+define shift_cell of_type fn direction fn cell cell as 
+   lambda dir lambda cell match cell
+      cell coord char to cell shift dir coord char
+
+define shift of_type fn direction fn coordinate coordinate as
+   lambda dir lambda coord match coord
+      coordinate x y to match dir
+         north to coordinate
+            x
+            match y
+               positive a to positive succ a
+               negative a to match a
+                  one to zero
+                  succ b to positive b
+               zero to positive one
+         south to coordinate
+            x
+            match y
+               negative a to negative succ a
+               positive a to match a
+                  one to zero
+                  succ b to negative b
+               zero to negative one
+         east to coordinate
+            match x
+               positive a to positive succ a
+               negative a to match a
+                  one to zero
+                  succ b to positive b
+               zero to positive one
+            y
+         west to coordinate
+            match x
+               negative a to negative succ a
+               positive a to match a
+                  one to zero
+                  succ b to negative b
+               zero to negative one
+            x
+     
+define reverse of_type fn video video as 
+   lambda x match x
+      empty_video to empty_video
+      cons_frame a b to seq reverse b cons_frame a empty_video
+
+define tail of_type fn video video as lambda x match x
+   empty_video to empty_video
+   cons_frame _ b to b
+
+define loop of_type fn video video as lambda x seq x tail reverse tail x
+
+define slow of_type fn nat fn video video as 
+   lambda num lambda vid match vid
+      empty_video to empty_video
+      cons_frame head tail to seq 
+         take num loop_video_forever cons_frame head empty_video 
+         slow num tail
+
 define eq_int of_type fn int fn int bool as
    lambda x lambda y match x
       zero to match y
@@ -130,12 +223,12 @@ as
       some_list_whole a to some_list_whole f a
       none_list_whole to none_list_whole
 
-define greater_than of_type fn nat fn nat bool as 
+define greater of_type fn nat fn nat bool as 
    lambda a lambda b match a
       one to false
       succ c to match b
          one to true
-         succ d to greater_than c d
+         succ d to greater c d
 
 define divisible of_type fn whole fn whole bool as
    lambda x lambda y match divide_exactly x y
@@ -147,7 +240,7 @@ define gcd of_type fn nat fn nat nat as
 
 define gcd_helper of_type fn nat fn nat fn nat fn nat nat as 
    lambda output lambda try lambda x lambda y
-      match or greater_than try x greater_than try y
+      match or greater try x greater try y
          false to 
             gcd_helper
                match and divisible whole x whole try divisible whole y whole try
@@ -210,9 +303,13 @@ define layer_videos of_type fn video fn video video as
       whole_zero to bottom
       whole top_len to match video_length bottom
          whole_zero to top
-         whole bottom_len to layer_helper 
-            take lcm top_len bottom_len loop_video_forever top
-            take lcm top_len bottom_len loop_video_forever bottom
+         whole bottom_len to match wrapped lcm top_len bottom_len
+            wrapped x to layer_helper 
+                take x loop_video_forever top
+                take x loop_video_forever bottom
+
+data nat_wrapper contains
+   wrapped nat
 
 define layer_helper of_type fn video fn video video as
    lambda top lambda bottom match top
@@ -221,6 +318,8 @@ define layer_helper of_type fn video fn video video as
             cons_frame 
                layer_frames top_head bottom_head 
                layer_helper top_tail bottom_tail
+         empty_video to empty_video
+      empty_video to empty_video
         
 define i of_type nat as one
 
