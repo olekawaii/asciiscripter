@@ -23,7 +23,7 @@ new() {
     cd $1
     mkdir output src .ascr
     echo 5 > .ascr/fps
-    printf "%s\nmain : frames\n  null" '-- default file' > src/main.ascr
+    printf 'define main of_type video as ...' > src/main.ascr
     printf 'created project \033[92m%s\033[0m.\n' "$1"
 }
 
@@ -31,19 +31,22 @@ build() {
     move_to_root
     if [ -z "$(find . -name output -newer src -newer .ascr)" ]; then
         fps=$(awk 'NR == 1 { print $1 }' .ascr/fps)
-        ascr -f $fps src/main.ascr
-        mv short_main.sh main.sh output
+        cd src
+        ascr main.ascr | ascr-to-shell
+        mv short_output.sh output.sh ../output
+        cd ..
+        touch output
     fi
 }
 
 run() {
     build
-    ./output/short_main.sh
+    ./output/short_output.sh
 }
 
 play() {
     build
-    ./output/main.sh
+    ./output/output.sh
 }
 
 watch() {

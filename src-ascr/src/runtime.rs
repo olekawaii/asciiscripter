@@ -1,0 +1,328 @@
+use std::{collections::HashMap, fmt, rc::Rc};
+use std::sync::Mutex;
+
+// instead of Rc<Expression> use Rc<Mutex<Expression>> and first one to use it modifies it
+
+#[derive(Debug, Clone)]
+pub enum Id {
+    Thunk(Rc<Mutex<Expression>>),
+    LambdaArg(u32),
+    Variable(usize),
+    DataConstructor(u32),
+}
+
+#[derive(Debug, Clone)]
+pub enum Expression {
+    Tree {
+        root: Id,
+        arguments: Vec<Expression>,
+    },
+    Match {
+        pattern: Box<Expression>,
+        branches: HashMap<u32, (Vec<u32>, Expression)>,
+    },
+    Lambda {
+        id: u32,
+        body: Box<Expression>,
+    },
+}
+
+pub static mut counter: usize = 0;
+
+impl Expression {
+    // TODO make simplify non-recursive so it doesn't blow the stack
+    // this means adding an attempt_to_simplify finction and calling it in a loop
+    // for match expressions only simplify what's in the pattern, with increasing depth
+    // for trees if there are arguments, just add them to the root arguments, otherwise
+    // substitute them in the root
+
+    // rewrite expression until it starts with either a lambda or a data constructor
+    pub fn simplify_owned(self, definitions: &ExpressionCache) -> Self {
+        unsafe {
+            counter += 1;
+        }
+        if matches!(&self, Expression::Tree {root: Id::DataConstructor(_), ..}) {
+            return self
+        }
+        match self {
+            Expression::Tree { root, arguments } => {
+                let mut output: Expression = match root {
+                    Id::Thunk(exp) => {
+                        match Rc::try_unwrap(exp) {
+                            Ok(x) => x.into_inner().unwrap().simplify_owned(definitions),
+                            Err(x) => {
+                                let mut inside = (*x).lock().unwrap();
+                                if !matches!(
+                                    &*inside, 
+                                    Expression::Tree {root: Id::DataConstructor(_), ..} | Expression::Lambda {..}
+                                ) {
+                                    (*inside) = inside.clone().simplify_owned(definitions);
+                                }
+                                inside.clone()
+                            }
+                        }
+                    }
+                    Id::Variable(index) => {
+                        let mut var = definitions.get(index);
+                        if !matches!(
+                            &var, 
+                            Expression::Tree {root: Id::DataConstructor(_), ..} | Expression::Lambda {..}
+                        ) {
+                            var.simplify_owned(definitions)
+                        } else {var}
+                    }
+                    _ => unreachable!(),
+                };
+                for i in arguments {
+                    if let Expression::Tree {arguments, ..} = &mut output {
+                        arguments.push(i);
+                    } else if let Expression::Lambda { id, mut body } = output {
+                         let e = if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = i {
+                             if a.len() == 0 {
+                                 //dbg!("skipped a clone!");
+                                 Rc::clone(&x)
+                             } else {
+                                 Rc::new(Mutex::new(i))
+                             }
+                         } else {
+                             Rc::new(Mutex::new(i))
+                         };
+                         body.substitute(id, e);
+                         output = *body;
+                    }
+
+                    //match &mut output {
+                    //    Expression::Lambda { id, ref mut body } => {
+                    //        body.substitute(id.clone(), Rc::new(Mutex::new(i.clone())));
+                    //        output = **body;
+                    //    }
+                    //    Expression::Tree {
+                    //        ref mut arguments,
+                    //        root,
+                    //    } => {
+                    //        arguments.push(i.clone());
+                    //        //output = Expression::Tree { root, arguments }
+                    //    }
+                    //    _ => unreachable!(),
+                    //}
+                    if !matches!(
+                        &output, 
+                        Expression::Tree {root: Id::DataConstructor(_), ..}
+                    ) {
+                        output = output.simplify_owned(definitions)
+                    }
+                }
+                //output.simplify(definitions);
+                output
+            }
+            Expression::Match { mut pattern, mut branches } => {
+                //pattern.simplify(definitions);
+                //if !matches!(
+                //    &*pattern, 
+                //    Expression::Tree {root: Id::DataConstructor(_), ..}
+                //) {
+                //    pattern = Box::new(pattern.simplify_owned(definitions))
+                //}                 
+                match pattern.simplify_owned(definitions) {
+                    Expression::Tree { root, arguments } => {
+                        let (vec, mut output) = match root {
+                            Id::DataConstructor(root) => match branches.remove(&root) {
+                                None => {
+                                    dbg!(&root); 
+                                    //dbg!(&pattern);
+                                    dbg!(&branches);
+                                    panic!("unmatched pattern");
+                                },
+                                Some(x) => x,
+                            }
+                            _ => todo!(),
+                        };
+                        for (id, expression) in vec.into_iter().zip(arguments.into_iter()) {
+                            output.substitute(id.clone(), {
+                                if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = expression {
+                                    if a.len() == 0 {
+                                        //dbg!("skipped a clone!");
+                                        Rc::clone(&x)
+                                    } else {
+                                        Rc::new(Mutex::new(expression))
+                                    }
+                                } else {
+                                    Rc::new(Mutex::new(expression))
+                                }
+                            })
+                        }
+                        output.simplify_owned(definitions)
+                    }
+                    _ => todo!(),
+                }
+            }
+            _ => self,
+        }
+    }
+
+    // pub fn simplify(&mut self, definitions: &ExpressionCache) {
+    //     if !matches!(
+    //         self, 
+    //         Expression::Tree {root: Id::DataConstructor(_), ..}
+    //     ) {
+    //         *self = self.clone().simplify_owned(definitions);
+    //     }
+    // }
+
+    //pub fn simplify(&mut self, definitions: &ExpressionCache) {
+    //    unsafe {
+    //        counter += 1;
+    //    }
+    //    match self {
+    //        Expression::Tree { root, arguments } => {
+    //            let mut output = match root {
+    //                Id::DataConstructor(_) => return (),
+    //                Id::Thunk(exp) => {
+    //                    let mut inside = (*exp).lock().unwrap();
+    //                    (*inside).simplify(definitions);
+    //                    inside.clone()
+    //                }
+    //                Id::Variable(index) => {
+    //                    let mut var = definitions.get(*index);
+    //                    var.simplify(definitions);
+    //                    var
+    //                }
+    //                Id::LambdaArg(_) => unreachable!(),
+    //            };
+    //            for i in arguments {
+    //                if let Expression::Tree {arguments, ..} = &mut output {
+    //                    arguments.push(i.clone());
+    //                } else if let Expression::Lambda { id, mut body } = output {
+    //                     let e = if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = *i {
+    //                         if a.len() == 0 {
+    //                             //dbg!("skipped a clone!");
+    //                             Rc::clone(&x)
+    //                         } else {
+    //                             Rc::new(Mutex::new(i.clone()))
+    //                         }
+    //                     } else {
+    //                         Rc::new(Mutex::new(i.clone()))
+    //                     };
+    //                     body.substitute(id.clone(), e);
+    //                     output = *body;
+    //                }
+    //
+    //                //match &mut output {
+    //                //    Expression::Lambda { id, ref mut body } => {
+    //                //        body.substitute(id.clone(), Rc::new(Mutex::new(i.clone())));
+    //                //        output = **body;
+    //                //    }
+    //                //    Expression::Tree {
+    //                //        ref mut arguments,
+    //                //        root,
+    //                //    } => {
+    //                //        arguments.push(i.clone());
+    //                //        //output = Expression::Tree { root, arguments }
+    //                //    }
+    //                //    _ => unreachable!(),
+    //                //}
+    //                output.simplify(definitions);
+    //            }
+    //            //output.simplify(definitions);
+    //            *self = output;
+    //        }
+    //        Expression::Match { pattern, branches } => {
+    //            pattern.simplify(definitions);
+    //            match *(*pattern).clone() {
+    //                Expression::Tree { root, arguments } => {
+    //                    let (vec, mut output) = match root {
+    //                        Id::DataConstructor(root) => match branches.remove(&root) {
+    //                            None => {
+    //                                dbg!(&root); 
+    //                                dbg!(&pattern);
+    //                                dbg!(&branches);
+    //                                panic!("unmatched pattern");
+    //                            },
+    //                            Some(x) => x,
+    //                        }
+    //                        _ => todo!(),
+    //                    };
+    //                    *self = output;
+    //                    for (id, expression) in vec.into_iter().zip(arguments.into_iter()) {
+    //                        self.substitute(id, {
+    //                            if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = expression {
+    //                                if a.len() == 0 {
+    //                                    //dbg!("skipped a clone!");
+    //                                    Rc::clone(&x)
+    //                                } else {
+    //                                    Rc::new(Mutex::new(expression))
+    //                                }
+    //                            } else {
+    //                                Rc::new(Mutex::new(expression))
+    //                            }
+    //                        })
+    //                    }
+    //                    self.simplify(definitions);
+    //                }
+    //                _ => todo!(),
+    //            }
+    //        }
+    //        _ => (),
+    //    }
+    //}
+
+    // substitute every instance of an id with an expression
+    pub fn substitute(&mut self, key: u32, new_expression: Rc<Mutex<Expression>>) {
+        match self {
+            Expression::Lambda { body, .. } => body.substitute(key, new_expression),
+            Expression::Tree { root, arguments } => {
+                for mut i in arguments.iter_mut() {
+                    i.substitute(key, Rc::clone(&new_expression));
+                }
+                //if *root == key {
+                //    *root = Id::Thunk(new_expression);
+                //};
+                if matches!(root, Id::LambdaArg(x) if *x == key) {
+                    *root = Id::Thunk(new_expression);
+                };
+
+            }
+            Expression::Match { pattern, branches } => {
+                for (_, (_, i)) in branches.iter_mut() {
+                    i.substitute(key, Rc::clone(&new_expression));
+                }
+                pattern.substitute(key, Rc::clone(&new_expression));
+            }
+        }
+    }
+
+    // evaluate an expression strictly, leavivg only a tree of data constructors.
+    // can't be called on functions
+    pub fn evaluate_strictly(&mut self, definitions: &ExpressionCache) {
+        if !matches!(
+            self, 
+            Expression::Tree {root: Id::DataConstructor(_), ..}
+        ) {
+            *self = self.clone().simplify_owned(definitions);
+        }
+        match self {
+            Expression::Tree {
+                root,
+                arguments,
+            } => {
+                //let mut output = Vec::with_capacity(arguments.len());
+                //for i in std::mem::move(&mut arguments).into_iter() {
+                //    output.push(i.evaluate_strictly(definitions));
+                //}
+                arguments.iter_mut().for_each(|x| x.evaluate_strictly(definitions));
+            }
+            Expression::Lambda { .. } => panic!("attempted to evaluate a function"),
+            _ => unreachable!(),
+        }
+    }
+}
+
+pub struct ExpressionCache {
+    pub expressions: Vec<Expression>,
+}
+
+impl ExpressionCache {
+    fn get(&self, index: usize) -> Expression {
+        self.expressions[index].clone()
+    }
+}

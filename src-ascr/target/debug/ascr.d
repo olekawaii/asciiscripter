@@ -1,0 +1,1 @@
+/home/olekawaii/code/hs/asciiscripter/src-ascr/target/debug/ascr: /home/olekawaii/code/hs/asciiscripter/src-ascr/src/main.rs /home/olekawaii/code/hs/asciiscripter/src-ascr/src/parse.rs /home/olekawaii/code/hs/asciiscripter/src-ascr/src/runtime.rs /home/olekawaii/code/hs/asciiscripter/src-ascr/src/type.rs

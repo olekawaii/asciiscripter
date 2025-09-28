@@ -1,0 +1,1 @@
+std::result::Result<Vec<(Signiture, Peekable<std::vec::IntoIter<Marked<Token>>>)>, parse::Error>
