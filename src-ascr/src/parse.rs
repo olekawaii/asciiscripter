@@ -48,7 +48,7 @@ pub fn tokenize_file(input: String, file_name: &Rc<String>) -> Result<Vec<TokenS
         &file_lines
     )?.into_iter();
     while let Some((line_number, string)) = file.next() {
-        if string.len() == 0 || string.split_whitespace().next().unwrap() == "--" {
+        if string.len() == 0 || string.split_whitespace().next().unwrap() == "--" {  // safe unwrap
             continue
         } 
         current_block.push((line_number, string.to_string()));
@@ -845,7 +845,7 @@ pub fn tokenize(
                         new_output.push(temp);
                     }
                     let aaa = parse_art(x as usize, y as usize, new_output);
-                    for i in build_tokens_from_art(mark, aaa) {
+                    for i in build_tokens_from_art(mark, aaa)? {
                         output.push(i);
                     }
                     //output.push(Marked::<Token> {
@@ -880,7 +880,7 @@ pub fn tokenize(
 fn build_tokens_from_art(
     mark: Mark, 
     input: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>
-) -> TokenStream {
+) -> Result<TokenStream> {
     let mut output = Vec::new();
     for i in input.into_iter() {
         output.push(Marked::<Token> {
@@ -931,132 +931,135 @@ fn build_tokens_from_art(
                 mark: mark.clone(),
                 value: Token::Variable(ValueToken::Value("one".to_string()))
             });
-            if c1_char == ' ' && c2_char == '/' {
-                output.push(Marked::<Token> {
-                    mark: mark.clone(),
-                    value: Token::Variable(ValueToken::Value("space".to_string()))
-                });
-            } else {
-                output.push(Marked::<Token> {
-                    mark: mark.clone(),
-                    value: Token::Variable(ValueToken::Value("char".to_string()))
-                });
-                let character = match c1_char {
-                    '!' => "bang",
-                    '"' => "double_quotes",
-                    '#' => "pound",
-                    '$' => "dollar",
-                    '%' => "percent",
-                    '&' => "ampersand",
-                    '\'' => "single_quote",
-                    '(' => "open_paranthesis",
-                    ')' => "close_paranthesis",
-                    '*' => "asterisk",
-                    '+' => "plus",
-                    ',' => "comma",
-                    '-' => "hyphen",
-                    '.' => "period",
-                    '/' => "slash",
-                    '0' => "digit_zero",
-                    '1' => "digit_one",
-                    '2' => "digit_two",
-                    '3' => "digit_three",
-                    '4' => "digit_four",
-                    '5' => "digit_five",
-                    '6' => "digit_six",
-                    '7' => "digit_seven",
-                    '8' => "digit_eight",
-                    '9' => "digit_nine",
-                    ':' => "colon",
-                    ';' => "semicolon",
-                    '<' => "less_than",
-                    '=' => "equals",
-                    '>' => "greater_than",
-                    '?' => "question_mark",
-                    '@' => "at_sign",
-                    'A' => "uppercase_a",
-                    'B' => "uppercase_b",
-                    'C' => "uppercase_c",
-                    'D' => "uppercase_d",
-                    'E' => "uppercase_e",
-                    'F' => "uppercase_f",
-                    'G' => "uppercase_g",
-                    'H' => "uppercase_h",
-                    'I' => "uppercase_i",
-                    'J' => "uppercase_j",
-                    'K' => "uppercase_k",
-                    'L' => "uppercase_l",
-                    'M' => "uppercase_m",
-                    'N' => "uppercase_n",
-                    'O' => "uppercase_o",
-                    'P' => "uppercase_p",
-                    'Q' => "uppercase_q",
-                    'R' => "uppercase_r",
-                    'S' => "uppercase_s",
-                    'T' => "uppercase_t",
-                    'U' => "uppercase_u",
-                    'V' => "uppercase_v",
-                    'W' => "uppercase_w",
-                    'X' => "uppercase_x",
-                    'Y' => "uppercase_y",
-                    'Z' => "uppercase_z",
-                    '[' => "opening_bracket",
-                    '\\' => "backslash",
-                    ']' => "closing_bracket",
-                    '^' => "caret",
-                    '_' => "underscore",
-                    '`' => "grave_accent",
-                    'a' => "lowercase_a",
-                    'b' => "lowercase_b",
-                    'c' => "lowercase_c",
-                    'd' => "lowercase_d",
-                    'e' => "lowercase_e",
-                    'f' => "lowercase_f",
-                    'g' => "lowercase_g",
-                    'h' => "lowercase_h",
-                    'i' => "lowercase_i",
-                    'j' => "lowercase_j",
-                    'k' => "lowercase_k",
-                    'l' => "lowercase_l",
-                    'm' => "lowercase_m",
-                    'n' => "lowercase_n",
-                    'o' => "lowercase_o",
-                    'p' => "lowercase_p",
-                    'q' => "lowercase_q",
-                    'r' => "lowercase_r",
-                    's' => "lowercase_s",
-                    't' => "lowercase_t",
-                    'u' => "lowercase_u",
-                    'v' => "lowercase_v",
-                    'w' => "lowercase_w",
-                    'x' => "lowercase_x",
-                    'y' => "lowercase_y",
-                    'z' => "lowercase_z",
-                    '{' => "opening_brace",
-                    '|' => "vertical_bar",
-                    '}' => "closing_brace",
-                    '~' => "tilde",
-                    _ => panic!("bad char")
-                }.to_string();
-                output.push(Marked::<Token> {
-                    mark: mark.clone(),
-                    value: Token::Variable(ValueToken::Value(character))
-                });
-                let color = match c2_char {
-                    '0' => "black".to_string(),
-                    '1' => "red".to_string(),
-                    '2' => "green".to_string(),
-                    '3' => "yellow".to_string(),
-                    '4' => "blue".to_string(),
-                    '5' => "magenta".to_string(),
-                    '6' => "cyan".to_string(),
-                    '7' => "white".to_string(),
-                    x   => String::from(x)
-                };
-                output.push(Marked::<Token> {
-                    mark: mark.clone(),
-                    value: Token::Variable(ValueToken::Value(color))
-                });
+            match (c1_char, c2_char) {
+                (' ', '/') => {
+                    output.push(Marked::<Token> {
+                        mark: mark.clone(),
+                        value: Token::Variable(ValueToken::Value("space".to_string()))
+                    });
+                }
+                (c1_char, c2_char) => {
+                    output.push(Marked::<Token> {
+                        mark: mark.clone(),
+                        value: Token::Variable(ValueToken::Value("char".to_string()))
+                    });
+                    let character = match c1_char {
+                        '!' => "bang",
+                        '"' => "double_quotes",
+                        '#' => "pound",
+                        '$' => "dollar",
+                        '%' => "percent",
+                        '&' => "ampersand",
+                        '\'' => "single_quote",
+                        '(' => "open_paranthesis",
+                        ')' => "close_paranthesis",
+                        '*' => "asterisk",
+                        '+' => "plus",
+                        ',' => "comma",
+                        '-' => "hyphen",
+                        '.' => "period",
+                        '/' => "slash",
+                        '0' => "digit_zero",
+                        '1' => "digit_one",
+                        '2' => "digit_two",
+                        '3' => "digit_three",
+                        '4' => "digit_four",
+                        '5' => "digit_five",
+                        '6' => "digit_six",
+                        '7' => "digit_seven",
+                        '8' => "digit_eight",
+                        '9' => "digit_nine",
+                        ':' => "colon",
+                        ';' => "semicolon",
+                        '<' => "less_than",
+                        '=' => "equals",
+                        '>' => "greater_than",
+                        '?' => "question_mark",
+                        '@' => "at_sign",
+                        'A' => "uppercase_a",
+                        'B' => "uppercase_b",
+                        'C' => "uppercase_c",
+                        'D' => "uppercase_d",
+                        'E' => "uppercase_e",
+                        'F' => "uppercase_f",
+                        'G' => "uppercase_g",
+                        'H' => "uppercase_h",
+                        'I' => "uppercase_i",
+                        'J' => "uppercase_j",
+                        'K' => "uppercase_k",
+                        'L' => "uppercase_l",
+                        'M' => "uppercase_m",
+                        'N' => "uppercase_n",
+                        'O' => "uppercase_o",
+                        'P' => "uppercase_p",
+                        'Q' => "uppercase_q",
+                        'R' => "uppercase_r",
+                        'S' => "uppercase_s",
+                        'T' => "uppercase_t",
+                        'U' => "uppercase_u",
+                        'V' => "uppercase_v",
+                        'W' => "uppercase_w",
+                        'X' => "uppercase_x",
+                        'Y' => "uppercase_y",
+                        'Z' => "uppercase_z",
+                        '[' => "opening_bracket",
+                        '\\' => "backslash",
+                        ']' => "closing_bracket",
+                        '^' => "caret",
+                        '_' => "underscore",
+                        '`' => "grave_accent",
+                        'a' => "lowercase_a",
+                        'b' => "lowercase_b",
+                        'c' => "lowercase_c",
+                        'd' => "lowercase_d",
+                        'e' => "lowercase_e",
+                        'f' => "lowercase_f",
+                        'g' => "lowercase_g",
+                        'h' => "lowercase_h",
+                        'i' => "lowercase_i",
+                        'j' => "lowercase_j",
+                        'k' => "lowercase_k",
+                        'l' => "lowercase_l",
+                        'm' => "lowercase_m",
+                        'n' => "lowercase_n",
+                        'o' => "lowercase_o",
+                        'p' => "lowercase_p",
+                        'q' => "lowercase_q",
+                        'r' => "lowercase_r",
+                        's' => "lowercase_s",
+                        't' => "lowercase_t",
+                        'u' => "lowercase_u",
+                        'v' => "lowercase_v",
+                        'w' => "lowercase_w",
+                        'x' => "lowercase_x",
+                        'y' => "lowercase_y",
+                        'z' => "lowercase_z",
+                        '{' => "opening_brace",
+                        '|' => "vertical_bar",
+                        '}' => "closing_brace",
+                        '~' => "tilde",
+                        _ => panic!("bad char")
+                    }.to_string();
+                    output.push(Marked::<Token> {
+                        mark: mark.clone(),
+                        value: Token::Variable(ValueToken::Value(character))
+                    });
+                    let color = match c2_char {
+                        '0' => "black".to_string(),
+                        '1' => "red".to_string(),
+                        '2' => "green".to_string(),
+                        '3' => "yellow".to_string(),
+                        '4' => "blue".to_string(),
+                        '5' => "magenta".to_string(),
+                        '6' => "cyan".to_string(),
+                        '7' => "white".to_string(),
+                        x   => String::from(x)
+                    };
+                    output.push(Marked::<Token> {
+                        mark: mark.clone(),
+                        value: Token::Variable(ValueToken::Value(color))
+                    });
+                }
             }
         }
         output.push(Marked::<Token> {
@@ -1068,7 +1071,7 @@ fn build_tokens_from_art(
         mark: mark.clone(),
         value: Token::Variable(ValueToken::Value("empty_video".to_string()))
     });
-    output.into_iter().peekable()
+    Ok(output.into_iter().peekable())
 }
 
 fn indentation_length(input: &str) -> u32 {
