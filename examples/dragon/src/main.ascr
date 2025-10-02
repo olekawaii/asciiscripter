@@ -9,7 +9,7 @@ include core std
 
 define main of_type video as 
    layer_videos
-      do vi shift_video west do iii shift_video north center_head   
+      do vi shift_video west do iii shift_video north center_head 
       layer_videos
          layer_videos
             right_side
@@ -88,6 +88,10 @@ define wing_right of_type video as art xi iv
 |          2..........
            ...........
 
+define foot_right of_type video as art v ii
+\ (  6/6..) /  6/6..
+ )_nm.6666|_nm 6666.
+
 define body of_type video as do ii extend art x vii
      /  / .....6//6.     /  / .....6//6.
 _..-'  /  66666//6.._..-'  (  66666//6..
@@ -96,7 +100,3 @@ _..-'  /  66666//6.._..-'  (  66666//6..
         ) ////////6.        / ////////6.
        /  ///////6..       /  ///////6..
 _.-'  '   6666//6..._.-'  '   6666//6...
-
-define foot_right of_type video as art v ii
-\ (  6/6..) /  6/6..
- )_nm.6666|_nm 6666.

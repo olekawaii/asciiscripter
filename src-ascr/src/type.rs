@@ -22,18 +22,19 @@ impl Type {
             }
     }
 
-    pub fn apply_type(self, arg: Self) -> Option<Self> {
-        match self {
-            Self::Type(u32) => None,
-            Self::Function(x, y) => {
-                if arg == *x {
-                    Some(*y)
-                } else {
-                    None
-                }
-            }
-        }
-    }
+    //pub fn apply_type(self, arg: Self) -> Option<Self> {
+    //    match self {
+    //        Self::Type(u32) => None,
+    //        Self::Function(x, y) => {
+    //            if arg == *x {
+    //                Some(*y)
+    //            } else {
+    //                None
+    //            }
+    //        }
+    //    }
+    //}
+
     pub fn arg_types(self) -> Vec<Type> {
         let mut args = Vec::new();
         let mut current_type = self;

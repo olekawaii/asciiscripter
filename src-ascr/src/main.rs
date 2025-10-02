@@ -13,17 +13,18 @@ use crate::{
         build_tree, build_type, extract_signiture, parse_data, parse_type, show_mark, tokenize,
         tokenize_file, parse_roman_numeral, parse_art, get_tokens
     },
-    runtime::{Expression, counter, ExpressionCache, Id},
+    runtime::{Expression, COUNTER, ExpressionCache, Id},
     r#type::Type,
 };
 
 fn main() -> std::io::Result<()> {
+    // main_test();
     let mut args = env::args();
-    let executable = args.next().unwrap();
+    let _executable = args.next().unwrap();
     let file_name = args.next().expect("missing file name");
-    //let file: String = read_to_string(&file_name)?;
+    // let file: String = read_to_string(&file_name)?;
     match parse_file(file_name) {
-        Err(x) => println!("{x}"),
+        Err(x) => eprintln!("{x}"),
         Ok((vars, vars_dummy)) => {
             let (main_index, _, _) = vars_dummy.get("main").unwrap();
             let mut main = vars[*main_index].clone();
@@ -38,7 +39,7 @@ fn main() -> std::io::Result<()> {
             println!("{}", convert_to_file(&main, &map));
         }
     }
-    unsafe {dbg!(counter);};
+    unsafe {dbg!(COUNTER);};
     Ok(())
 }
 
@@ -53,7 +54,7 @@ fn main_test() -> std::io::Result<()> {
         file: Rc::new(file),
         line: 0,
         block: None,
-        word_index: Index::Expression(1),
+        word_index: Index::Art(0),
     };
     println!("{}", show_mark(mark));
     Ok(())
@@ -75,7 +76,7 @@ fn parse_file(
     //    blocks.append(&mut vec_blocks);
     //}
     let mut temp_vec = Vec::new();
-    let mut blocks = get_tokens(file_name, &mut temp_vec)?;
+    let blocks = get_tokens(file_name, &mut temp_vec)?;
     let (type_blocks, values): (Vec<(Signiture, TokenStream)>, _) =
         blocks
             .into_iter()
@@ -107,8 +108,7 @@ fn parse_file(
     let mut global_vars: Vec<Expression> = Vec::new();
 
     for (tp, tokens) in data_blocks.into_iter() {
-        for (num, (name, tp)) in parse_data(tokens, &types, tp)
-            .unwrap()
+        for (num, (name, tp)) in parse_data(tokens, &types, tp)?
             .into_iter()
             .enumerate()
         {
@@ -142,12 +142,11 @@ fn parse_file(
         global_vars.push(
             build_tree(
                 tp,
-                build_syntax_tree(tokens).unwrap(),
+                build_syntax_tree(tokens)?,
                 HashMap::new(),
                 0,
                 &global_vars_dummy,
-            )
-            .unwrap(),
+            )?
         )
     }
     Ok((global_vars, global_vars_dummy))
@@ -258,24 +257,25 @@ fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>) -> Str
 //    //dbg!(tree);
 //}
 //
-fn test() {
-    let mut initial = Expression::Tree {
-        root: Id::LambdaArg(5),
-        arguments: Vec::from([Expression::Tree {
-            root: Id::DataConstructor(7),
-            arguments: Vec::new(),
-        }]),
-    };
-    initial.substitute(
-        5,
-        Rc::new(Mutex::new(Expression::Tree {
-            root: Id::DataConstructor(7),
-            arguments: Vec::new(),
-        })),
-    );
-    let h = ExpressionCache {
-        expressions: Vec::new(),
-    };
-    initial = initial.simplify_owned(&h);
-    dbg!(initial);
-}
+
+//fn test() {
+//    let mut initial = Expression::Tree {
+//        root: Id::LambdaArg(5),
+//        arguments: Vec::from([Expression::Tree {
+//            root: Id::DataConstructor(7),
+//            arguments: Vec::new(),
+//        }]),
+//    };
+//    initial.substitute(
+//        5,
+//        Rc::new(Mutex::new(Expression::Tree {
+//            root: Id::DataConstructor(7),
+//            arguments: Vec::new(),
+//        })),
+//    );
+//    let h = ExpressionCache {
+//        expressions: Vec::new(),
+//    };
+//    initial = initial.simplify_owned(&h);
+//    dbg!(initial);
+//}

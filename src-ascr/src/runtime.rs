@@ -19,15 +19,15 @@ pub enum Expression {
     },
     Match {
         pattern: Box<Expression>,
-        branches: HashMap<u32, (Vec<u32>, Expression)>,
+        branches: HashMap<u32, (Vec<Option<u32>>, Expression)>,
     },
     Lambda {
-        id: u32,
+        id: Option<u32>,
         body: Box<Expression>,
     },
 }
 
-pub static mut counter: usize = 0;
+pub static mut COUNTER: usize = 0;
 
 impl Expression {
     // TODO make simplify non-recursive so it doesn't blow the stack
@@ -39,7 +39,7 @@ impl Expression {
     // rewrite expression until it starts with either a lambda or a data constructor
     pub fn simplify_owned(self, definitions: &ExpressionCache) -> Self {
         unsafe {
-            counter += 1;
+            COUNTER += 1;
         }
         if matches!(&self, Expression::Tree {root: Id::DataConstructor(_), ..}) {
             return self
@@ -63,7 +63,7 @@ impl Expression {
                         }
                     }
                     Id::Variable(index) => {
-                        let mut var = definitions.get(index);
+                        let var = definitions.get(index);
                         if !matches!(
                             &var, 
                             Expression::Tree {root: Id::DataConstructor(_), ..} | Expression::Lambda {..}
@@ -77,18 +77,20 @@ impl Expression {
                     if let Expression::Tree {arguments, ..} = &mut output {
                         arguments.push(i);
                     } else if let Expression::Lambda { id, mut body } = output {
-                         let e = if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = i {
-                             if a.len() == 0 {
-                                 //dbg!("skipped a clone!");
-                                 Rc::clone(&x)
-                             } else {
-                                 Rc::new(Mutex::new(i))
-                             }
-                         } else {
-                             Rc::new(Mutex::new(i))
-                         };
-                         body.substitute(id, e);
-                         output = *body;
+                        let e = if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = i {
+                            if a.len() == 0 {
+                                //dbg!("skipped a clone!");
+                                Rc::clone(&x)
+                            } else {
+                                Rc::new(Mutex::new(i))
+                            }
+                        } else {
+                            Rc::new(Mutex::new(i))
+                        };
+                        if let Some(id) = id {
+                            body.substitute(id, e);
+                        }
+                        output = *body;
                     }
 
                     //match &mut output {
@@ -115,7 +117,7 @@ impl Expression {
                 //output.simplify(definitions);
                 output
             }
-            Expression::Match { mut pattern, mut branches } => {
+            Expression::Match { pattern, mut branches } => {
                 //pattern.simplify(definitions);
                 //if !matches!(
                 //    &*pattern, 
@@ -138,18 +140,20 @@ impl Expression {
                             _ => todo!(),
                         };
                         for (id, expression) in vec.into_iter().zip(arguments.into_iter()) {
-                            output.substitute(id.clone(), {
-                                if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = expression {
-                                    if a.len() == 0 {
-                                        //dbg!("skipped a clone!");
-                                        Rc::clone(&x)
+                            if let Some(id) = id {
+                                output.substitute(id.clone(), {
+                                    if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = expression {
+                                        if a.len() == 0 {
+                                            //dbg!("skipped a clone!");
+                                            Rc::clone(&x)
+                                        } else {
+                                            Rc::new(Mutex::new(expression))
+                                        }
                                     } else {
                                         Rc::new(Mutex::new(expression))
                                     }
-                                } else {
-                                    Rc::new(Mutex::new(expression))
-                                }
-                            })
+                                });
+                            }
                         }
                         output.simplify_owned(definitions)
                     }
@@ -271,12 +275,9 @@ impl Expression {
         match self {
             Expression::Lambda { body, .. } => body.substitute(key, new_expression),
             Expression::Tree { root, arguments } => {
-                for mut i in arguments.iter_mut() {
+                for i in arguments.iter_mut() {
                     i.substitute(key, Rc::clone(&new_expression));
                 }
-                //if *root == key {
-                //    *root = Id::Thunk(new_expression);
-                //};
                 if matches!(root, Id::LambdaArg(x) if *x == key) {
                     *root = Id::Thunk(new_expression);
                 };
@@ -291,6 +292,58 @@ impl Expression {
         }
     }
 
+    //    idea
+//    pub fn substitute(&mut self, key: u32, new_expression: Rc<Mutex<Expression>>) -> u32 {
+//        let mut num = 0;
+//        match self {
+//            Expression::Lambda { body, .. } => {
+//                num = body.substitute(key, new_expression);
+//                if num == 0 {
+//                    *body = Box::new(Expression::Tree {
+//                        root: Id::Thunk(Rc::new(Mutex::new(*body.clone()))),
+//                        arguments: Vec::new()
+//                    })
+//                }
+//            }
+//            Expression::Tree { root, arguments } => {
+//                for mut i in arguments.iter_mut() {
+//                    let aaa = i.substitute(key, Rc::clone(&new_expression));
+//                    num += aaa;
+//                    if aaa == 0 {
+//                        *i = Expression::Tree {
+//                            root: Id::Thunk(Rc::new(Mutex::new(i.clone()))),
+//                            arguments: Vec::new()
+//                        }
+//                    }
+//                }
+//                //if *root == key {
+//                //    *root = Id::Thunk(new_expression);
+//                //};
+//                if let Id::LambdaArg(x) = root {
+//                    if *x == key {
+//                        *root = Id::Thunk(new_expression);
+//                    } else {
+//                        num += 1
+//                    }
+//                };
+//
+//            }
+//            Expression::Match { pattern, branches } => {
+//                for (_, (_, i)) in branches.iter_mut() {
+//                    let aaa = i.substitute(key, Rc::clone(&new_expression));
+//                    num += aaa;
+//                    if aaa == 0 {
+//                        *i = Expression::Tree {
+//                            root: Id::Thunk(Rc::new(Mutex::new(i.clone()))),
+//                            arguments: Vec::new()
+//                        }
+//                    }
+//                }
+//                num += pattern.substitute(key, Rc::clone(&new_expression));
+//            }
+//        }
+//        return num
+//    }
     // evaluate an expression strictly, leavivg only a tree of data constructors.
     // can't be called on functions
     pub fn evaluate_strictly(&mut self, definitions: &ExpressionCache) {
@@ -302,8 +355,8 @@ impl Expression {
         }
         match self {
             Expression::Tree {
-                root,
                 arguments,
+                ..
             } => {
                 //let mut output = Vec::with_capacity(arguments.len());
                 //for i in std::mem::move(&mut arguments).into_iter() {
@@ -315,6 +368,7 @@ impl Expression {
             _ => unreachable!(),
         }
     }
+
 }
 
 pub struct ExpressionCache {
