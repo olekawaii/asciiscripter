@@ -1,0 +1,27 @@
+--                      _                               
+--  _ __ ___  _   _ ___| |__  _ __ ___   ___  _ __ ___  
+-- | '_ ` _ \| | | / __| '_ \| '__/ _ \ / _ \| '_ ` _ \ 
+-- | | | | | | |_| \__ \ | | | | | (_) | (_) | | | | | |
+-- |_| |_| |_|\__,_|___/_| |_|_|  \___/ \___/|_| |_| |_|
+--
+
+include std
+                                                     
+define main of_type video as
+   layer_videos
+      do x shift_video east small_mushroom
+      big_mushroom
+
+define big_mushroom of_type video as art xiii vii
+  __c__,___  ..117117111..
+(_c_,O_/\_3_)1171771111711
+     | |     .....7/7.....
+    /_. \    ....777/7....
+     | |     .....7/7.....
+     |"|     .....777.....
+     | |     .....7/7.....
+
+define small_mushroom of_type video as art vi iii
+  __  ..11..
+(c_o_)171711
+ (..) .7777.

@@ -18,6 +18,7 @@ data video contains
    cons_frame frame video
 
 -- use insert from std to insert cells
+
 data frame contains
    empty_frame
    unsafe_cons_cell cell frame  
