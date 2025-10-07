@@ -30,6 +30,7 @@ data character contains
    space
    char visible_character color
 
+
 data color contains
    red
    green

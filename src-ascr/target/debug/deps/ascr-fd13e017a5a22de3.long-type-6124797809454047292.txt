@@ -1,0 +1,1 @@
+Map<std::vec::IntoIter<String>, fn(Marked<String>) -> Argument {Argument::Ungrouped}>

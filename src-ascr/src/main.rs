@@ -1,5 +1,5 @@
-use std::{collections::HashMap, env, fmt, fs, fs::read_to_string, rc::Rc};
-use std::sync::Mutex;
+use std::{collections::HashMap, env, fmt, fs, fs::read_to_string};
+use std::sync::{Mutex, Arc};
 // save unchanging in map, only leave variables in expression!
 use std::thread::spawn;
 
@@ -28,8 +28,8 @@ fn main() -> std::io::Result<()> {
         Ok((vars, vars_dummy)) => {
             let (main_index, _, _) = vars_dummy.get("main").unwrap();
             let mut main = vars[*main_index].clone();
-            let global_vars = ExpressionCache { expressions: vars };
-            main.evaluate_strictly(&global_vars);
+            let global_vars = Arc::new(ExpressionCache { expressions: vars });
+            main = main.evaluate_strictly(Arc::clone(&global_vars));
             //println!("{:?}",&main);
             //dbg!(&main);
             let mut map = HashMap::new();
@@ -50,8 +50,8 @@ fn main_test() -> std::io::Result<()> {
         .map(str::to_string)
         .collect();
     let mark: Mark = Mark {
-        file_name: Rc::new(file_name),
-        file: Rc::new(file),
+        file_name: Arc::new(file_name),
+        file: Arc::new(file),
         line: 0,
         block: None,
         word_index: Index::Art(0),
@@ -72,7 +72,7 @@ fn parse_file(
     //}
     //let mut blocks = Vec::new();
     //for (file_name, file) in files.into_iter() {
-    //    let mut vec_blocks = tokenize_file(file, &Rc::new(file_name))?;
+    //    let mut vec_blocks = tokenize_file(file, &Arc::new(file_name))?;
     //    blocks.append(&mut vec_blocks);
     //}
     let mut temp_vec = Vec::new();
@@ -115,7 +115,7 @@ fn parse_file(
             //if num +1 == 22 {dbg!(&name);}
             match global_vars_dummy.insert(name, (number_of_values, tp, true)) {
                 None => {}
-                Some(x) => {dbg!(x);}
+                Some(x) => {dbg!(x); panic!("uwuaaaa")}
             }
             number_of_values += 1;
             global_vars.push(Expression::Tree {
@@ -268,7 +268,7 @@ fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>) -> Str
 //    };
 //    initial.substitute(
 //        5,
-//        Rc::new(Mutex::new(Expression::Tree {
+//        Arc::new(Mutex::new(Expression::Tree {
 //            root: Id::DataConstructor(7),
 //            arguments: Vec::new(),
 //        })),

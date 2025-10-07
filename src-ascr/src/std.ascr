@@ -5,10 +5,10 @@ define rotate of_type fn video video as
       empty_video to empty_video
       cons_frame head tail to seq tail cons_frame head empty_video
 
-define do of_type fn nat fn fn video video fn video video as 
+define by of_type fn nat fn fn video video fn video video as 
    lambda counter lambda fn lambda vid match counter in
       one to fn vid
-      succ a to do a fn fn vid
+      succ a to by a fn fn vid
 
 define extend of_type fn video video as lambda x match x in
    empty_video to empty_video
@@ -17,14 +17,12 @@ define extend of_type fn video video as lambda x match x in
       cons_frame _ _ to extend tail
 
 define flip_over_y of_type fn video video as
-   lambda a map_video 
+   map_video 
       map_frame 
          lambda x match x in
-            cell coord char to 
-               cell 
-                  flip_over_y_coordinate coord 
-                  flip_over_y_char char
-      a
+            cell coord char to cell 
+               flip_over_y_coordinate coord 
+               flip_over_y_char char
 
 define flip_over_y_coordinate of_type fn coordinate coordinate as
    lambda x match x in
@@ -302,7 +300,7 @@ define eq_coordinate of_type fn coordinate fn coordinate bool as
 
 define insert of_type fn cell fn frame frame as
    lambda cell lambda frame match cell in
-      cell coord char to match frame in
+      cell coord _ to match frame in
          unsafe_cons_cell head tail to match head in
             cell coord_ii _ to match eq_coordinate coord_ii coord in
                true to unsafe_cons_cell cell tail
@@ -481,7 +479,7 @@ define layer_helper of_type fn video fn video video as
             cons_frame 
                layer_frames top_head bottom_head 
                layer_helper top_tail bottom_tail
-         empty_video to empty_video
+         empty_video to ...
       empty_video to empty_video
         
 define i of_type nat as one

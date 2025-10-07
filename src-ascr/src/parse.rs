@@ -1,16 +1,18 @@
 use crate::runtime::{Expression, Id};
 use crate::r#type::Type;
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap};
 use std::fs::read_to_string;
+use std::sync::Arc;
+
 type Result<T> = std::result::Result<T, Error>;
 
 pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStream>> {
-    dbg!(&file);
+    eprintln!("compiling \x1b[95m{file}\x1b[0m");
     if done.contains(&file) {
         return Ok(Vec::new())
     } else {
         done.push(file.clone());
-        let mut output = tokenize_file(read_to_string(&file).unwrap(), &Rc::new(file))?;
+        let mut output = tokenize_file(read_to_string(&file).unwrap(), &Arc::new(file))?;
         //dbg!(output.remove(0));
         while matches!(output[0].peek().unwrap().value, Token::NewLine(_)) {
             output[0].next();
@@ -37,9 +39,9 @@ pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStrea
     }
 }
 
-pub fn tokenize_file(input: String, file_name: &Rc<String>) -> Result<Vec<TokenStream>> {
-    let file_lines: Rc<Vec<String>> =
-        Rc::new(input.lines().map(|x| x.trim_end().to_string()).collect());
+pub fn tokenize_file(input: String, file_name: &Arc<String>) -> Result<Vec<TokenStream>> {
+    let file_lines: Arc<Vec<String>> =
+        Arc::new(input.lines().map(|x| x.trim_end().to_string()).collect());
     let mut output: Vec<TokenStream> = Vec::new();
     let mut current_block: Vec<(usize, String)> = Vec::new();
     let mut file = remove_multiline_comments(
@@ -57,8 +59,8 @@ pub fn tokenize_file(input: String, file_name: &Rc<String>) -> Result<Vec<TokenS
                 None | Some((_, "")) => {
                     output.push(tokenize(
                         current_block,
-                        Rc::clone(file_name),
-                        Rc::clone(&file_lines),
+                        Arc::clone(file_name),
+                        Arc::clone(&file_lines),
                     )?);
                     current_block = Vec::new();
                     break 'good_lines
@@ -74,8 +76,8 @@ pub fn tokenize_file(input: String, file_name: &Rc<String>) -> Result<Vec<TokenS
 
 fn remove_multiline_comments<'a>(
     mut input: impl Iterator<Item = (usize, &'a str)>,
-    file_name: &Rc<String>,
-    file: &Rc<Vec<String>>
+    file_name: &Arc<String>,
+    file: &Arc<Vec<String>>
 ) -> Result<Vec<(usize, &'a str)>> {
     let mut output = Vec::new();
     loop {
@@ -86,8 +88,8 @@ fn remove_multiline_comments<'a>(
                     match input.next() {
                         None => return Err(Error {
                             mark: Mark {
-                                file_name: Rc::clone(file_name),
-                                file: Rc::clone(file),
+                                file_name: Arc::clone(file_name),
+                                file: Arc::clone(file),
                                 line,
                                 block: None,
                                 word_index: Index::Expression(0),
@@ -98,8 +100,8 @@ fn remove_multiline_comments<'a>(
                             "<o>" => break 'multi_line_comment,
                             "---" => return Err(Error {
                                 mark: Mark {
-                                    file_name: Rc::clone(file_name),
-                                    file: Rc::clone(file),
+                                    file_name: Arc::clone(file_name),
+                                    file: Arc::clone(file),
                                     line: line2,
                                     block: None,
                                     word_index: Index::Expression(0),
@@ -112,8 +114,8 @@ fn remove_multiline_comments<'a>(
                 },
                 "<o>" => return Err(Error {
                     mark: Mark {
-                        file_name: Rc::clone(file_name),
-                        file: Rc::clone(file),
+                        file_name: Arc::clone(file_name),
+                        file: Arc::clone(file),
                         line,
                         block: None,
                         word_index: Index::Expression(0),
@@ -184,6 +186,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
     };
     match token {
         Token::Keyword(keyword) => match keyword {
+            Keyword::Undefined => Ok(SyntaxTree::Undefined),
             Keyword::Lambda => {
                 let Marked::<Token> { mark, value: token } = match next_non_newline(&mut tokens) {
                     None => return Err(Error {
@@ -334,6 +337,7 @@ pub fn build_tree(
     global_vars: &HashMap<String, (usize, Type, bool)>,
 ) -> Result<Expression> {
     match input {
+        SyntaxTree::Undefined => Ok(Expression::Undefined),
         SyntaxTree::Lambda(name, keyword_mark, tree) => {
             let mut id = None;
             if let Type::Function(a, b) = expected_type {
@@ -404,7 +408,7 @@ pub fn build_tree(
             for (name, args, expression) in syntax_branches {
                 //dbg!(&name);
                 let (id, tp, is_constructor) = global_vars.get(&name.value).expect("sh");
-                if !(tp.clone().final_type() == pattern_type) {
+                if !(tp.final_type() == pattern_type) {
                     panic!("bbb")
                 }
                 let arg_types = tp.clone().arg_types();
@@ -592,6 +596,7 @@ pub enum SyntaxTree {
             SyntaxTree,           // body
         )>,
     ),
+    Undefined
 }
 
 #[derive(Clone, Debug)]
@@ -612,6 +617,7 @@ pub enum Keyword {
     To,
     Data,
     Contains,
+    Undefined,
 }
 
 #[derive(Debug, Clone)]
@@ -691,10 +697,10 @@ pub enum Index {
 
 #[derive(Debug, Clone)]
 pub struct Mark {
-    pub file_name: Rc<String>,
-    pub file: Rc<Vec<String>>,
+    pub file_name: Arc<String>,
+    pub file: Arc<Vec<String>>,
     pub line: usize,
-    pub block: Option<Rc<String>>,
+    pub block: Option<Arc<String>>,
     pub word_index: Index,
 }
 
@@ -801,8 +807,8 @@ fn get_with_indentation(mut input: TokenStream, indentation: u32) -> Vec<TokenSt
 
 pub fn tokenize(
     input: Vec<(usize, String)>,
-    file_name: Rc<String>,
-    file: Rc<Vec<String>>,
+    file_name: Arc<String>,
+    file: Arc<Vec<String>>,
 ) -> Result<TokenStream> {
     let keywords: HashMap<&str, Keyword> = HashMap::from([
         ("match", Keyword::Match),
@@ -815,6 +821,7 @@ pub fn tokenize(
         ("data", Keyword::Data),
         ("contains", Keyword::Contains),
         ("include", Keyword::Include),
+        ("...", Keyword::Undefined),
     ]);
     let mut output = Vec::new();
     let mut current_indentation: Option<u32> = None;
@@ -824,8 +831,8 @@ pub fn tokenize(
         if current_indentation == None {
             output.push(Marked::<Token> {
                 mark: Mark {
-                    file_name: Rc::clone(&file_name),
-                    file: Rc::clone(&file),
+                    file_name: Arc::clone(&file_name),
+                    file: Arc::clone(&file),
                     line: line_number,
                     block: None,
                     word_index: Index::EndOfLine,
@@ -838,8 +845,8 @@ pub fn tokenize(
         let mut word_index: usize = 0;
         'words: while let Some(word) = words.next() {
             let mark: Mark = Mark {
-                file_name: Rc::clone(&file_name),
-                file: Rc::clone(&file),
+                file_name: Arc::clone(&file_name),
+                file: Arc::clone(&file),
                 line: line_number,
                 block: None,
                 word_index: Index::Expression(word_index),
