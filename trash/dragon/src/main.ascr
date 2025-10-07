@@ -5,20 +5,17 @@
 --  \__,_|_|  \__,_|\__, |\___/|_| |_|
 --                  |___/
 
-include core std 
+include core std
 
 define main of_type video as 
-   layer_videos 
-      layer_videos 
-         by vi shift_video west by iii shift_video north center_head
-         layer_videos 
+   layer_videos
+      do vi shift_video west do iii shift_video north center_head 
+      layer_videos
+         layer_videos
             right_side
-            shift_video east by vi rotate flip_over_y right_side
-      by iii shift_video west by 
-         iv 
-         shift_video south 
-         dragon_tail
-  
+            shift_video east do vi rotate flip_over_y right_side
+         do iii shift_video west do iv shift_video south dragon_tail
+
 define center_head of_type video as loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
   ((__))    ..776677....   ((__))   ...776677...    ((__))  ....776677..
@@ -37,20 +34,21 @@ define dragon_tail of_type video as art vi iv
   V   ..6...   V  ...6..
 
 define right_head of_type video as layer_videos
-   by ix rotate by xiv shift_video east fire
-   seq blow roar
+   do ix rotate do xiv shift_video east fire_right
+   seq blow_right roar_right
 
-define wing of_type video as art xi iv
-/\         22.........  /T\.     ..2222.....           ...........
-) \        2/2........ / | \`.   .2/2/222...           ...........
- `\\       .222......./ ^|_.\ `. 2.22222/22.|          2..........
-    `      ....2......       ``"\.......2222|          2..........
-           ...........
-|          2..........
-|          2..........
-           ...........
+define fire_right of_type video as art viii iii
+        ........        ........        ........        ........        ........
+-       3.......-.      33......-._     133.....-.___   11133... .___)  .11133..
+        ........        ........        ........  .     ..3.....   ._   ...13...
+    _   ....3...    _   ....3...    _   ....1...    _   ....1...        ........
+   __)  ...133..   '_)  ...311..   ( `  ...3.1..   (_   ...13...   .__  ...113..
+    ._. ....133.      _.......13       ........1        ........        ........
+        ........        ........
+     __ .....11.       _.......1
+        ........        ........
 
-define blow of_type video as loop extend art xiv v
+define blow_right of_type video as loop extend art xiv v
 .             7..............             7.............
  ),__         .7766......... ),__         .7766.........
   ( o`---~~^, ..6/366666666.  ( o`-.-~~^, ..6/366666666.
@@ -62,7 +60,7 @@ define blow of_type video as loop extend art xiv v
  /    `  -^V  .6////6//677.. /    )__   < .6////666///6.
 /  `---^-.~'  6/.666666666../  `-'   `.~' 6/.666...6666.
 
-define roar of_type video as by ii shift_video south loop art xiii vii
+define roar_right of_type video as do ii shift_video south loop art xiii vii
 .            7.............            7.............            7............
  ),__        .7766........ ),__        .7766........ ),__        .7766........
   ( o`---~~^,..6/366666666  ( o`---~~^,..6/366666666  ( o`---~~^,..6/366666666
@@ -73,29 +71,28 @@ define roar of_type video as by ii shift_video south loop art xiii vii
 
 define right_side of_type video as 
    layer_videos
-       slow ii shift_video south by iv shift_video east rotate foot_right
-       layer_videos
-          by vii shift_video north by vi shift_video east right_head
-          layer_videos 
-             by ii rotate body
-             shift_video north by ix shift_video east wing
+      slow ii shift_video south do iv shift_video east rotate foot_right
+      layer_videos
+         do vii shift_video north do vi shift_video east right_head
+         layer_videos
+            do ii rotate body
+            shift_video north do ix shift_video east wing_right
 
-define fire of_type video as art viii iii
-        ........        ........        ........        ........        ........
--       3.......-.      33......-._     133.....-.___   11133... .___)  .11133..
-        ........        ........        ........  .     ..3.....   ._   ...13...
-    _   ....3...    _   ....3...    _   ....1...    _   ....1...        ........
-   __)  ...133..   '_)  ...311..   ( `  ...3.1..   (_   ...13...   .__  ...113..
-    ._. ....133.      _.......13       ........1        ........        ........
-        ........        ........
-     __ .....11.       _.......1
-        ........        ........
+define wing_right of_type video as art xi iv
+/\         22.........  /T\.     ..2222.....           ...........
+) \        2/2........ / | \`.   .2/2/222...           ...........
+ `\\       .222......./ ^|_.\ `. 2.22222/22.|          2..........
+    `      ....2......       ``"\.......2222|          2..........
+           ...........
+|          2..........
+|          2..........
+           ...........
 
 define foot_right of_type video as art v ii
 \ (  6/6..) /  6/6..
  )_nm.6666|_nm 6666.
 
-define body of_type video as by ii extend art x vii
+define body of_type video as do ii extend art x vii
      /  / .....6//6.     /  / .....6//6.
 _..-'  /  66666//6.._..-'  (  66666//6..
       (   //////6...        \ ////////6.
