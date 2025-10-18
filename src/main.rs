@@ -26,7 +26,7 @@ fn main() -> std::io::Result<()> {
     match parse_file(file_name) {
         Err(x) => eprintln!("{x}"),
         Ok((vars, vars_dummy)) => {
-            let (main_index, _, _) = vars_dummy.get("main").unwrap();
+            let (main_index, _, _) = vars_dummy.get("main").expect("no main");
             let mut main = vars[*main_index].clone();
             let global_vars = Arc::new(ExpressionCache { expressions: vars });
             main = main.evaluate_strictly(Arc::clone(&global_vars));
@@ -43,22 +43,22 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-fn main_test() -> std::io::Result<()> {
-    let file_name = String::from("main.ascr");
-    let file: Vec<String> = read_to_string(&file_name)?
-        .lines()
-        .map(str::to_string)
-        .collect();
-    let mark: Mark = Mark {
-        file_name: Arc::new(file_name),
-        file: Arc::new(file),
-        line: 0,
-        block: None,
-        word_index: Index::Art(0),
-    };
-    println!("{}", show_mark(mark));
-    Ok(())
-}
+//fn main_test() -> std::io::Result<()> {
+//    let file_name = String::from("main.ascr");
+//    let file: Vec<String> = read_to_string(&file_name)?
+//        .lines()
+//        .map(str::to_string)
+//        .collect();
+//    let mark: Mark = Mark {
+//        file_name: Arc::new(file_name),
+//        file: Arc::new(file),
+//        line: 0,
+//        block: None,
+//        word_index: Index::Art(0),
+//    };
+//    println!("{}", show_mark(mark));
+//    Ok(())
+//}
 
 
 

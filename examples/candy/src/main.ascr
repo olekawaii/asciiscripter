@@ -1,0 +1,83 @@
+--                      _             _                 
+--   ___ __ _ _ __   __| |_   _   ___| |__   ___  _ __  
+--  / __/ _` | '_ \ / _` | | | | / __| '_ \ / _ \| '_ \ 
+-- | (_| (_| | | | | (_| | |_| | \__ \ | | | (_) | |_) |
+--  \___\__,_|_| |_|\__,_|\__, | |___/_| |_|\___/| .__/ 
+--                        |___/                  |_|    
+
+include core std
+
+define main of_type video as layer_videos foreground background 
+
+define foreground of_type video as layer_videos
+   by v shift_video east layer_videos 
+      by viii shift_video north casheer_top 
+      casheer_bottom
+   layer_videos
+      by xxiii shift_video east by viii shift_video north bubble_gum
+      table
+
+define casheer_top of_type video as by iv extend art xi vi
+   /\\|//\ ...2222222.   /\\|//\ ...2222222.
+  /| - - .\..27/7/7/72  /| o o .\..27/7/7/72
+   _ v-v | ...7/777/7.   _ v-v | ...7/777/7. 
+  / ) --'  ..7/7/777..  / ) --'  ..7/7/777..
+ / /  __ \ .7/7//77/7. / /  __ \ .7/7//77/7.
+(_/  (____)777..777777(_/  (____)777..777777
+
+define casheer_bottom of_type video as by iii rotate by v extend art xii vi
+  .'    '.  ..77////77..  .'    '.  ..77////77..  .'    '.  ..77////77..
+ |  .--.  | .7//7777//7. |  .--.  | .7//7777//7. |  .--.  | .7//7777//7.
+ | |    | | .7/7....7/7. | |    | | .7/7....7/7. | |    | | .7/7....7/7.
+ _ |    | | .7/7....7/7. | |    | _ .7/7....7/7. | |    | | .7/7....7/7.
+(__|    | | 7777....7/7. | |    |__).7/7....7777 | |    | | .7/7....7/7.
+         \_).........777(_/         777.........(_/      \_)777......777
+
+define bubble_gum of_type video as art xi ix
+  .-----.  ..7777777..
+ /       \ .7.......7.
+|.oOoOoOo.|71524361417
+|.OoOoOoO.|76146253627
+ \ OoOoO / .7.52436.7.
+  '-----'  ..7777777..
+   /   \   ...1///1...
+  / [_] \  ..1/777/1..
+  |_____|  ..1111111..
+
+define table of_type video as art xxxix ix
+ ___             _____________________ .666/////////////666666666666666666666.
+(_____________________________________)666666666666666666666666666666666666666
+ | |               | |]]]]]] |    .  | .7/7...............7/7333333/7////7//7.
+ | |               | |]]]]]] | ___|  | .7/7...............7/7333333/7/7777//7.
+ | |               | |]]]]]] |     \ | .7/7...............7/7333333/7/////7/7.
+ | |               | |______\|______\| .7/7...............7/77777777777777777.
+ | |               | |)))))) |]]]]]] | .7/7...............7/7222222/7555555/7.
+ | |               \ |)))))) |]]]]]] | .7/7...............7/7222222/7555555/7.
+ '-'                \|______\|______\| .777................777777777777777777. 
+
+define background of_type video as by x shift_video north layer_videos
+   layer_videos
+      shift_video east slow ii cane
+      layer_videos
+         by xxxiv shift_video east open
+         by xviii shift_video east pumpkin
+   by v shift_video north by xv shift_video east candy
+
+define open of_type video as art iv i
+    ////O   5/// P  /5//  E //5/   N///5OPEN5555    ////OPEN5555
+
+define cane of_type video as art vi vi
+ .\\\ .7171. .\\\ .1717.
+\\` \\717.71\\` \\171.17
+\\  \`17..17\\  \`71..71
+\\    71....\\    17....
+\\    17....\\    71....
+\\    71....\\    17....
+
+define pumpkin of_type video as art v ii
+  7  ..2..
+((_))33333
+
+define candy of_type video as art v ii
+  _  ..4..
+>(_)<44444

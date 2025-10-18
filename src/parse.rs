@@ -7,10 +7,10 @@ use std::sync::Arc;
 type Result<T> = std::result::Result<T, Error>;
 
 pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStream>> {
-    eprintln!("compiling \x1b[95m{file}\x1b[0m");
     if done.contains(&file) {
         return Ok(Vec::new())
     } else {
+        eprintln!("compiling \x1b[95m{file}\x1b[0m");
         done.push(file.clone());
         let mut output = tokenize_file(read_to_string(&file).unwrap(), &Arc::new(file))?;
         //dbg!(output.remove(0));
@@ -253,7 +253,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                     //     _ => panic!("f"),
                     // }
                 }
-                let branches: Vec<(Marked<String>, Vec<String>, SyntaxTree)> =
+                let branches: Vec<(Marked<String>, Vec<Marked<String>>, SyntaxTree)> =
                     get_with_indentation(tokens, indent)
                         .into_iter()
                         .map(parse_branch)
@@ -308,7 +308,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
     }
 }
 
-fn parse_branch(mut tokens: TokenStream) -> Result<(Marked<String>, Vec<String>, SyntaxTree)> {
+fn parse_branch(mut tokens: TokenStream) -> Result<(Marked<String>, Vec<Marked<String>>, SyntaxTree)> {
     let Marked::<Token> { mark, value: token } = tokens.next().expect("uwu");
     let constructor = match token {
         Token::Variable(ValueToken::Value(name)) => Marked::<String> {
@@ -321,7 +321,10 @@ fn parse_branch(mut tokens: TokenStream) -> Result<(Marked<String>, Vec<String>,
     loop {
         let Marked::<Token> { mark, value: token } = tokens.next().expect("blauh");
         match token {
-            Token::Variable(ValueToken::Value(name)) => args.push(name),
+            Token::Variable(ValueToken::Value(name)) => args.push(Marked::<String> {
+                value: name,
+                mark
+            }),
             Token::Keyword(Keyword::To) => break,
             _ => panic!("bad match syntax"),
         }
@@ -353,7 +356,7 @@ pub fn build_tree(
                 })
             } else {
                 Err(Error {
-                    error_message: ErrorType::Empty,
+                    error_message: ErrorType::TypeMismatch,
                     mark: keyword_mark
                 })
             }
@@ -378,10 +381,14 @@ pub fn build_tree(
             //let (_, tp, _) = global_vars.get(pattern.get(0).expect("sathu")).expect("sah");
             //let root = pattern.get(0).unwrap(); // unsafe
             //let root = syntax_branches[0].0;
-            let tp = match variables.get(&syntax_branches[0].0.value) {
+            let data_constructor = &syntax_branches[0].0;
+            let tp = match variables.get(&data_constructor.value) {
                 Some((_, tp)) => tp,
-                None => match global_vars.get(&syntax_branches[0].0.value) {
-                    None => panic!("uwu"),
+                None => match global_vars.get(&data_constructor.value) {
+                    None => return Err(Error {
+                        error_message: ErrorType::NotInScope,
+                        mark: data_constructor.mark.clone()
+                    }),
                     Some((_, tp, _)) => tp,
                 },
             };
@@ -407,7 +414,7 @@ pub fn build_tree(
             let mut branches = HashMap::new();
             for (name, args, expression) in syntax_branches {
                 //dbg!(&name);
-                let (id, tp, is_constructor) = global_vars.get(&name.value).expect("sh");
+                let (id, tp, is_constructor) = global_vars.get(&name.value).expect("sh"); // TODO
                 if !(tp.final_type() == pattern_type) {
                     panic!("bbb")
                 }
@@ -420,9 +427,9 @@ pub fn build_tree(
                 let mut local_var_count = local_vars_count;
                 let mut arg_nums = Vec::new();
                 for (name, tp) in args.into_iter().zip(arg_types.into_iter()) {
-                    if &name != "_" {
+                    if &name.value != "_" {
                         local_var_count += 1;
-                        local_vars.insert(name, (local_var_count, tp));
+                        local_vars.insert(name.value, (local_var_count, tp));
                         arg_nums.push(Some(local_var_count));
                     } else {
                         arg_nums.push(None)
@@ -542,13 +549,13 @@ fn evaluate_arguments(
                 )
             } else {
                 return Err(Error {
-                    error_message: ErrorType::Empty,
+                    error_message: ErrorType::NotInScope,
                     mark: name.mark
                 })
             };
             if !root_type.is_possible(&expected_type) {
                 return Err(Error {
-                    error_message: ErrorType::Empty,
+                    error_message: ErrorType::TypeMismatch,
                     mark: name.mark
                 })
             }
@@ -592,7 +599,7 @@ pub enum SyntaxTree {
         Box<SyntaxTree>,          // pattern
         Vec<(                     //
             Marked<String>,       // constructor
-            Vec<String>,          // constructor argument names
+            Vec<Marked<String>>,  // constructor argument names
             SyntaxTree,           // body
         )>,
     ),
@@ -637,7 +644,7 @@ impl std::fmt::Display for Error {
         write!(
             f,
             "{}\n{}",
-            show_mark(self.mark.clone()),
+            show_mark(self.mark.clone(), self.error_message.gist()),
             self.error_message
         )
     }
@@ -651,7 +658,25 @@ pub enum ErrorType {
     UnexpectedOpeningComment(usize),
     UnclosedComment,
     InvalidName,
+    NotInScope,
+    TypeMismatch,
 }
+
+impl ErrorType {
+    fn gist(&self) -> &'static str {
+        match self {
+            Self::Custom(_) => "",
+            Self::Empty => "empty",
+            Self::UnexpectedClosingComment => "unexpected delimiter",
+            Self::UnexpectedOpeningComment(_) => "unexpected delimiter",
+            Self::UnclosedComment => "unclosed comment",
+            Self::InvalidName => "invalid name",
+            Self::NotInScope => "variable not in scope",
+            Self::TypeMismatch => "unexpected type"
+        }
+    }
+}
+
 
 impl std::fmt::Display for ErrorType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -669,6 +694,8 @@ expected a closing delimiter for '---' on line {}
                 write!(f, "unclosed multi-line comment"),
             Self::InvalidName => 
                 write!(f, "invalid keyword or variable name"),
+            Self::NotInScope => write!(f, "variable not in scope"),
+            Self::TypeMismatch => write!(f, "todo"),
         }
     }
 }
@@ -704,7 +731,7 @@ pub struct Mark {
     pub word_index: Index,
 }
 
-pub fn show_mark(mark: Mark) -> String {
+pub fn show_mark(mark: Mark, message: &'static str) -> String {
     //dbg!(&mark);
     let mut number = (mark.line + 1).to_string();
     number.push(' ');
@@ -744,11 +771,13 @@ pub fn show_mark(mark: Mark) -> String {
     let mut underline = String::new();
     underline.push_str(&" ".repeat(length_to_word));
     underline.push_str(&"^".repeat(length_of_word));
+    underline.push_str("  ");
+    underline.push_str(message);
     let empty_space = " ".repeat(indentation);
     format!(
-        "\x1b[91merror \x1b[0min {} at line {}{}\n\x1b[91m{}|\n{} | \x1b[0m{}\n\x1b[91m{}| {}\x1b[0m",
+        "error in {}{}\n\x1b[91m{}|\n{} | \x1b[0m{}\n\x1b[91m{}| {}\x1b[0m",
         mark.file_name,
-        mark.line + 1,
+        //mark.line + 1,
         match &mark.block {
             None => String::from(""),
             Some(name) => format!(", in the definition of {}", (*name).clone()),
@@ -931,70 +960,54 @@ pub fn tokenize(
     Ok(output.into_iter().peekable())
 }
 
+fn build_token(name: &'static str, mark: &Mark) -> Marked<Token> {
+    Marked::<Token> {
+        value: Token::Variable(ValueToken::Value(name.to_string())),
+        mark: mark.clone()
+    }
+}
+
+fn build_variable_token(name: String, mark: Mark) -> Marked<Token> {
+    Marked::<Token> {
+        mark,
+        value: Token::Variable(ValueToken::Value(name))
+    }
+}
+
 fn build_tokens_from_art(
     mark: Mark, 
     input: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>
 ) -> Result<TokenStream> {
     let mut output = Vec::new();
     for i in input.into_iter() {
-        output.push(Marked::<Token> {
-            mark: mark.clone(),
-            value: Token::Variable(ValueToken::Value("cons_frame".to_string()))
-        });
+        output.push(build_token("cons_frame", &mark));
         for ((x, y), (c1, c2)) in i.into_iter() {
             let c1_char = c1.value;
             let c2_char = c2.value;
             if c1_char == ' ' && c2_char == '.' { continue }
-            output.push(Marked::<Token> {
-                mark: mark.clone(),
-                value: Token::Variable(ValueToken::Value("unsafe_cons_cell".to_string()))
-            });
-            output.push(Marked::<Token> {
-                mark: mark.clone(),
-                value: Token::Variable(ValueToken::Value("cell".to_string()))
-            });
-            output.push(Marked::<Token> {
-                mark: mark.clone(),
-                value: Token::Variable(ValueToken::Value("coordinate".to_string()))
-            });
-            output.push(Marked::<Token> {
-                mark: mark.clone(),
-                value: Token::Variable(ValueToken::Value("positive".to_string()))
-            });
+            output.push(build_token("unsafe_cons_cell", &mark));
+            output.push(build_token("cell", &mark));
+            output.push(build_token("coordinate", &mark));
+            output.push(build_token("positive", &mark));
             for _ in 0..x {
-                output.push(Marked::<Token> {
-                    mark: mark.clone(),
-                    value: Token::Variable(ValueToken::Value("succ".to_string()))
-                });
+                output.push(build_token("succ", &mark));
             }
-            output.push(Marked::<Token> {
-                mark: mark.clone(),
-                value: Token::Variable(ValueToken::Value("one".to_string()))
-            });
-            output.push(Marked::<Token> {
-                mark: mark.clone(),
-                value: Token::Variable(ValueToken::Value("positive".to_string()))
-            });
+            output.push(build_token("one", &mark));
+            output.push(build_token("positive", &mark));
             for _ in 0..y {
-                output.push(Marked::<Token> {
-                    mark: mark.clone(),
-                    value: Token::Variable(ValueToken::Value("succ".to_string()))
-                });
+                output.push(build_token("succ", &mark));
             }
-            output.push(Marked::<Token> {
-                mark: mark.clone(),
-                value: Token::Variable(ValueToken::Value("one".to_string()))
-            });
+            output.push(build_token("one", &mark));
             match (c1_char, c2_char) {
                 (' ', '/') => {
                     output.push(Marked::<Token> {
-                        mark: mark.clone(),
+                        mark: c1.mark,
                         value: Token::Variable(ValueToken::Value("space".to_string()))
                     });
                 }
                 (c1_char, '*') => {
                     output.push(Marked::<Token> {
-                        mark: mark.clone(),
+                        mark: c1.mark,
                         value: Token::Variable(ValueToken::Value(c1_char.to_string()))
                     });
                 }
@@ -1098,6 +1111,10 @@ fn build_tokens_from_art(
                         '|' => "vertical_bar",
                         '}' => "closing_brace",
                         '~' => "tilde",
+                        ' ' => return Err(Error {
+                            error_message: ErrorType::Empty,
+                            mark: c2.mark
+                        }),
                         _ => panic!("bad char")
                     }.to_string();
                     output.push(Marked::<Token> {
@@ -1105,20 +1122,23 @@ fn build_tokens_from_art(
                         value: Token::Variable(ValueToken::Value(character))
                     });
                     let color = match c2_char {
-                        '0' => "black".to_string(),
-                        '1' => "red".to_string(),
-                        '2' => "green".to_string(),
-                        '3' => "yellow".to_string(),
-                        '4' => "blue".to_string(),
-                        '5' => "magenta".to_string(),
-                        '6' => "cyan".to_string(),
-                        '7' => "white".to_string(),
-                        x   => String::from(x)
+                        '0' => Ok("black"),
+                        '1' => Ok("red"),
+                        '2' => Ok("green"),
+                        '3' => Ok("yellow"),
+                        '4' => Ok("blue"),
+                        '5' => Ok("magenta"),
+                        '6' => Ok("cyan"),
+                        '7' => Ok("white"),
+                        x   => Err(x)
                     };
-                    output.push(Marked::<Token> {
-                        mark: mark.clone(),
-                        value: Token::Variable(ValueToken::Value(color))
-                    });
+                    match color {
+                        Ok(x) => output.push(build_token(x, &mark)),
+                        Err(x) => output.push(Marked::<Token> {
+                            mark: c2.mark,
+                            value: Token::Variable(ValueToken::Value(String::from(x)))
+                        })
+                    };
                 }
             }
         }

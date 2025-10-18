@@ -59,21 +59,21 @@ fn optimize_expression(input: &mut Expression) {
             //for i in arguments.iter_mut() {
             //    optimize_expression(i)
             //}
-            //*input = Expression::Tree {
-            //    root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {root: root.clone(), arguments: std::mem::take(arguments)}))),
-            //    arguments: Vec::new()
-            //}
+            *input = Expression::Tree {
+                root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {root: root.clone(), arguments: std::mem::take(arguments)}))),
+                arguments: Vec::new()
+            }
         }
         Expression::Match {pattern, branches} => {
-            //for (_, (vec, expression)) in branches.iter_mut() {
-            //    if vec.iter().all(|x| x.is_none()) {
-            //        optimize_expression(expression);
-            //        //dbg!("s");
-            //    }
-            //}
+            for (_, (vec, expression)) in branches.iter_mut() {
+                if vec.iter().all(|x| x.is_none()) {
+                    optimize_expression(expression);
+                    //dbg!("s");
+                }
+            }
 
-            //optimize_expression(&mut(*pattern))
-            //if !matches(pattern, Expression::Tree { root: Id::Thunk(_), ..)) {
+            optimize_expression(&mut(*pattern))
+            //if matches!(**pattern, Expression::Tree { root: Id::Thunk(_), ..}) {
             //    *pattern = Box::new(Expression::Tree {
             //        root: Id::Thunk(Arc::new(Mutex::new(std::mem::take(pattern)))),
             //        arguments: Vec::new()
@@ -485,7 +485,7 @@ impl Expression {
                     } else {
                         let r = Arc::clone(&definitions);
                         //dbg!("spawned thread");
-                        let builder = thread::Builder::new().stack_size(2 * 1024 * 1024);
+                        let builder = thread::Builder::new().stack_size(4 * 1024 * 1024);
                         handles.push(
                             HandleOrValue::Handle(builder.spawn( move || i.evaluate_strictly(r)).unwrap())
                         )
