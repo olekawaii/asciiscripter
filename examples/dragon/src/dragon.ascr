@@ -5,7 +5,7 @@
 --  \__,_|_|  \__,_|\__, |\___/|_| |_|
 --                  |___/
 
-include core std new_video
+include core std 
 
 define dragon of_type video as 
    layer_videos 
@@ -18,7 +18,7 @@ define dragon of_type video as
          iv 
          shift_video south 
          dragon_tail
-  
+
 define center_head of_type video as loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
   ((__))    ..776677....   ((__))   ...776677...    ((__))  ....776677..

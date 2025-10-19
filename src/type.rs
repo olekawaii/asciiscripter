@@ -7,6 +7,13 @@ pub enum Type {
 }
 
 impl Type {
+    pub fn is_a_function(&self) -> bool {
+        match self {
+            Self::Type(_) => false,
+            Self::Function(_, _) => true
+        }
+    }
+
     pub fn final_type(&self) -> u32 {
         match self {
             Self::Type(x) => *x,

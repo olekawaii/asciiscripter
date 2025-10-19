@@ -80,7 +80,7 @@ fn optimize_expression(input: &mut Expression) {
             //    })
             //}
         }
-        Expression::Lambda {id: None, body} => optimize_expression(body),
+        //Expression::Lambda {id: None, body} => optimize_expression(body),
         l@Expression::Lambda {..} => {},
         Expression::Undefined => ()
     }
@@ -105,10 +105,70 @@ pub enum Expression {
         branches: HashMap<u32, (Vec<Option<u32>>, Expression)>,
     },
     Lambda {
-        id: Option<u32>,
+        //id: Option<u32>,
+        id: Pattern,
         body: Box<Expression>,
     },
     Undefined,
+}
+
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    Dropped,
+    Captured(u32),
+    DataConstructor(u32, Vec<Pattern>)
+}
+
+fn match_on_expression(
+    pattern: &Pattern, 
+    matched: &mut Expression,
+    global_vars: Arc<ExpressionCache>
+) -> Option<HashMap<u32, Expression>> {
+    let mut output = HashMap::new();
+    match_on_expression_helper(
+        &mut output,
+        pattern,
+        matched,
+        global_vars
+    )?;
+    Some(output)
+}
+
+
+fn match_on_expression_helper(
+    output: &mut HashMap<u32, Expression>,
+    pattern: &Pattern, 
+    matched: &mut Expression,
+    global_vars: Arc<ExpressionCache>
+) -> Option<()> {
+    match pattern { 
+        Pattern::Dropped => Some(()),
+        Pattern::Captured(id) => {
+            output.insert(*id, std::mem::take(matched));
+            Some(())
+        }
+        Pattern::DataConstructor(data_constructor, patterns) => {
+            matched.simplify_owned(Arc::clone(&global_vars));
+            match matched {
+                Expression::Tree {root: Id::DataConstructor(id), arguments} => {
+                    if id == data_constructor {
+                        for (pattern, arg) in patterns.iter().zip(arguments.iter_mut()) {
+                            match_on_expression_helper(
+                                output,
+                                pattern,
+                                arg,
+                                Arc::clone(&global_vars)
+                            )?
+                        } 
+                        Some(())
+                    } else {
+                        None
+                    }
+                }
+                _ => unreachable!()
+            }
+        }
+    }
 }
 
 impl Default for Expression {
@@ -174,26 +234,40 @@ impl Expression {
                         var.simplify_owned(Arc::clone(&definitions));
                         var
                     }
+                    Id::LambdaArg(_) => unreachable!(),
                     _ => unreachable!(),
                 };
-                for i in arguments {
+                for mut i in arguments {
                     if let Expression::Tree {arguments, ..} = &mut output {
                         arguments.push(i);
                     } else if let Expression::Lambda { id, mut body } = output {
-                        let e = if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = i {
-                            if a.len() == 0 {
-                                //dbg!("skipped a clone!");
-                                Arc::clone(&x)
-                            } else {
-                                build_mutex(i)
-                            }
-                        } else {
-                            build_mutex(i)
-                        };
-                        if let Some(id) = id {
-                            body.substitute(id, e);
+//fn match_on_expression(
+//    pattern: &Pattern, 
+//    matched: &mut Expression,
+//    global_vars: Arc<ExpressionCache>
+//) -> Option<HashMap<u32, Expression>> {
+//
+                        let map = match_on_expression(&id, &mut i, Arc::clone(&definitions)).unwrap();
+                        for (id, expression) in map.into_iter() {
+                            body.substitute(id, build_mutex(expression));
                         }
                         output = *body;
+
+                        //let e = if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = i {
+                        //    if a.len() == 0 {
+                        //        //dbg!("skipped a clone!");
+                        //        Arc::clone(&x)
+                        //    } else {
+                        //        build_mutex(i)
+                        //    }
+                        //} else {
+                        //    build_mutex(i)
+                        //};
+                        //if let Pattern::Captured(id) = id { //TODO
+                        //    body.substitute(id, e);
+                        //}
+                        //output = *body;
+                        //
                     }
 
                     //match &mut output {

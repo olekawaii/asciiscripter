@@ -1,10 +1,69 @@
-use crate::runtime::{Expression, Id};
+use crate::runtime::{Pattern, Expression, Id};
 use crate::r#type::Type;
 use std::{collections::HashMap};
 use std::fs::read_to_string;
 use std::sync::Arc;
 
 type Result<T> = std::result::Result<T, Error>;
+
+fn parse_pattern(
+    mut number_of_local: u32,
+    expected_type: &Type,
+    mut tokens: TokenStream,
+    global_vars: &HashMap<String, (usize, Type, bool)>,
+) -> Result<(Pattern, HashMap<String, (u32, Type)>, u32)> {
+    let mut output = HashMap::new();
+    let pattern = parse_pattern_helper(
+        &mut number_of_local,
+        expected_type,
+        &mut output,
+        &mut tokens,
+        global_vars
+    )?;
+    Ok((pattern, output, number_of_local))
+}
+
+fn parse_pattern_helper(
+    number_of_local: &mut u32,
+    expected_type: &Type,
+    output: &mut HashMap<String, (u32, Type)>,
+    tokens: &mut TokenStream,
+    global_vars: &HashMap<String, (usize, Type, bool)>,
+) -> Result<Pattern> {
+    let Marked::<Token> {mark, value} = next_non_newline(tokens).unwrap(); //todo
+    match value {
+        Token::Keyword(_) => panic!("uwu2"),
+        Token::Variable(ValueToken::Value(name)) => {
+            if name.chars().next().unwrap() == '_' { //safe
+                return Ok(Pattern::Dropped)
+            }
+            if let Some((id, tp, is_constructor)) = global_vars.get(&name) {
+                if !expected_type.is_a_function() && *is_constructor && Type::Type(tp.final_type()) == *expected_type {
+                    let mut patterns = Vec::new();
+                    for t in tp.clone().arg_types() {
+                        patterns.push(parse_pattern_helper(number_of_local, &t, output, tokens, global_vars)?)
+                    }
+                    return Ok(Pattern::DataConstructor(*id as u32, patterns))
+                } else { 
+                    *number_of_local = *number_of_local + 1;
+                    output.insert(name, (*number_of_local, expected_type.clone()));
+                    return Ok(Pattern::Captured(*number_of_local))
+                }
+            } else {
+                *number_of_local = *number_of_local + 1;
+                output.insert(name, (*number_of_local, expected_type.clone()));
+                return Ok(Pattern::Captured(*number_of_local))
+            }
+        }
+        Token::NewLine(_) => unreachable!()
+    }
+}
+
+// pub enum Token {
+//     Keyword(Keyword),
+//     NewLine(u32),
+//     Variable(ValueToken),
+// }
 
 pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStream>> {
     if done.contains(&file) {
@@ -188,25 +247,47 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
         Token::Keyword(keyword) => match keyword {
             Keyword::Undefined => Ok(SyntaxTree::Undefined),
             Keyword::Lambda => {
-                let Marked::<Token> { mark, value: token } = match next_non_newline(&mut tokens) {
-                    None => return Err(Error {
-                        mark: root_mark,
-                        error_message: ErrorType::Empty
-                    }),
-                    Some(x) => x
-                };
-                if let Token::Variable(ValueToken::Value(arg)) = token {
-                    Ok(SyntaxTree::Lambda(
-                        Marked::<String> {
-                            mark,
-                            value: arg
-                        },
-                        root_mark,
-                        Box::new(build_syntax_tree(tokens)?),
-                    ))
-                } else {
-                    panic!("ashuesa")
+                let mut pattern = Vec::new();
+                loop {
+                    let marked_token@Marked::<Token> { .. } = tokens.next().expect("bluh");
+                    match &marked_token.value {
+                        Token::Variable(ValueToken::Value(_)) => pattern.push(marked_token),
+                        Token::Keyword(Keyword::Dot) => {
+                            break
+                        }
+                        _ => return Err(Error {
+                            error_message: ErrorType::Empty,
+                            mark: marked_token.mark.clone(),
+                        })
+                    }
                 }
+                //dbg!(&root_mark);
+                Ok(SyntaxTree::Lambda(
+                    pattern.into_iter().peekable(),
+                    root_mark,
+                    Box::new(build_syntax_tree(tokens)?),
+                ))
+
+                //let Marked::<Token> { mark, value: token } = match next_non_newline(&mut tokens) {
+                //    None => return Err(Error {
+                //        mark: root_mark,
+                //        error_message: ErrorType::Empty
+                //    }),
+                //    Some(x) => x
+                //};
+                //if let Token::Variable(ValueToken::Value(arg)) = token {
+                //    let mut arg_vec = Vec::new();
+                //    Ok(SyntaxTree::Lambda(
+                //        Marked::<String> {
+                //            mark,
+                //            value: arg
+                //        },
+                //        root_mark,
+                //        Box::new(build_syntax_tree(tokens)?),
+                //    ))
+                //} else {
+                //    panic!("ashuesa")
+                //}
             }
             Keyword::Match => {
                 let mut indent: u32;
@@ -332,6 +413,23 @@ fn parse_branch(mut tokens: TokenStream) -> Result<(Marked<String>, Vec<Marked<S
     Ok((constructor, args, build_syntax_tree(tokens).expect("c")))
 }
 
+//fn parse_pattern(
+//    mut number_of_local: u32,
+//    expected_type: &Type,
+//    mut tokens: TokenStream,
+//    global_vars: &HashMap<String, (usize, Type, bool)>,
+//) -> Result<(Pattern, HashMap<String, (u32, Type)>, u32)> {
+//    let mut output = HashMap::new();
+//    let pattern = parse_pattern_helper(
+//        &mut number_of_local,
+//        expected_type,
+//        &mut output,
+//        &mut tokens,
+//        global_vars
+//    )?;
+//    Ok((pattern, output, number_of_local))
+//}
+
 pub fn build_tree(
     expected_type: Type,
     input: SyntaxTree,
@@ -341,19 +439,35 @@ pub fn build_tree(
 ) -> Result<Expression> {
     match input {
         SyntaxTree::Undefined => Ok(Expression::Undefined),
-        SyntaxTree::Lambda(name, keyword_mark, tree) => {
-            let mut id = None;
+        SyntaxTree::Lambda(tokens, keyword_mark, tree) => {
+            //let mut id = None;
             if let Type::Function(a, b) = expected_type {
-                if &name.value != "_" {
-                    local_vars_count += 1;
-                    variables.insert(name.value, (local_vars_count, *a));
-                    id = Some(local_vars_count)
+                let (pattern, local_vars_new, new_local_vars_count) = parse_pattern(
+                    local_vars_count,
+                    &*a,
+                    tokens,
+                    global_vars
+                )?;
+                local_vars_count = new_local_vars_count;
+                for (a, b) in local_vars_new {
+                    variables.insert(a, b);
                 }
                 let body = build_tree(*b, *tree, variables, local_vars_count, global_vars)?;
                 Ok(Expression::Lambda {
-                    id, 
-                    body: Box::new(body),
+                    id: pattern, 
+                    body: Box::new(body)
                 })
+
+                //if &name.value != "_" {
+                //    local_vars_count += 1;
+                //    variables.insert(name.value, (local_vars_count, *a));
+                //    id = Some(local_vars_count)
+                //}
+                //let body = build_tree(*b, *tree, variables, local_vars_count, global_vars)?;
+                //Ok(Expression::Lambda {
+                //    id, 
+                //    body: Box::new(body),
+                //})
             } else {
                 Err(Error {
                     error_message: ErrorType::TypeMismatch,
@@ -587,7 +701,8 @@ fn evaluate_arguments(
 #[derive(Clone, Debug)]
 pub enum SyntaxTree {
     Lambda(
-        Marked<String>,           // argument name
+        //Marked<String>,           // argument name
+        TokenStream,              // argument name
         Mark,                     // lambda keyword
         Box<SyntaxTree>,          // body
     ),                            //
@@ -625,6 +740,7 @@ pub enum Keyword {
     Data,
     Contains,
     Undefined,
+    Dot,
 }
 
 #[derive(Debug, Clone)]
@@ -660,6 +776,7 @@ pub enum ErrorType {
     InvalidName,
     NotInScope,
     TypeMismatch,
+    ExpectedRoman,
 }
 
 impl ErrorType {
@@ -668,11 +785,12 @@ impl ErrorType {
             Self::Custom(_) => "",
             Self::Empty => "empty",
             Self::UnexpectedClosingComment => "unexpected delimiter",
-            Self::UnexpectedOpeningComment(_) => "unexpected delimiter",
+            Self::UnexpectedOpeningComment(_) => "unmatched delimiter",
             Self::UnclosedComment => "unclosed comment",
             Self::InvalidName => "invalid name",
-            Self::NotInScope => "variable not in scope",
-            Self::TypeMismatch => "unexpected type"
+            Self::NotInScope => "not in scope",
+            Self::TypeMismatch => "unexpected type",
+            Self::ExpectedRoman => "expected a roman numeral",
         }
     }
 }
@@ -695,7 +813,7 @@ expected a closing delimiter for '---' on line {}
             Self::InvalidName => 
                 write!(f, "invalid keyword or variable name"),
             Self::NotInScope => write!(f, "variable not in scope"),
-            Self::TypeMismatch => write!(f, "todo"),
+            _ => write!(f, "todo")
         }
     }
 }
@@ -850,6 +968,7 @@ pub fn tokenize(
         ("data", Keyword::Data),
         ("contains", Keyword::Contains),
         ("include", Keyword::Include),
+        ("dot", Keyword::Dot),
         ("...", Keyword::Undefined),
     ]);
     let mut output = Vec::new();
@@ -891,7 +1010,7 @@ pub fn tokenize(
                         Some(x) => match parse_roman_numeral(x) {
                             None => return Err(Error {
                                 mark: Mark { word_index: Index::Expression(word_index + 1), ..mark },
-                                error_message: ErrorType::Empty,
+                                error_message: ErrorType::ExpectedRoman,
                             }),
                             Some(x) => x
                         }
@@ -904,7 +1023,7 @@ pub fn tokenize(
                         Some(x) => match parse_roman_numeral(x) {
                             None => return Err(Error {
                                 mark: Mark { word_index: Index::Expression(word_index + 2), ..mark },
-                                error_message: ErrorType::Empty,
+                                error_message: ErrorType::ExpectedRoman,
                             }),
                             Some(x) => x
                         }
