@@ -57,7 +57,7 @@ All branches must have the same indentation. The mandetory keywords are
 lambda expression
 --------------------
     .----------------------------------------------------------.
-    | 'lambda' arg <expression>                                |
+    | 'lambda' arg 'dot' <expression>                          |
     '----------------------------------------------------------'
 
 argument tree
@@ -104,7 +104,7 @@ ALGEBRAIC TYPES
     |    some bool                                             |
     |                                                          |
     | define head of_type fn list_of_bools maybe_bool as       |
-    |    lambda input_list match input_list in                 |
+    |    lambda input_list dot match input_list in             |
     |       empty_list to none                                 |
     |       prepend head tail to some head                     |
     '----------------------------------------------------------'
@@ -139,7 +139,7 @@ There are no loops. The only way to 'loop' is to use recursion.
     |    succ nat                            '----------------------'
     |                                                          .
     | define sum of_type fn nat fn nat nat as                  |
-    |    lambda x match x in                                   |
+    |    lambda x dot match x in                               |
     |       one to succ                                        |
     |       succ pred_x to                                     |
     |          lambda y succ sum pred_x y                      |
@@ -161,7 +161,7 @@ data constructor.
 
     .----------------------------------------------------------.
     | define is_equal of_type fn nat fn nat bool as            |
-    |    lambda x lambda y match x in                          |
+    |    lambda x dot lambda y dot match x in                  |
     |       one to match y in                                  |
     |          one to true                                     |
     |          succ _ to false                                 |
@@ -251,7 +251,7 @@ name like so:
 
     .----------------------------------------------------------.
     | define dragon_tail of_type fn color video as             |
-    |    lambda c art vi iv                                    |
+    |    lambda c dot art vi iv                                |
     |  \   ).c///c(   / c///c.                                 |
     |   ) / ..c/c. \ (  .c/c..                                 |
     |  ( /  .c/c..  \ ) ..c/c.                                 |
@@ -261,18 +261,18 @@ name like so:
 Now instead of the tail being hardcoded cyan, the calling function decides
 its color.
 
-To include a variable character, set the color to '*' and use the variable 
+To include a variable character, set the color to '$' and use the variable 
 name in the art section.
 
 you can have a custom tail tip for example:
 
     .----------------------------------------------------------.
     | define dragon_tail of_type fn character video as         |
-    |    lambda t art vi iv                                    |
+    |    lambda t dot art vi iv                                |
     |  \   ).6///6(   / 6///6.                                 |
     |   ) / ..6/6. \ (  .6/6..                                 |
     |  ( /  .6/6..  \ ) ..6/6.                                 |
-    |   t   ..*...   t  ...*..                                 |
+    |   t   ..*...   t  ...$..                                 |
     '----------------------------------------------------------'
 
 You can see how the video type is implemented in the core module and there are

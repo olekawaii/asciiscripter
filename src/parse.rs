@@ -69,7 +69,7 @@ pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStrea
     if done.contains(&file) {
         return Ok(Vec::new())
     } else {
-        eprintln!("compiling \x1b[95m{file}\x1b[0m");
+        eprintln!("including \x1b[95m{file}\x1b[0m");
         done.push(file.clone());
         let mut output = tokenize_file(read_to_string(&file).unwrap(), &Arc::new(file))?;
         //dbg!(output.remove(0));
@@ -342,7 +342,10 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                 //dbg!(format!("{} uwu", pattern.iter().count()));
                 Ok(SyntaxTree::Match(Box::new(build_syntax_tree(pattern.into_iter().peekable())?), branches))
             }
-            _ => todo!(),
+            _ => Err(Error {
+                mark: root_mark,
+                error_message: ErrorType::UnexpectedKeyword,
+            }),
         },
         Token::Variable(ValueToken::Value(word)) => {
             let root = word;
@@ -777,6 +780,7 @@ pub enum ErrorType {
     NotInScope,
     TypeMismatch,
     ExpectedRoman,
+    UnexpectedKeyword
 }
 
 impl ErrorType {
@@ -791,6 +795,7 @@ impl ErrorType {
             Self::NotInScope => "not in scope",
             Self::TypeMismatch => "unexpected type",
             Self::ExpectedRoman => "expected a roman numeral",
+            Self::UnexpectedKeyword => "unexpected keyword",
         }
     }
 }
@@ -888,7 +893,7 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
     }
     let mut underline = String::new();
     underline.push_str(&" ".repeat(length_to_word));
-    underline.push_str(&"^".repeat(length_of_word));
+    underline.push_str(&"~".repeat(length_of_word));
     underline.push_str("  ");
     underline.push_str(message);
     let empty_space = " ".repeat(indentation);
@@ -1124,7 +1129,7 @@ fn build_tokens_from_art(
                         value: Token::Variable(ValueToken::Value("space".to_string()))
                     });
                 }
-                (c1_char, '*') => {
+                (c1_char, '$') => {
                     output.push(Marked::<Token> {
                         mark: c1.mark,
                         value: Token::Variable(ValueToken::Value(c1_char.to_string()))
