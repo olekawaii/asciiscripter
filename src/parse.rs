@@ -1,3 +1,21 @@
+/* ascr - a general-purpose pure functional programming language
+ * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
 use crate::runtime::{Pattern, Expression, Id};
 use crate::r#type::Type;
 use std::{collections::HashMap};
@@ -58,12 +76,6 @@ fn parse_pattern_helper(
         Token::NewLine(_) => unreachable!()
     }
 }
-
-// pub enum Token {
-//     Keyword(Keyword),
-//     NewLine(u32),
-//     Variable(ValueToken),
-// }
 
 pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStream>> {
     if done.contains(&file) {
@@ -267,27 +279,6 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                     root_mark,
                     Box::new(build_syntax_tree(tokens)?),
                 ))
-
-                //let Marked::<Token> { mark, value: token } = match next_non_newline(&mut tokens) {
-                //    None => return Err(Error {
-                //        mark: root_mark,
-                //        error_message: ErrorType::Empty
-                //    }),
-                //    Some(x) => x
-                //};
-                //if let Token::Variable(ValueToken::Value(arg)) = token {
-                //    let mut arg_vec = Vec::new();
-                //    Ok(SyntaxTree::Lambda(
-                //        Marked::<String> {
-                //            mark,
-                //            value: arg
-                //        },
-                //        root_mark,
-                //        Box::new(build_syntax_tree(tokens)?),
-                //    ))
-                //} else {
-                //    panic!("ashuesa")
-                //}
             }
             Keyword::Match => {
                 let mut indent: u32;
@@ -317,29 +308,12 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                         }
                         _ => pattern.push(token)
                     }
-                                    
-                    // let Marked::<Token> { mark, value: token } = tokens.next().expect("atueha");
-                    // match token {
-                    //     // fail if no branches
-                    //     Token::NewLine(num) => {
-                    //         indent = num;
-                    //         break;
-                    //     }
-                    //     Token::Variable(ValueToken::Value(word)) => {
-                    //         pattern.push(Marked::<String> {
-                    //             value: word,
-                    //             mark,
-                    //         });
-                    //     }
-                    //     _ => panic!("f"),
-                    // }
                 }
                 let branches: Vec<(Marked<String>, Vec<Marked<String>>, SyntaxTree)> =
                     get_with_indentation(tokens, indent)
                         .into_iter()
                         .map(parse_branch)
                         .collect::<Result<Vec<_>>>()?;
-                //dbg!(format!("{} uwu", pattern.iter().count()));
                 Ok(SyntaxTree::Match(Box::new(build_syntax_tree(pattern.into_iter().peekable())?), branches))
             }
             _ => Err(Error {
@@ -361,9 +335,6 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                     }
                 }
                 let Marked::<Token> { mark, value: token } = tokens.next().unwrap(); // safe
-                //if let None = tokens.peek() == None {
-                //    break
-                //}
                 match token {
                     Token::Variable(ValueToken::Value(w)) => args.push(
                         Argument::Ungrouped(Marked::<String> {
@@ -416,23 +387,6 @@ fn parse_branch(mut tokens: TokenStream) -> Result<(Marked<String>, Vec<Marked<S
     Ok((constructor, args, build_syntax_tree(tokens).expect("c")))
 }
 
-//fn parse_pattern(
-//    mut number_of_local: u32,
-//    expected_type: &Type,
-//    mut tokens: TokenStream,
-//    global_vars: &HashMap<String, (usize, Type, bool)>,
-//) -> Result<(Pattern, HashMap<String, (u32, Type)>, u32)> {
-//    let mut output = HashMap::new();
-//    let pattern = parse_pattern_helper(
-//        &mut number_of_local,
-//        expected_type,
-//        &mut output,
-//        &mut tokens,
-//        global_vars
-//    )?;
-//    Ok((pattern, output, number_of_local))
-//}
-
 pub fn build_tree(
     expected_type: Type,
     input: SyntaxTree,
@@ -460,17 +414,6 @@ pub fn build_tree(
                     id: pattern, 
                     body: Box::new(body)
                 })
-
-                //if &name.value != "_" {
-                //    local_vars_count += 1;
-                //    variables.insert(name.value, (local_vars_count, *a));
-                //    id = Some(local_vars_count)
-                //}
-                //let body = build_tree(*b, *tree, variables, local_vars_count, global_vars)?;
-                //Ok(Expression::Lambda {
-                //    id, 
-                //    body: Box::new(body),
-                //})
             } else {
                 Err(Error {
                     error_message: ErrorType::TypeMismatch,
@@ -493,11 +436,6 @@ pub fn build_tree(
             )
         }
         SyntaxTree::Match(pattern, syntax_branches) => {
-            //dbg!(&global_vars);
-            //dbg!(&pattern);
-            //let (_, tp, _) = global_vars.get(pattern.get(0).expect("sathu")).expect("sah");
-            //let root = pattern.get(0).unwrap(); // unsafe
-            //let root = syntax_branches[0].0;
             let data_constructor = &syntax_branches[0].0;
             let tp = match variables.get(&data_constructor.value) {
                 Some((_, tp)) => tp,
@@ -510,17 +448,6 @@ pub fn build_tree(
                 },
             };
             let pattern_type = tp.final_type();
-
-            //let mut pattern_as_tree = pattern.into_iter().map(Argument::Ungrouped);
-            //let pattern_expression = evaluate_arguments(
-            //    Type::Type(pattern_type),
-            //    global_vars,
-            //    &variables,
-            //    local_vars_count,
-            //    &mut pattern_as_tree,
-            //)
-            //.expect("shhh");
-
             let pattern_expression = build_tree(
                 Type::Type(pattern_type),
                 *pattern,
@@ -616,26 +543,6 @@ pub fn parse_art(
         }
     }
 }
-
-//fn parse_art(
-//    width: u32, 
-//    height: u32, 
-//    strings: Vec<(usize, String)>, 
-//    local_vars: HashMap<String, (u32, Type)>,
-//    global_vars: &HashMap<String, (usize, Type, bool)>
-//) -> Result<Expression> {
-//    for (line_number, i) in strings.into_iter() {
-//        let mut line: Vec<Marked<char>> = Vec::new();
-//        for character in i.chars() {
-//            line.push(Marked::<char> {
-//                mark: todo!(),
-//                value: character
-//            })
-//        }
-//    }
-//    todo!()
-//}
-
 
 fn evaluate_arguments(
     mut expected_type: Type,
@@ -823,20 +730,6 @@ expected a closing delimiter for '---' on line {}
     }
 }
 
-//struct Line(usize);
-//
-//impl Line {
-//    fn new(line: usize) -> Line {
-//        Self(line)
-//    }
-//}
-//
-//impl std::fmt::Display for Line {
-//    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//        write!(f, "{}", self.0 + 1)
-//    }
-//}
-
 #[derive(Debug, Clone)]
 pub enum Index {
     Expression(usize),
@@ -928,10 +821,6 @@ pub enum Token {
 pub type TokenStream = std::iter::Peekable<std::vec::IntoIter<Marked<Token>>>;
 
 fn next_non_newline(input: &mut TokenStream) -> Option<Marked<Token>> {
-    //while matches!(*input.peek()?, Token::NewLine(_)) {
-    //    input.next();
-    //}
-    //input.next()
     loop {
         let next = input.next()?;
         if !matches!(next.value, Token::NewLine(_)) {
@@ -1055,10 +944,6 @@ pub fn tokenize(
                     for i in build_tokens_from_art(mark, aaa)? {
                         output.push(i);
                     }
-                    //output.push(Marked::<Token> {
-                    //    mark: mark,
-                    //    value: Token::Variable(ValueToken::Art( x, y, block.collect(),)),
-                    //});
                     break 'lines;
                 }
                 other => output.push(Marked::<Token> {
@@ -1309,7 +1194,6 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
     } = next_non_newline(input).unwrap();
     match token {
         Token::Keyword(Keyword::Define) => {
-            //let Marked::<Token> {mark: mark2, value: token} = next_non_newline(input)?;
             let Marked::<Token> {
                 mark: mark2,
                 value: token,

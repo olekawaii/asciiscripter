@@ -78,15 +78,15 @@ as
             insert_horizontal x chr row_zero 
       
 define insert_column of_type fn int fn nat fn character fn column column as
-   lambda x dot lambda y dot lambda cha dot lambda col dot
+   lambda x dot lambda y dot lambda chr dot lambda col dot
       match 
          match col in
             empty_column to cons_column empty_horizontal empty_column
             cons_column _ _ to col
       in 
          cons_column head tail to match y in
-            one to cons_column insert_horizontal x cha head tail
-            succ index to cons_column head insert_column x index cha tail
+            one to cons_column insert_horizontal x chr head tail
+            succ index to cons_column head insert_column x index chr tail
 
 define from_video of_type fn video new_video as
    lambda x dot match x in

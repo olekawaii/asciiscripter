@@ -2,7 +2,7 @@ ASCR is pure functional programming language for making ascii art animations
 
 check out some examples in the examples/ directory.
 
-things to implement:
+things left to implement:
 
 [ ]  generics
 [ ]  higher kinded types
@@ -24,13 +24,13 @@ Comments
     | comment                                                  |
     | <o>                                                      |
     |                                                          |
-    | define bottom_of_triangle of_type video as art 8 2       |
+    | define bottom_of_triangle of_type video as art viii ii   |
     | --    /\   ...33...                                      |
     | --   /  \  ..3//3..                                      |
     |  /    \ .3////3.                                         |
     | /______\33333333                                         |
     |                                                          |
-    | define flag of_type video as art 7 3                     |
+    | define flag of_type video as art vii iii                 |
     | -------3333333                                           |
     | -- * --33/3/33 not a comment                             |
     | -------3333333                                           |
@@ -142,7 +142,7 @@ There are no loops. The only way to 'loop' is to use recursion.
     |    lambda x dot match x in                               |
     |       one to succ                                        |
     |       succ pred_x to                                     |
-    |          lambda y succ sum pred_x y                      |
+    |          lambda y dot succ sum pred_x y                  |
     '----------------------------------------------------------'
      output: succ succ succ succ one
 
@@ -201,7 +201,7 @@ data constructor.
     | define main of_type bool as                              |
     |    is_equal infinity infinity                            |
     '----------------------------------------------------------'
-     output: *hangs*
+     output: *hangs at runtime*
                                                  .---------------.
     .------------------------------------------- | ... is syntax |
     | define main of_type bool as                | for undefined |
@@ -210,6 +210,14 @@ data constructor.
     |       succ succ succ succ succ ...                       |
     '----------------------------------------------------------'
     output: false
+                                                                  
+    .----------------------------------------------------------.  
+    | define main of_type bool as                              |  
+    |    is_equal                                              |  
+    |       succ succ succ one                                 |
+    |       succ succ ...                                      |
+    '----------------------------------------------------------'
+    output: *panics at runtime*
 
 
 UNDEFINED
@@ -272,7 +280,7 @@ you can have a custom tail tip for example:
     |  \   ).6///6(   / 6///6.                                 |
     |   ) / ..6/6. \ (  .6/6..                                 |
     |  ( /  .6/6..  \ ) ..6/6.                                 |
-    |   t   ..*...   t  ...$..                                 |
+    |   t   ..$...   t  ...$..                                 |
     '----------------------------------------------------------'
 
 You can see how the video type is implemented in the core module and there are
