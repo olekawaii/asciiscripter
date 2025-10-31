@@ -1,0 +1,20 @@
+include std
+                                                     
+define main of_type video as
+   layer_videos
+      by x shift_video east small_mushroom
+      big_mushroom
+
+define big_mushroom of_type video as art xiii vii
+  __c__,___  ..117117111..
+(_c_,O_/\_3_)1171771111711
+     | |     .....7|7.....
+    /_. \    ....777|7....
+     | |     .....7|7.....
+     |"|     .....777.....
+     | |     .....7|7.....
+
+define small_mushroom of_type video as art vi iii
+  __  ..11..
+(c_o_)171711
+ (..) .7777.

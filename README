@@ -1,4 +1,4 @@
-ASCR is pure functional programming language for making ascii art animations
+thorn is pure functional programming language for making ascii art animations
 
 check out some examples in the examples/ directory.
 
@@ -400,4 +400,4 @@ After compiling/running the program, the output is the fully-evaluated main
 function (a tree of data constructors). In fact, if you plug the output into 
 the main function, you will get the same output. To turn this output into 
 something you actually want, you have to interpret it with an external 
-program (like ascr-to-shell for ascii art animations for example).
+program (like thorn-to-shell for ascii art animations for example).
