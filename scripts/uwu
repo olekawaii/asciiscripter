@@ -32,7 +32,8 @@ build() {
     if [ -z "$(find . -name output -newer src -newer .ascr)" ]; then
         fps=$(awk 'NR == 1 { print $1 }' .ascr/fps)
         cd src
-        ascr main.ascr | ascr-to-shell
+        ascr main.ascr > ../output/ascr_output 
+        cat ../output/ascr_output | ascr-to-shell
         mv short_output.sh output.sh ../output
         cd ..
         touch output

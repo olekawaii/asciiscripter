@@ -1,5 +1,4 @@
--- core language types
--- DO NOT EDIT
+-- core types required for the art macro
 
 data int contains
    negative nat
@@ -17,8 +16,6 @@ data video contains
    empty_video
    cons_frame frame video
 
--- use insert from std to insert cells
-
 data frame contains
    empty_frame
    unsafe_cons_cell cell frame  
@@ -29,7 +26,6 @@ data cell contains
 data character contains
    space
    char visible_character color
-
 
 data color contains
    red

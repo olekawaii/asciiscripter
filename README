@@ -10,7 +10,8 @@ things left to implement:
 [ ]  syntax for frame variables in art
 
 
-Comments
+
+COMMENTS
 ====================
 
     .----------------------------------------------------------.
@@ -26,15 +27,16 @@ Comments
     |                                                          |
     | define bottom_of_triangle of_type video as art viii ii   |
     | --    /\   ...33...                                      |
-    | --   /  \  ..3//3..                                      |
-    |  /    \ .3////3.                                         |
+    | --   /  \  ..3||3..                                      |
+    |  /    \ .3||||3.                                         |
     | /______\33333333                                         |
     |                                                          |
     | define flag of_type video as art vii iii                 |
     | -------3333333                                           |
-    | -- * --33/3/33 not a comment                             |
+    | -- * --33|3|33 not a comment                             |
     | -------3333333                                           |
     '----------------------------------------------------------'
+
 
 
 Expression Syntax
@@ -87,6 +89,7 @@ with the correct indentation. This the only way to use a lambda or match
 expresion directly as an argument.
 
 
+
 ALGEBRAIC TYPES
 ====================
 
@@ -123,13 +126,105 @@ ALGEBRAIC TYPES
 
 
 
+TYPE ERRORS
+====================
+
+This language has good and innovative type errors. Consider this example that
+has multiple errors:
+
+    .----------------------------------------------------------.
+    | define or of_type fn bool fn bool bool as ...            |
+    |                                                          |
+    | define sum of_type fn int fn int int as ...              |
+    |                                                          |
+    | define true of_type bool as ...                          |
+    |                                                          |
+    | define five of_type int as ...                           |
+    |                                                          |
+    | define main of_type int as                               |
+  * |    sum five or true five                                 |
+    '----------------------------------------------------------'
+
+There are who issues with this code:
+
+  1. `or` expects two bool arguments but the second argument is an int
+
+  2. `sum` expects two ints but the second argument is whatever the 
+     output of `or` would be (a bool)
+
+In all programming languages that I know of, you get the most nested errror 
+first (1) and after it's resolved you get the less nested one (2). The error 
+C would give would be something like:
+
+   compilation error
+       |
+    10 | sum(five, or(true, five)
+       |                    ~~~~ mismatched types
+   second argument of `or` expected a `bool` but found an `int`
+
+However, in my implementation, you actually get the least nested error first.
+
+   compilation error
+       |
+    10 | sum five or true five
+       |          ~~ mismatched types
+   `sum five` expected an `int` but `or` could never evaluate to it
+
+It is a more logical approach. The bigger error in this program isn't that 
+the argumunts to `or` are incorrect, it's that the whole `or` expression
+shouldn't even be there.
+
+This also makes it so errors are found from left to right. if you get an error
+at the end of the line, you know that everything that came before it was 
+correct. This also eliminates the painful type errors you get in haskell when 
+you misplace paranthesis.
+
+
+
+DESTRUCTURING
+====================
+
+Consider the following function that finds the distance between 
+two points. Ignore the functions that we haven't defined.
+
+    .----------------------------------------------------------.
+    | data point contains                                      |
+    |    point int int                                         |
+    |                                                          |
+    | define distance of_type fn point fn point float as       |
+    |    lambda first_point dot lambda second_point dot        |
+    |       match first_point in                               |
+    |          point x_i y_i to match second_point in          |
+    |             point x_ii y_ii to sqrt sum                  |
+    |                squared diff x_ii x_i                     |
+    |                squared diff y_ii y_i                     |
+    '----------------------------------------------------------'
+
+This is very verbose because we're patternmatching on all the points to get
+their x and y values. However, because the point type only contains one
+variant, we can actually patternmatch directly in the lambda expression 
+like so:
+
+    .----------------------------------------------------------.
+    | define distance of_type fn point fn point float as       |
+    |    lambda point x_i y_i dot lambda point x_ii y_ii dot   |
+    |       sqrt sum                                           |
+    |          squared diff x_ii x_i                           |
+    |          squared diff y_ii y_i                           |
+    '----------------------------------------------------------'
+
+In fact, lambda, match, and (in the future) let expressions share the same 
+syntax and semantics for capturing variables.
+
+
+
 RECURSION
 ====================
 
 There are no loops. The only way to 'loop' is to use recursion.
 
     .----------------------------------------------------------.
-    | define main of_type bool as                              |
+    | define main of_type nat as                               |
     |    sum                                                   '
     |       succ succ one                    .----------------------.
     |       succ one                         | one              = 1 |
@@ -140,11 +235,19 @@ There are no loops. The only way to 'loop' is to use recursion.
     |                                                          .
     | define sum of_type fn nat fn nat nat as                  |
     |    lambda x dot match x in                               |
-    |       one to succ                                        |
-    |       succ pred_x to                                     |
-    |          lambda y dot succ sum pred_x y                  |
-    '----------------------------------------------------------'
-     output: succ succ succ succ one
+    |       one to succ                                        |  <---.
+    |       succ pred_x to                                     |      |
+    |          lambda y dot succ sum pred_x y   -- recursive   |      |
+    '----------------------------------------------------------'      | 
+     output: succ succ succ succ one                                  |
+
+By the way, if you look at the third to last line, the `one` branch returns a 
+`succ` while the 'succ pred_x' branch returs a lambda expression. This is 
+because the `succ` data constructor has the type `fn nat nat` (all data 
+constructors are curried). 
+
+Alternatively we could've rewritten `succ` as `lambda x dot succ x`, which would 
+have the same meaning.
 
 
 
@@ -206,8 +309,8 @@ data constructor.
     .------------------------------------------- | ... is syntax |
     | define main of_type bool as                | for undefined |
     |    is_equal                                '---------------'
-    |       succ succ succ one                                 .
-    |       succ succ succ succ succ ...                       |
+    |       succ succ one                                      .
+    |       succ succ succ succ ...                            |
     '----------------------------------------------------------'
     output: false
                                                                   
@@ -218,6 +321,7 @@ data constructor.
     |       succ succ ...                                      |
     '----------------------------------------------------------'
     output: *panics at runtime*
+
 
 
 UNDEFINED
@@ -231,6 +335,7 @@ They are useful for unimplemented or unreachable code
     '----------------------------------------------------------'
 
 
+
 ART
 ====================
 
@@ -239,9 +344,9 @@ size and has 2 frames.
 
     .----------------------------------------------------------.
     | define dragon_tail of_type video as art vi iv            |
-    |  \   ).6///6(   / 6///6.                                 |
-    |   ) / ..6/6. \ (  .6/6..                                 |
-    |  ( /  .6/6..  \ ) ..6/6.                                 |
+    |  \   ).6|||6(   / 6|||6.                                 |
+    |   ) / ..6|6. \ (  .6|6..                                 |
+    |  ( /  .6|6..  \ ) ..6|6.                                 |
     |   V   ..6...   V  ...6..                                 |
     '----------------------------------------------------------'
 
@@ -260,9 +365,9 @@ name like so:
     .----------------------------------------------------------.
     | define dragon_tail of_type fn color video as             |
     |    lambda c dot art vi iv                                |
-    |  \   ).c///c(   / c///c.                                 |
-    |   ) / ..c/c. \ (  .c/c..                                 |
-    |  ( /  .c/c..  \ ) ..c/c.                                 |
+    |  \   ).c|||c(   / c|||c.                                 |
+    |   ) / ..c|c. \ (  .c|c..                                 |
+    |  ( /  .c|c..  \ ) ..c|c.                                 |
     |   V   ..c...   V  ...c..                                 |
     '----------------------------------------------------------'
 
@@ -277,14 +382,15 @@ you can have a custom tail tip for example:
     .----------------------------------------------------------.
     | define dragon_tail of_type fn character video as         |
     |    lambda t dot art vi iv                                |
-    |  \   ).6///6(   / 6///6.                                 |
-    |   ) / ..6/6. \ (  .6/6..                                 |
-    |  ( /  .6/6..  \ ) ..6/6.                                 |
+    |  \   ).6|||6(   / 6|||6.                                 |
+    |   ) / ..6|6. \ (  .6|6..                                 |
+    |  ( /  .6|6..  \ ) ..6|6.                                 |
     |   t   ..$...   t  ...$..                                 |
     '----------------------------------------------------------'
 
 You can see how the video type is implemented in the core module and there are
 many useful functions in std.
+
 
 
 OUTPUT

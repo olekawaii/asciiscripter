@@ -18,6 +18,7 @@
 
 use crate::runtime::{Pattern, Expression, Id};
 use crate::r#type::Type;
+use crate::error::{Error, Mark, Index, ErrorType};
 use std::{collections::HashMap};
 use std::fs::read_to_string;
 use std::sync::Arc;
@@ -165,7 +166,7 @@ fn remove_multiline_comments<'a>(
                                 block: None,
                                 word_index: Index::Expression(0),
                             },
-                            error_message: ErrorType::UnclosedComment
+                            error_type: Box::new(CompilationError::UnclosedComment)
                         }),
                         Some((line2, x)) => match x {
                             "<o>" => break 'multi_line_comment,
@@ -177,7 +178,7 @@ fn remove_multiline_comments<'a>(
                                     block: None,
                                     word_index: Index::Expression(0),
                                 },
-                                error_message: ErrorType::UnexpectedOpeningComment(line)
+                                error_type: Box::new(CompilationError::UnexpectedOpeningComment(line))
                             }),
                             _ => ()
                         }
@@ -191,7 +192,7 @@ fn remove_multiline_comments<'a>(
                         block: None,
                         word_index: Index::Expression(0),
                     },
-                    error_message: ErrorType::UnexpectedClosingComment
+                    error_type: Box::new(CompilationError::UnexpectedClosingComment)
                 }),
                 _ => output.push((line, string))
             }
@@ -257,7 +258,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
     };
     match token {
         Token::Keyword(keyword) => match keyword {
-            Keyword::Undefined => Ok(SyntaxTree::Undefined),
+            Keyword::Undefined => Ok(SyntaxTree::Undefined {mark: root_mark}),
             Keyword::Lambda => {
                 let mut pattern = Vec::new();
                 loop {
@@ -268,7 +269,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                             break
                         }
                         _ => return Err(Error {
-                            error_message: ErrorType::Empty,
+                            error_type: Box::new(CompilationError::Empty),
                             mark: marked_token.mark.clone(),
                         })
                     }
@@ -318,7 +319,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
             }
             _ => Err(Error {
                 mark: root_mark,
-                error_message: ErrorType::UnexpectedKeyword,
+                error_type: Box::new(CompilationError::UnexpectedKeyword),
             }),
         },
         Token::Variable(ValueToken::Value(word)) => {
@@ -384,7 +385,7 @@ fn parse_branch(mut tokens: TokenStream) -> Result<(Marked<String>, Vec<Marked<S
             _ => panic!("bad match syntax"),
         }
     }
-    Ok((constructor, args, build_syntax_tree(tokens).expect("c")))
+    Ok((constructor, args, build_syntax_tree(tokens)?))
 }
 
 pub fn build_tree(
@@ -395,7 +396,7 @@ pub fn build_tree(
     global_vars: &HashMap<String, (usize, Type, bool)>,
 ) -> Result<Expression> {
     match input {
-        SyntaxTree::Undefined => Ok(Expression::Undefined),
+        SyntaxTree::Undefined {mark} => Ok(Expression::Undefined {mark}),
         SyntaxTree::Lambda(tokens, keyword_mark, tree) => {
             //let mut id = None;
             if let Type::Function(a, b) = expected_type {
@@ -416,7 +417,7 @@ pub fn build_tree(
                 })
             } else {
                 Err(Error {
-                    error_message: ErrorType::TypeMismatch,
+                    error_type: Box::new(CompilationError::TypeMismatch),
                     mark: keyword_mark
                 })
             }
@@ -441,7 +442,7 @@ pub fn build_tree(
                 Some((_, tp)) => tp,
                 None => match global_vars.get(&data_constructor.value) {
                     None => return Err(Error {
-                        error_message: ErrorType::NotInScope,
+                        error_type: Box::new(CompilationError::NotInScope),
                         mark: data_constructor.mark.clone()
                     }),
                     Some((_, tp, _)) => tp,
@@ -573,13 +574,13 @@ fn evaluate_arguments(
                 )
             } else {
                 return Err(Error {
-                    error_message: ErrorType::NotInScope,
+                    error_type: Box::new(CompilationError::NotInScope),
                     mark: name.mark
                 })
             };
             if !root_type.is_possible(&expected_type) {
                 return Err(Error {
-                    error_message: ErrorType::TypeMismatch,
+                    error_type: Box::new(CompilationError::TypeMismatch),
                     mark: name.mark
                 })
             }
@@ -628,7 +629,7 @@ pub enum SyntaxTree {
             SyntaxTree,           // body
         )>,
     ),
-    Undefined
+    Undefined {mark: Mark}
 }
 
 #[derive(Clone, Debug)]
@@ -659,25 +660,9 @@ pub struct Marked<T> {
     mark: Mark,
 }
 
-#[derive(Debug, Clone)]
-pub struct Error {
-    error_message: ErrorType,
-    mark: Mark,
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}\n{}",
-            show_mark(self.mark.clone(), self.error_message.gist()),
-            self.error_message
-        )
-    }
-}
 
 #[derive(Debug, Clone)]
-pub enum ErrorType {
+pub enum CompilationError {
     Empty,
     Custom(String),
     UnexpectedClosingComment,
@@ -690,7 +675,7 @@ pub enum ErrorType {
     UnexpectedKeyword
 }
 
-impl ErrorType {
+impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
             Self::Custom(_) => "",
@@ -705,10 +690,14 @@ impl ErrorType {
             Self::UnexpectedKeyword => "unexpected keyword",
         }
     }
+
+    fn phase(&self) -> &'static str {
+        "compilation"
+    }
 }
 
 
-impl std::fmt::Display for ErrorType {
+impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Custom(s) => write!(f, "{s}"),
@@ -728,82 +717,6 @@ expected a closing delimiter for '---' on line {}
             _ => write!(f, "todo")
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum Index {
-    Expression(usize),
-    Art(usize),
-    EndOfWord(usize),
-    EndOfLine,
-}
-
-#[derive(Debug, Clone)]
-pub struct Mark {
-    pub file_name: Arc<String>,
-    pub file: Arc<Vec<String>>,
-    pub line: usize,
-    pub block: Option<Arc<String>>,
-    pub word_index: Index,
-}
-
-pub fn show_mark(mark: Mark, message: &'static str) -> String {
-    //dbg!(&mark);
-    let mut number = (mark.line + 1).to_string();
-    number.push(' ');
-    let indentation = number.chars().count();
-    let line: &str = &mark.file[mark.line];
-    let mut length_of_word: usize = 0;
-    let mut length_to_word: usize = 0;
-    let mut output_string = String::new();
-    match mark.word_index {
-        Index::Expression(size) => {
-            let words = (*line).split_whitespace();
-            let mut reached = false;
-            for (i, word) in words.enumerate() {
-                let word_len = word.chars().count();
-                if i == size {
-                    length_of_word = word_len;
-                    reached = true;
-                } else {
-                    if !reached {
-                        length_to_word += word_len + 1;
-                    }
-                }
-                if word == "--" {
-                    output_string.push_str("\x1b[90m");
-                }
-                output_string.push_str(word);
-                output_string.push(' ');
-            }
-        }
-        Index::Art(index) => {
-            length_to_word = index;
-            length_of_word = 1;
-            output_string = line.into();
-        }
-        _ => todo!()
-    }
-    let mut underline = String::new();
-    underline.push_str(&" ".repeat(length_to_word));
-    underline.push_str(&"~".repeat(length_of_word));
-    underline.push_str("  ");
-    underline.push_str(message);
-    let empty_space = " ".repeat(indentation);
-    format!(
-        "error in {}{}\n\x1b[91m{}|\n{} | \x1b[0m{}\n\x1b[91m{}| {}\x1b[0m",
-        mark.file_name,
-        //mark.line + 1,
-        match &mark.block {
-            None => String::from(""),
-            Some(name) => format!(", in the definition of {}", (*name).clone()),
-        },
-        &empty_space,
-        mark.line + 1,
-        output_string,
-        &empty_space,
-        underline,
-    )
 }
 
 #[derive(Debug, Clone)]
@@ -899,12 +812,12 @@ pub fn tokenize(
                     let x = match words.next() {
                         None => return Err(Error {
                             mark: Mark { word_index: Index::EndOfWord(word_index), ..mark },
-                            error_message: ErrorType::Empty,
+                            error_type: Box::new(CompilationError::Empty),
                         }),
                         Some(x) => match parse_roman_numeral(x) {
                             None => return Err(Error {
                                 mark: Mark { word_index: Index::Expression(word_index + 1), ..mark },
-                                error_message: ErrorType::ExpectedRoman,
+                                error_type: Box::new(CompilationError::ExpectedRoman),
                             }),
                             Some(x) => x
                         }
@@ -912,12 +825,12 @@ pub fn tokenize(
                     let y = match words.next() {
                         None => return Err(Error {
                             mark: Mark { word_index: Index::EndOfWord(word_index), ..mark },
-                            error_message: ErrorType::Empty,
+                            error_type: Box::new(CompilationError::Empty),
                         }),
                         Some(x) => match parse_roman_numeral(x) {
                             None => return Err(Error {
                                 mark: Mark { word_index: Index::Expression(word_index + 2), ..mark },
-                                error_message: ErrorType::ExpectedRoman,
+                                error_type: Box::new(CompilationError::ExpectedRoman),
                             }),
                             Some(x) => x
                         }
@@ -954,7 +867,7 @@ pub fn tokenize(
                             if !other.chars().all(|x| x.is_lowercase() || x == '_') {
                                 return Err(Error {
                                     mark: mark,
-                                    error_message: ErrorType::InvalidName,
+                                    error_type: Box::new(CompilationError::InvalidName),
                                 });
                             }
                             Token::Variable(ValueToken::Value(other.to_string()))
@@ -1008,7 +921,7 @@ fn build_tokens_from_art(
             }
             output.push(build_token("one", &mark));
             match (c1_char, c2_char) {
-                (' ', '/') => {
+                (' ', '|') => {
                     output.push(Marked::<Token> {
                         mark: c1.mark,
                         value: Token::Variable(ValueToken::Value("space".to_string()))
@@ -1121,7 +1034,7 @@ fn build_tokens_from_art(
                         '}' => "closing_brace",
                         '~' => "tilde",
                         ' ' => return Err(Error {
-                            error_message: ErrorType::Empty,
+                            error_type: Box::new(CompilationError::Empty),
                             mark: c2.mark
                         }),
                         _ => panic!("bad char")
@@ -1139,6 +1052,8 @@ fn build_tokens_from_art(
                         '5' => Ok("magenta"),
                         '6' => Ok("cyan"),
                         '7' => Ok("white"),
+                        '8' => Ok("orange"),
+                        '9' => Ok("purple"),
                         x   => Err(x)
                     };
                     match color {
@@ -1199,7 +1114,7 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                 value: token,
             } = next_non_newline(input).ok_or(Error {
                 mark: convert_to_after(mark1).unwrap(),
-                error_message: ErrorType::Empty,
+                error_type: Box::new(CompilationError::Empty),
             })?;
             match token {
                 Token::Variable(ValueToken::Value(name)) => {
@@ -1208,12 +1123,12 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                         value: token,
                     } = next_non_newline(input).ok_or(Error {
                         mark: convert_to_after(mark2).unwrap(),
-                        error_message: ErrorType::Empty,
+                        error_type: Box::new(CompilationError::Empty),
                     })?;
                     if !matches!(token, Token::Keyword(Keyword::Of_type)) {
                         return Err(Error {
                             mark: mark3,
-                            error_message: ErrorType::Empty,
+                            error_type: Box::new(CompilationError::Empty),
                         });
                     }
                     let mut type_strings: Vec<String> = Vec::new();
@@ -1226,7 +1141,7 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                             None => {
                                 return Err(Error {
                                     mark: convert_to_after(mark3).unwrap(),
-                                    error_message: ErrorType::Empty,
+                                    error_type: Box::new(CompilationError::Empty),
                                 });
                             }
                         };
@@ -1235,7 +1150,7 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                             Token::Keyword(Keyword::As) => break,
                             _ => return Err(Error {
                                 mark: mark4,
-                                error_message: ErrorType::Empty,
+                                error_type: Box::new(CompilationError::Empty),
                             })
                         }
                     }
@@ -1250,7 +1165,7 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                 value: token,
             } = next_non_newline(input).ok_or(Error {
                 mark: convert_to_after(mark1).unwrap(),
-                error_message: ErrorType::Empty,
+                error_type: Box::new(CompilationError::Empty),
             })?;
             match token {
                 Token::Variable(ValueToken::Value(name)) => {
@@ -1268,10 +1183,10 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
         }
         x => Err(Error {
             mark: mark1,
-            error_message: ErrorType::Custom(format!(
+            error_type: Box::new(CompilationError::Custom(format!(
                 "expected 'data' or 'define' but found {:?}",
                 x
-            )),
+            ))),
         }),
     }
 }
@@ -1308,7 +1223,7 @@ pub fn parse_data(
             word
         } else { 
             return Err(Error {
-                error_message: ErrorType::Empty,
+                error_type: Box::new(CompilationError::Empty),
                 mark: root_mark,
             })
         };
@@ -1322,7 +1237,7 @@ pub fn parse_data(
                 Token::Variable(ValueToken::Value(word)) => type_strings.push(word),
                 Token::NewLine(_) => continue,
                 _ => return Err(Error {
-                    error_message: ErrorType::Empty,
+                    error_type: Box::new(CompilationError::Empty),
                     mark: root_mark,
                 })
             }

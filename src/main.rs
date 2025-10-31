@@ -24,15 +24,17 @@ use std::thread::spawn;
 mod parse;
 mod runtime;
 mod r#type;
+mod error;
 
 use crate::{
     parse::{
-        Error, Index, Mark, Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree,
-        build_tree, build_type, extract_signiture, parse_data, parse_type, show_mark, tokenize,
+        Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree,
+        build_tree, build_type, extract_signiture, parse_data, parse_type, tokenize,
         tokenize_file, parse_roman_numeral, parse_art, get_tokens
     },
     runtime::{Expression, COUNTER, ExpressionCache, Id},
     r#type::Type,
+    error::{Error, Mark},
 };
 
 fn main() -> std::io::Result<()> {

@@ -1,4 +1,4 @@
--- core language types
+-- core types required for the art macro
 
 data int contains
    negative nat

@@ -22,13 +22,12 @@ define flip_over_y of_type fn video video as
          cell flip_over_y_coordinate coor flip_over_y_char cha
 
 define flip_over_y_coordinate of_type fn coordinate coordinate as
-   lambda x dot match x in
-      coordinate x y to coordinate
-         match x in
-            positive a to negative a
-            negative a to positive a
-            zero to zero
-         y
+   lambda coordinate x y dot coordinate
+      match x in
+         positive a to negative a
+         negative a to positive a
+         zero to zero
+      y
 
 data direction contains
    north
@@ -152,58 +151,24 @@ define map_frame of_type fn fn cell cell fn frame frame as
       unsafe_cons_cell head tail to unsafe_cons_cell f head map_frame f tail
 
 define move of_type fn int fn int fn video video as
-   lambda x dot lambda y dot lambda vid dot  
+   lambda x dot lambda y dot
       map_video 
-         map_frame 
-            lambda a dot match a in
-               cell coord char to cell sum_coordinate coordinate x y coord char
-         vid
-
+         map_frame lambda cell coord chr dot
+            cell sum_coordinate coordinate x y coord chr
 
 define sum_coordinate of_type fn coordinate fn coordinate coordinate as
-   lambda x dot lambda y dot match x in
-     coordinate x_i y_i to match y in
-        coordinate x_ii y_ii to coordinate sum_int x_i x_ii sum_int y_i y_ii
+   lambda coordinate x_i y_i dot lambda coordinate x_ii y_ii dot
+      coordinate sum_int x_i x_ii sum_int y_i y_ii
 
 define shift_cell of_type fn direction fn cell cell as 
-   lambda dir dot lambda cell_ dot match cell_ in
-      cell coord char to cell shift dir coord char
+   lambda dir dot lambda cell coord chr dot cell shift dir coord chr
 
 define shift of_type fn direction fn coordinate coordinate as
-   lambda dir dot lambda coord dot match coord in
-      coordinate x y to match dir in
-         north to coordinate
-            x
-            match y in
-               positive a to positive succ a
-               negative a to match a in
-                  one to zero
-                  succ b to negative b
-               zero to positive one
-         south to coordinate
-            x
-            match y in
-               negative a to negative succ a
-               positive a to match a in
-                  one to zero
-                  succ b to positive b
-               zero to negative one
-         east to coordinate
-            match x in
-               positive a to positive succ a
-               negative a to match a in
-                  one to zero
-                  succ b to negative b
-               zero to positive one
-            y
-         west to coordinate
-            match x in
-               negative a to negative succ a
-               positive a to match a in
-                  one to zero
-                  succ b to positive b
-               zero to negative one
-            y
+   lambda dir dot lambda coordinate x y dot match dir in
+      north to coordinate x sum_int y positive one
+      south to coordinate x sum_int y negative one
+      east to coordinate sum_int x positive one y
+      west to coordinate sum_int x negative one y
      
 define reverse of_type fn video video as 
    lambda x dot match x in
@@ -291,9 +256,7 @@ define eq_nat of_type fn nat fn nat bool as
          succ b to eq_nat a b
 
 define eq_coordinate of_type fn coordinate fn coordinate bool as
-   lambda coord_i dot lambda coord_ii dot match coord_i in
-      coordinate a b to match coord_ii in
-         coordinate c d to and eq_int a c eq_int b d
+   lambda coordinate a b dot lambda coordinate c d dot and eq_int a c eq_int b d
 
 define insert of_type fn cell fn frame frame as
    lambda c dot lambda frame dot match c in
@@ -391,20 +354,20 @@ define gcd of_type fn nat fn nat nat as
 
 define gcd_helper of_type fn nat fn nat fn nat fn nat nat as 
    lambda output dot lambda try dot lambda x dot lambda y dot
-      match or greater try x greater try y in
-         false to 
-            gcd_helper
-               match 
-                  and 
-                     divisible whole x whole try 
-                     divisible whole y whole try 
-                  in
-                     true to try
-                     false to output
-               succ try
-               x
-               y
-         true to output
+   match or greater try x greater try y in
+      false to 
+         gcd_helper
+            match 
+               and 
+                  divisible whole x whole try 
+                  divisible whole y whole try 
+               in
+                  true to try
+                  false to output
+            succ try
+            x
+            y
+      true to output
 
 define lcm of_type fn nat fn nat nat as
    lambda x dot lambda y dot

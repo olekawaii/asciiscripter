@@ -63,19 +63,19 @@ as
    lambda y dot 
    lambda chr dot 
    lambda new_frame col_neg col_pos row_zero dot
-      match y in
-         negative index to new_frame
-            insert_column x index chr col_neg
-            col_pos
-            row_zero
-         positive index to new_frame
-            col_neg
-            insert_column x index chr col_pos
-            row_zero
-         zero to new_frame 
-            col_neg
-            col_pos
-            insert_horizontal x chr row_zero 
+   match y in
+      negative index to new_frame
+         insert_column x index chr col_neg
+         col_pos
+         row_zero
+      positive index to new_frame
+         col_neg
+         insert_column x index chr col_pos
+         row_zero
+      zero to new_frame 
+         col_neg
+         col_pos
+         insert_horizontal x chr row_zero 
       
 define insert_column of_type fn int fn nat fn character fn column column as
    lambda x dot lambda y dot lambda chr dot lambda col dot
@@ -93,11 +93,12 @@ define from_video of_type fn video new_video as
       empty_video to empty_new_video
       cons_frame head tail to cons_new_video from_frame head from_video tail
 
-define from_frame of_type fn frame new_frame as lambda f dot match f in
-   unsafe_cons_cell head tail to match head in
-      cell coord char to match coord in
-         coordinate x y to insert_new_frame x y char from_frame tail
-   empty_frame to fresh_new_frame
+define from_frame of_type fn frame new_frame as 
+   lambda f dot match f in
+      unsafe_cons_cell head tail to match head in
+         cell coord chr to match coord in
+            coordinate x y to insert_new_frame x y chr from_frame tail
+      empty_frame to fresh_new_frame
       
 define into_video of_type fn new_video video as lambda vid dot match vid in
    empty_new_video to empty_video
@@ -202,3 +203,6 @@ define map_new_video of_type fn fn new_frame new_frame fn new_video new_video as
    lambda f dot lambda x dot match x in
       empty_new_video to empty_new_video
       cons_new_video head tail to cons_new_video f head map_new_video f tail
+
+define layer_new_frames of_type fn new_frame fn new_frame new_frame as 
+   lambda new_frame n_a p_a z_a dot lambda new_frame n_b p_b z_b dot ...

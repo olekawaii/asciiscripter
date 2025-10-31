@@ -19,6 +19,32 @@
 use std::{collections::HashMap, fmt};
 use std::sync::{Mutex, Arc};
 use std::thread;
+use crate::error::{Error, Mark, ErrorType};
+
+#[derive(Debug)]
+enum RuntimeError {
+    EvaluatedUndefined,
+}
+
+impl ErrorType for RuntimeError {
+    fn gist(&self) -> &'static str {
+        match self {
+            Self::EvaluatedUndefined => "entered undefined code"
+        }
+    }
+    
+    fn phase(&self) -> &'static str {
+        "runtime"
+    }
+}
+
+impl std::fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EvaluatedUndefined => write!(f, "attempted to evaluate an undefined expression")
+        }
+    }
+}
 
 // instead of Arc<Expression> use Arc<Mutex<Expression>> and first one to use it modifies it
 
@@ -100,7 +126,7 @@ fn optimize_expression(input: &mut Expression) {
         }
         //Expression::Lambda {id: None, body} => optimize_expression(body),
         l@Expression::Lambda {..} => {},
-        Expression::Undefined => ()
+        Expression::Undefined {..} => ()
     }
 }
 
@@ -127,7 +153,7 @@ pub enum Expression {
         id: Pattern,
         body: Box<Expression>,
     },
-    Undefined,
+    Undefined {mark: Mark},
 }
 
 #[derive(Debug, Clone)]
@@ -313,7 +339,14 @@ impl Expression {
                     _ => todo!(),
                 }
             }
-            Expression::Undefined => panic!("attempted to evaluate 'undefined'"),
+            Expression::Undefined { mark } => {
+                let error = Error {
+                    error_type: Box::new(RuntimeError::EvaluatedUndefined),
+                    mark: mark,
+                };
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
             x => unreachable!(),
         }
     }
@@ -337,7 +370,7 @@ impl Expression {
                 }
                 pattern.substitute(key, Arc::clone(&new_expression));
             }
-            Expression::Undefined => ()
+            Expression::Undefined {..} => ()
         }
     }
 
