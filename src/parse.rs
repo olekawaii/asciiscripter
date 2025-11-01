@@ -1,4 +1,4 @@
-/* ascr - a general-purpose pure functional programming language
+/* thorn - a general-purpose pure functional programming language
  * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -99,7 +99,7 @@ pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStrea
             while let Some(i) = next_non_newline(&mut imports) {
                 match i.value {
                     Token::Variable(ValueToken::Value(mut x)) => {
-                        x.push_str(".ascr");
+                        x.push_str(".th");
                         let mut f = get_tokens(x, done)?;
                         output.append(&mut f)
                     }

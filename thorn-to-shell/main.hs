@@ -53,7 +53,7 @@ main = getArgs >>= \arg -> case parseArgs arg defaultMods of
         Right (width, height, newGif) ->
           let
             file = "output" <> ".sh"
-            shortFile = "short_" <> file
+            shortFile = "short-" <> file
             (fileSh, command) = formatShell defaultMods width height Nothing . pipeline $ newGif
           in
           (
