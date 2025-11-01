@@ -1,5 +1,7 @@
 {-# Language MultiWayIf, LambdaCase #-}
 
+{- generate a shell script from thorn output -}
+
 module Main (main) where
 
 import System.Exit (die)
