@@ -247,7 +247,7 @@ pub fn parse_roman_numeral(mut numeral: &str) -> Option<u32> {
     }
 }
 
-pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
+pub fn build_syntax_tree(mut tokens: TokenStream, table: &HashMap<String, u32>) -> Result<SyntaxTree> {
     //dbg!(&tokens.clone().count());
     let Marked::<Token> {
         mark: root_mark,
@@ -278,13 +278,22 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                 Ok(SyntaxTree::Lambda(
                     pattern.into_iter().peekable(),
                     root_mark,
-                    Box::new(build_syntax_tree(tokens)?),
+                    Box::new(build_syntax_tree(tokens, table)?),
                 ))
             }
             Keyword::Match => {
                 let mut indent: u32;
                 let mut pattern = Vec::new();
                 let mut unmatched_matches = 0;
+                let Marked::<Token> {mark, value} = next_non_newline(&mut tokens).expect(""); 
+                match value {
+                    Token::Keyword(Keyword::Of_type) => (),
+                    _ => return Err(Error {
+                        error_type: Box::new(CompilationError::Empty),
+                        mark,
+                    })
+                }
+                let tp = parse_type(&mut tokens, table)?;
                 loop {
                     let token = tokens.next().expect("atueha");
                     match &token.value {
@@ -310,12 +319,34 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                         _ => pattern.push(token)
                     }
                 }
-                let branches: Vec<(Marked<String>, Vec<Marked<String>>, SyntaxTree)> =
-                    get_with_indentation(tokens, indent)
-                        .into_iter()
-                        .map(parse_branch)
-                        .collect::<Result<Vec<_>>>()?;
-                Ok(SyntaxTree::Match(Box::new(build_syntax_tree(pattern.into_iter().peekable())?), branches))
+                let mut output_vec = Vec::new();
+                for mut i in get_with_indentation(tokens, indent).into_iter() {
+                    let mut pattern = Vec::new();
+                    loop {
+                        let marked_token@Marked::<Token> { .. } = i.next().expect("bluuh");
+                        match &marked_token.value {
+                            Token::Variable(ValueToken::Value(_)) => pattern.push(marked_token),
+                            Token::Keyword(Keyword::To) => {
+                                break
+                            }
+                            _ => return Err(Error {
+                                error_type: Box::new(CompilationError::Empty),
+                                mark: marked_token.mark.clone(),
+                            })
+                        }
+                    }
+                    //dbg!(&root_mark);
+                    output_vec.push((
+                        pattern.into_iter().peekable(),
+                        build_syntax_tree(i, table)?
+                    ));
+                }
+                Ok(SyntaxTree::Match(
+                        tp, 
+                        Box::new(build_syntax_tree(pattern.into_iter().peekable(), table)?), 
+                        //branches
+                        output_vec
+                ))
             }
             _ => Err(Error {
                 mark: root_mark,
@@ -330,7 +361,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                     None => break,
                     Some(x) => {
                         if matches!(x.value, Token::Keyword(_)) {
-                            args.push(Argument::Grouped(build_syntax_tree(tokens)?));
+                            args.push(Argument::Grouped(build_syntax_tree(tokens, table)?));
                             break;
                         }
                     }
@@ -349,7 +380,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
                         }
                         let arg_groups = get_with_indentation(tokens, indentation)
                             .into_iter()
-                            .map(build_syntax_tree);
+                            .map(|x| build_syntax_tree(x, table));
                         for i in arg_groups {
                             args.push(Argument::Grouped(i?));
                         }
@@ -364,7 +395,10 @@ pub fn build_syntax_tree(mut tokens: TokenStream) -> Result<SyntaxTree> {
     }
 }
 
-fn parse_branch(mut tokens: TokenStream) -> Result<(Marked<String>, Vec<Marked<String>>, SyntaxTree)> {
+fn parse_branch(
+    mut tokens: TokenStream, 
+    table: &HashMap<String, u32>
+) -> Result<(Marked<String>, Vec<Marked<String>>, SyntaxTree)> {
     let Marked::<Token> { mark, value: token } = tokens.next().expect("uwu");
     let constructor = match token {
         Token::Variable(ValueToken::Value(name)) => Marked::<String> {
@@ -385,7 +419,7 @@ fn parse_branch(mut tokens: TokenStream) -> Result<(Marked<String>, Vec<Marked<S
             _ => panic!("bad match syntax"),
         }
     }
-    Ok((constructor, args, build_syntax_tree(tokens)?))
+    Ok((constructor, args, build_syntax_tree(tokens, table)?))
 }
 
 pub fn build_tree(
@@ -436,68 +470,33 @@ pub fn build_tree(
                 &mut vec,
             )
         }
-        SyntaxTree::Match(pattern, syntax_branches) => {
-            let data_constructor = &syntax_branches[0].0;
-            let tp = match variables.get(&data_constructor.value) {
-                Some((_, tp)) => tp,
-                None => match global_vars.get(&data_constructor.value) {
-                    None => return Err(Error {
-                        error_type: Box::new(CompilationError::NotInScope),
-                        mark: data_constructor.mark.clone()
-                    }),
-                    Some((_, tp, _)) => tp,
-                },
-            };
-            let pattern_type = tp.final_type();
+        SyntaxTree::Match(tp, pattern, syntax_branches) => {
             let pattern_expression = build_tree(
-                Type::Type(pattern_type),
-                *pattern,
-                variables.clone(),
-                local_vars_count,
+                tp.clone(), 
+                *pattern, 
+                variables.clone(), 
+                local_vars_count, 
                 global_vars
             )?;
-            let mut branches = HashMap::new();
-            for (name, args, expression) in syntax_branches {
-                //dbg!(&name);
-                let (id, tp, is_constructor) = global_vars.get(&name.value).expect("sh"); // TODO
-                if !(tp.final_type() == pattern_type) {
-                    panic!("bbb")
+            let mut output = Vec::new();
+            for (pattern_tokens, syntax_tree) in syntax_branches {
+                let (pattern, local_vars_new, new_local_vars_count) = parse_pattern(
+                    local_vars_count,
+                    &tp,
+                    pattern_tokens,
+                    global_vars
+                )?;
+                local_vars_count = new_local_vars_count;
+                let mut variables = variables.clone();
+                for (a, b) in local_vars_new {
+                    variables.insert(a, b);
                 }
-                let arg_types = tp.clone().arg_types();
-                if !(arg_types.len() == args.len()) {
-                    dbg!(&arg_types);
-                    panic!("ccac");
-                }
-                let mut local_vars = variables.clone();
-                let mut local_var_count = local_vars_count;
-                let mut arg_nums = Vec::new();
-                for (name, tp) in args.into_iter().zip(arg_types.into_iter()) {
-                    if &name.value != "_" {
-                        local_var_count += 1;
-                        local_vars.insert(name.value, (local_var_count, tp));
-                        arg_nums.push(Some(local_var_count));
-                    } else {
-                        arg_nums.push(None)
-                    }
-                }
-                branches.insert(
-                    *id as u32,
-                    (
-                        arg_nums,
-                        build_tree(
-                            // fix data constructor id
-                            expected_type.clone(),
-                            expression,
-                            local_vars,
-                            local_var_count,
-                            global_vars,
-                        )?
-                    ),
-                );
+                let body = build_tree(expected_type.clone(), syntax_tree, variables, local_vars_count, global_vars)?;
+                output.push((pattern, body))
             }
             Ok(Expression::Match {
                 pattern: Box::new(pattern_expression),
-                branches: branches,
+                branches: output
             })
         }
     }
@@ -622,10 +621,10 @@ pub enum SyntaxTree {
         Vec<Argument>,            // arguments
     ),                            //
     Match(                        //
+        Type,              //
         Box<SyntaxTree>,          // pattern
         Vec<(                     //
-            Marked<String>,       // constructor
-            Vec<Marked<String>>,  // constructor argument names
+            TokenStream,
             SyntaxTree,           // body
         )>,
     ),
@@ -864,12 +863,12 @@ pub fn tokenize(
                     value: match keywords.get(&other) {
                         Some(keyword) => Token::Keyword(keyword.clone()),
                         None => {
-                            if !other.chars().all(|x| x.is_lowercase() || x == '_') {
-                                return Err(Error {
-                                    mark: mark,
-                                    error_type: Box::new(CompilationError::InvalidName),
-                                });
-                            }
+                            //if !other.chars().all(|x| x.is_lowercase() || x == '_') {
+                            //    return Err(Error {
+                            //        mark: mark,
+                            //        error_type: Box::new(CompilationError::InvalidName),
+                            //    });
+                            //}
                             Token::Variable(ValueToken::Value(other.to_string()))
                         }
                     },
@@ -1089,7 +1088,7 @@ fn indentation_length(input: &str) -> u32 {
 
 #[derive(Debug)]
 pub enum Signiture {
-    Value(String, Vec<String>),
+    Value(String, TokenStream),
     Type(String),
 }
 
@@ -1131,12 +1130,9 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                             error_type: Box::new(CompilationError::Empty),
                         });
                     }
-                    let mut type_strings: Vec<String> = Vec::new();
+                    let mut type_strings: Vec<Marked<Token>> = Vec::new();
                     loop {
-                        let Marked::<Token> {
-                            mark: mark4,
-                            value: token,
-                        } = match next_non_newline(input) {
+                        let w = match next_non_newline(input) {
                             Some(x) => x,
                             None => {
                                 return Err(Error {
@@ -1145,16 +1141,16 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                                 });
                             }
                         };
-                        match token {
-                            Token::Variable(ValueToken::Value(word)) => type_strings.push(word),
+                        match &w.value {
+                            Token::Variable(ValueToken::Value(_)) => type_strings.push(w),
                             Token::Keyword(Keyword::As) => break,
                             _ => return Err(Error {
-                                mark: mark4,
+                                mark: w.mark.clone(),
                                 error_type: Box::new(CompilationError::Empty),
                             })
                         }
                     }
-                    Ok(Signiture::Value(name, type_strings))
+                    Ok(Signiture::Value(name, type_strings.into_iter().peekable()))
                 }
                 _ => panic!("extract"),
             }
@@ -1191,20 +1187,28 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
     }
 }
 
-pub fn parse_type(
-    strings: &mut impl Iterator<Item = String>,
-    table: &HashMap<String, u32>,
-) -> Result<Type> {
-    match strings.next().expect("jjjj").as_str() {
-        "fn" => {
-            let arg1 = parse_type(strings, table)?;
-            let arg2 = parse_type(strings, table)?;
-            Ok((Type::Function(Box::new(arg1), Box::new(arg2))))
+pub fn parse_type(tokens: &mut TokenStream, table: &HashMap<String, u32>) -> Result<Type> {
+    let Marked::<Token> { mark, value: token, } = next_non_newline(tokens).expect("kkkk");
+    match token {
+        Token::Variable(ValueToken::Value(word)) => match word.as_str() {
+            "fn" => {
+                let arg1 = parse_type(tokens, table)?;
+                let arg2 = parse_type(tokens, table)?;
+                Ok((Type::Function(Box::new(arg1), Box::new(arg2))))
+            }
+            word => {
+                let index = table.get(word).ok_or(Error {
+                    mark,
+                    error_type: Box::new(CompilationError::NotInScope)
+                })?;
+                Ok(Type::Type(*index))
+            }
         }
-        word => {
-            let index = table.get(word).expect("kkkk").clone();
-            Ok(Type::Type(index))
-        }
+        Token::Keyword(_) => Err(Error {
+            error_type: Box::new(CompilationError::UnexpectedKeyword),
+            mark: mark,
+        }),
+        _ => unreachable!()
     }
 }
 
@@ -1214,7 +1218,7 @@ pub fn parse_data(
     parent_type: u32,
 ) -> Result<Vec<(String, Type)>> {
     let mut output = Vec::new();
-    for mut i in get_with_indentation(tokens, 3).into_iter() {
+    for mut i in get_with_indentation(tokens, 4).into_iter() {
         let Marked::<Token> {
             mark: root_mark,
             value: token,
@@ -1227,25 +1231,9 @@ pub fn parse_data(
                 mark: root_mark,
             })
         };
-        let mut type_strings = Vec::new();
-        for Marked::<Token> {
-            mark: root_mark,
-            value: token,
-        } in i
-        {
-            match token {
-                Token::Variable(ValueToken::Value(word)) => type_strings.push(word),
-                Token::NewLine(_) => continue,
-                _ => return Err(Error {
-                    error_type: Box::new(CompilationError::Empty),
-                    mark: root_mark,
-                })
-            }
-        }
-        let mut strings = type_strings.into_iter().peekable();
         let mut arg_types: Vec<Type> = Vec::new();
-        while strings.peek().is_some() {
-            arg_types.push(parse_type(&mut strings, types)?)
+        while i.peek().is_some() {
+            arg_types.push(parse_type(&mut i, types)?)
         }
         let mut args = arg_types.into_iter();
         output.push((name, build_type(&mut args, Type::Type(parent_type))));

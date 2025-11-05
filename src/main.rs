@@ -116,7 +116,7 @@ fn parse_file(
     for (signiture, tokens) in values.into_iter() {
         let (name, tp) = match signiture {
             Signiture::Value(name, tp) => (name, {
-                let mut actual_type = tp.into_iter();
+                let mut actual_type = tp;
                 parse_type(&mut actual_type, &types).unwrap()
             }),
             _ => unreachable!(),
@@ -129,7 +129,7 @@ fn parse_file(
         global_vars.push(
             build_tree(
                 tp,
-                build_syntax_tree(tokens)?,
+                build_syntax_tree(tokens, &types)?,
                 HashMap::new(),
                 0,
                 &global_vars_dummy,

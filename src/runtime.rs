@@ -91,44 +91,44 @@ fn build_mutex(mut input: Expression) -> Arc<Mutex<Expression>> {
 //    }
 //}
 
-fn optimize_expression(input: &mut Expression) {
-    if matches!(&input, Expression::Tree {root: Id::DataConstructor(_), arguments} if arguments.len() == 0) ||
-       matches!(&input, Expression::Tree {root: Id::Thunk(_), arguments} if arguments.len() == 0) {
-       //matches!(&input, Expression::Lambda {..}) {
-        return ()
-    }
-    match input {
-        Expression::Tree {root, arguments} => {
-            //let mut new_arguments = Vec::new();
-            //for i in arguments.iter_mut() {
-            //    optimize_expression(i)
-            //}
-            *input = Expression::Tree {
-                root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {root: root.clone(), arguments: std::mem::take(arguments)}))),
-                arguments: Vec::new()
-            }
-        }
-        Expression::Match {pattern, branches} => {
-            for (_, (vec, expression)) in branches.iter_mut() {
-                if vec.iter().all(|x| x.is_none()) {
-                    optimize_expression(expression);
-                    //dbg!("s");
-                }
-            }
-
-            optimize_expression(&mut(*pattern))
-            //if matches!(**pattern, Expression::Tree { root: Id::Thunk(_), ..}) {
-            //    *pattern = Box::new(Expression::Tree {
-            //        root: Id::Thunk(Arc::new(Mutex::new(std::mem::take(pattern)))),
-            //        arguments: Vec::new()
-            //    })
-            //}
-        }
-        //Expression::Lambda {id: None, body} => optimize_expression(body),
-        l@Expression::Lambda {..} => {},
-        Expression::Undefined {..} => ()
-    }
-}
+//fn optimize_expression(input: &mut Expression) {
+//    if matches!(&input, Expression::Tree {root: Id::DataConstructor(_), arguments} if arguments.len() == 0) ||
+//       matches!(&input, Expression::Tree {root: Id::Thunk(_), arguments} if arguments.len() == 0) {
+//       //matches!(&input, Expression::Lambda {..}) {
+//        return ()
+//    }
+//    match input {
+//        Expression::Tree {root, arguments} => {
+//            //let mut new_arguments = Vec::new();
+//            //for i in arguments.iter_mut() {
+//            //    optimize_expression(i)
+//            //}
+//            *input = Expression::Tree {
+//                root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {root: root.clone(), arguments: std::mem::take(arguments)}))),
+//                arguments: Vec::new()
+//            }
+//        }
+//        Expression::Match {pattern, branches} => {
+//            for (_, (vec, expression)) in branches.iter_mut() {
+//                if vec.iter().all(|x| x.is_none()) {
+//                    optimize_expression(expression);
+//                    //dbg!("s");
+//                }
+//            }
+//
+//            optimize_expression(&mut(*pattern))
+//            //if matches!(**pattern, Expression::Tree { root: Id::Thunk(_), ..}) {
+//            //    *pattern = Box::new(Expression::Tree {
+//            //        root: Id::Thunk(Arc::new(Mutex::new(std::mem::take(pattern)))),
+//            //        arguments: Vec::new()
+//            //    })
+//            //}
+//        }
+//        //Expression::Lambda {id: None, body} => optimize_expression(body),
+//        l@Expression::Lambda {..} => {},
+//        Expression::Undefined {..} => ()
+//    }
+//}
 
 #[derive(Debug, Clone)]
 pub enum Id {
@@ -146,7 +146,7 @@ pub enum Expression {
     },
     Match {
         pattern: Box<Expression>,
-        branches: HashMap<u32, (Vec<Option<u32>>, Expression)>,
+        branches: Vec<(Pattern, Expression)> //HashMap<u32, (Vec<Option<u32>>, Expression)>,
     },
     Lambda {
         //id: Option<u32>,
@@ -302,42 +302,16 @@ impl Expression {
                 *self = output;
             }
             Expression::Match { mut pattern, mut branches } => {
-                pattern.simplify_owned(Arc::clone(&definitions));
-                match *pattern {
-                    Expression::Tree { root, arguments } => {
-                        let (vec, mut output) = match root {
-                            Id::DataConstructor(root) => match branches.remove(&root) {
-                                None => {
-                                    dbg!(&root); 
-                                    //dbg!(&pattern);
-                                    dbg!(&branches);
-                                    panic!("unmatched pattern");
-                                },
-                                Some(x) => x,
-                            }
-                            _ => todo!(),
-                        };
-                        for (id, expression) in vec.into_iter().zip(arguments.into_iter()) {
-                            if let Some(id) = id {
-                                output.substitute(id.clone(), {
-                                    if let Expression::Tree {root: Id::Thunk(ref x), arguments: ref a} = expression {
-                                        if a.len() == 0 {
-                                            //dbg!("skipped a clone!");
-                                            Arc::clone(&x)
-                                        } else {
-                                            build_mutex(expression)
-                                        }
-                                    } else {
-                                        build_mutex(expression)
-                                    }
-                                });
-                            }
+                for (pat, mut new_expression) in branches.into_iter() {
+                    if let Some(map) = match_on_expression(&pat, &mut pattern, Arc::clone(&definitions)) {
+                        for (id, expression) in map.into_iter() {
+                            new_expression.substitute(id, build_mutex(expression));
                         }
-                        output.simplify_owned(definitions);
-                        *self = output
+                        *self = new_expression;
+                        break
                     }
-                    _ => todo!(),
                 }
+                self.simplify_owned(Arc::clone(&definitions));
             }
             Expression::Undefined { mark } => {
                 let error = Error {
@@ -365,7 +339,7 @@ impl Expression {
 
             }
             Expression::Match { pattern, branches } => {
-                for (_, (_, i)) in branches.iter_mut() {
+                for (_, i) in branches.iter_mut() {
                     i.substitute(key, Arc::clone(&new_expression));
                 }
                 pattern.substitute(key, Arc::clone(&new_expression));

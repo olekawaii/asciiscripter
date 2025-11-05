@@ -1,16 +1,16 @@
 include core std 
 
 define dragon of_type video as 
-   layer_videos 
-      layer_videos 
-         by vi shift_video west by iii shift_video north center_head
-         layer_videos 
-            right_side
-            shift_video east by vi rotate flip_over_y right_side
-      by iii shift_video west by 
-         iv 
-         shift_video south 
-         dragon_tail
+    layer_videos 
+        layer_videos 
+            by vi shift_video west by iii shift_video north center_head
+            layer_videos 
+                right_side
+                shift_video east by vi rotate flip_over_y right_side
+        by iii shift_video west by 
+            iv 
+            shift_video south 
+            dragon_tail
 
 define center_head of_type video as loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
@@ -40,8 +40,8 @@ define wing of_type video as art xi iv
            ...........
 
 define right_head of_type video as layer_videos
-   by ix rotate by xiv shift_video east fire
-   seq blow roar
+    by ix rotate by xiv shift_video east fire
+    seq blow roar
 
 define blow of_type video as loop extend art xiv v
 .             7..............             7.............
@@ -65,13 +65,13 @@ define roar of_type video as by ii shift_video south loop art xiii vii
              .............             .............    `----.~' ....66666666.
 
 define right_side of_type video as 
-   layer_videos
-       layer_videos
-          slow ii shift_video south by iv shift_video east rotate foot_right
-          layer_videos 
-             by vii shift_video north by vi shift_video east right_head
-             by ii rotate body
-       shift_video north by ix shift_video east wing
+    layer_videos
+         layer_videos
+             slow ii shift_video south by iv shift_video east rotate foot_right
+             layer_videos 
+                 by vii shift_video north by vi shift_video east right_head
+                 by ii rotate body
+         shift_video north by ix shift_video east wing
 
 define fire of_type video as art viii iii
         ........        ........        ........        ........        ........
