@@ -1,18 +1,18 @@
 include core
 
 define rotate of_type fn video video as 
-    lambda vid dot match of_type video vid in
+    lambda vid dot match vid in
         empty_video           to empty_video
         cons_frame head tail  to seq tail cons_frame head empty_video
 
 define by of_type fn nat fn fn video video fn video video as 
-    lambda counter dot lambda fn dot lambda vid dot match of_type nat counter in
+    lambda counter dot lambda fn dot lambda vid dot match counter in
         one     to fn vid
         succ a  to by a fn fn vid
 
-define extend of_type fn video video as lambda x dot match of_type video x in
+define extend of_type fn video video as lambda x dot match x in
     empty_video           to empty_video
-    cons_frame head tail  to cons_frame head match of_type video tail in
+    cons_frame head tail  to cons_frame head match tail in
         empty_video     to cons_frame head empty_video
         cons_frame _ _  to extend tail
 
@@ -23,7 +23,7 @@ define flip_over_y of_type fn video video as
 
 define flip_over_y_coordinate of_type fn coordinate coordinate as
     lambda coordinate x y dot coordinate
-        match of_type int x in
+        match x in
             positive a  to negative a
             negative a  to positive a
             zero        to zero
@@ -36,10 +36,10 @@ data direction contains
     west
 
 define flip_over_y_char of_type fn character character as 
-    lambda x dot match of_type character x in
+    lambda x dot match x in
         space         to space
         char c color  to char
-            match of_type visible_character c in
+            match c in
                 single_quote       to grave_accent
                 open_paranthesis   to close_paranthesis
                 close_paranthesis  to open_paranthesis
@@ -61,12 +61,12 @@ define shift_video of_type fn direction fn video video as
     lambda dir dot map_video map_frame shift_cell dir
 
 define map_video of_type fn fn frame frame fn video video as
-    lambda f dot lambda vid dot match of_type video vid in
+    lambda f dot lambda vid dot match vid in
         empty_video           to empty_video
         cons_frame head tail  to cons_frame f head map_video f tail
 
 define map_frame of_type fn fn cell cell fn frame frame as
-    lambda f dot lambda frame dot match of_type frame frame in
+    lambda f dot lambda frame dot match frame in
         empty_frame                 to empty_frame
         unsafe_cons_cell head tail  to unsafe_cons_cell f head map_frame f tail
 
@@ -84,33 +84,33 @@ define shift_cell of_type fn direction fn cell cell as
     lambda dir dot lambda cell coord chr dot cell shift dir coord chr
 
 define shift of_type fn direction fn coordinate coordinate as
-    lambda dir dot lambda coordinate x y dot match of_type direction dir in
+    lambda dir dot lambda coordinate x y dot match dir in
         north  to coordinate x sum_int y positive one
         south  to coordinate x sum_int y negative one
         east   to coordinate sum_int x positive one y
         west   to coordinate sum_int x negative one y
       
 define reverse of_type fn video video as 
-    lambda x dot match of_type video x in
+    lambda x dot match x in
         empty_video     to empty_video
         cons_frame a b  to seq reverse b cons_frame a empty_video
 
-define tail of_type fn video video as lambda x dot match of_type video x in
+define tail of_type fn video video as lambda x dot match x in
     empty_video     to empty_video
     cons_frame _ b  to b
 
 define loop of_type fn video video as lambda x dot seq x tail reverse tail x
 
 define slow of_type fn nat fn video video as 
-    lambda num dot lambda vid dot match of_type video vid in
+    lambda num dot lambda vid dot match vid in
         empty_video           to empty_video
         cons_frame head tail  to seq 
             take num loop_video_forever cons_frame head empty_video 
             slow num tail
 
 define eq_int of_type fn int fn int bool as
-    lambda x dot lambda y dot match of_type tuple_int_int tuple_int_int x y in
-       tuple_int_int zero zero              to true
+    lambda x dot lambda y dot match tuple_int_int x y in
+       tuple_int_int zero       zero        to true
        tuple_int_int positive a positive b  to eq_nat a b
        tuple_int_int negative a negative b  to eq_nat a b
        _                                    to false
@@ -119,25 +119,25 @@ data tuple_int_int contains
    tuple_int_int int int
 
 define sum_int of_type fn int fn int int as 
-    lambda x dot lambda y dot match of_type int x in 
+    lambda x dot lambda y dot match x in 
         zero        to y
         negative _  to sum_int increment x decrement y 
         positive _  to sum_int decrement x increment y 
 
-define increment of_type fn int int as lambda x dot match of_type int x in 
+define increment of_type fn int int as lambda x dot match x in 
    zero             to positive one
    positive a       to positive succ a
    negative one     to zero 
    negative succ a  to negative a
 
-define decrement of_type fn int int as lambda x dot match of_type int x in
+define decrement of_type fn int int as lambda x dot match x in
    zero             to negative one
    negative a       to negative succ a
    positive one     to zero
    positive succ a  to positive a
 
 define recolor_character of_type fn color fn character character as
-    lambda color dot lambda character dot match of_type character character in
+    lambda color dot lambda character dot match character in
         space     to space
         char a _  to char a color
 
@@ -146,12 +146,12 @@ data bool contains
     false
 
 define and of_type fn bool fn bool bool as
-    lambda x dot match of_type bool x in
+    lambda x dot match x in
         false to const_bool_bool false
         true  to id_bool
 
 define or of_type fn bool fn bool bool as
-    lambda x dot match of_type bool x in
+    lambda x dot match x in
         true  to const_bool_bool true
         false to id_bool
 
@@ -161,8 +161,8 @@ define const_bool_bool of_type fn bool fn bool bool as
     lambda x dot lambda _ dot x
 
 define eq_nat of_type fn nat fn nat bool as
-    lambda x dot lambda y dot match of_type tuple_nat_nat tuple_nat_nat x y in
-        tuple_nat_nat one one        to true
+    lambda x dot lambda y dot match tuple_nat_nat x y in
+        tuple_nat_nat one    one     to true
         tuple_nat_nat succ a succ b  to eq_nat a b
         _                            to false
 
@@ -173,11 +173,11 @@ define eq_coordinate of_type fn coordinate fn coordinate bool as
     lambda coordinate a b dot lambda coordinate c d dot and eq_int a c eq_int b d
 
 define insert of_type fn cell fn frame frame as
-    lambda c dot lambda frame dot match of_type cell c in
-        cell coord _ to match of_type frame frame in
+    lambda c dot lambda frame dot match c in
+        cell coord _ to match frame in
             empty_frame                 to unsafe_cons_cell c empty_frame
-            unsafe_cons_cell head tail  to match of_type cell head in
-                cell coord_ii _ to match of_type bool eq_coordinate coord_ii coord in
+            unsafe_cons_cell head tail  to match head in
+                cell coord_ii _ to match eq_coordinate coord_ii coord in
                     true  to unsafe_cons_cell c tail
                     false to unsafe_cons_cell head insert c tail
 
@@ -194,46 +194,55 @@ data whole contains
     whole nat
 
 define subtract_exactly of_type fn whole fn whole option_whole as
-    lambda x dot lambda y dot match of_type whole x in
-        whole a to match of_type whole y in
+    lambda x dot lambda y dot match x in
+        whole a to match y in
             whole_zero  to some_whole whole a
             whole b     to subtract_exactly
-                match of_type nat a in
+                match a in
                     one     to whole_zero
                     succ n  to whole n
-                match of_type nat b in
+                match b in
                     one     to whole_zero
                     succ n  to whole n
-        whole_zero to match of_type whole y in
+        whole_zero to match y in
             whole_zero  to some_whole whole_zero
             whole _     to none_whole
 
 define divide_exactly of_type fn whole fn whole option_whole as
-    lambda x dot match of_type whole x in
+    lambda x dot match x in
         whole_zero  to lambda _ dot some_whole whole_zero
-        whole _     to lambda y dot match of_type option_whole subtract_exactly x y in
+        whole _     to lambda y dot match subtract_exactly x y in
             none_whole    to none_whole
             some_whole a  to map_option_whole
-                lambda x dot match of_type whole x in
+                lambda x dot match x in
                     whole_zero  to whole one
                     whole a     to whole succ a
                 divide_exactly a y
 
 define map_option_whole of_type fn fn whole whole fn option_whole option_whole as
-    lambda f dot lambda x dot match of_type option_whole x in
+    lambda f dot lambda x dot match x in
         none_whole    to none_whole
         some_whole a  to some_whole f a
 
 define sum_nat of_type fn nat fn nat nat as
-    lambda x dot match of_type nat x in
+    lambda x dot match x in
         one     to succ
         succ a  to lambda y dot succ sum_nat a y
 
 define product_nat of_type fn nat fn nat nat as 
-    lambda x dot lambda y dot match of_type nat x in
+    lambda x dot lambda y dot match x in
         one     to y
         succ a  to sum_nat y product_nat a y
 
+define product_int of_type fn int fn int int as 
+    lambda x dot lambda y dot match tuple_int_int x y in
+        tuple_int_int zero       _           to zero
+        tuple_int_int _          zero        to zero
+        tuple_int_int positive a positive b  to positive product_nat a b
+        tuple_int_int positive a negative b  to negative product_nat a b
+        tuple_int_int negative a positive b  to negative product_nat a b
+        tuple_int_int negative a negative b  to positive product_nat a b
+        
 data list_whole contains
     cons_whole whole list_whole
     nil_whole
@@ -247,19 +256,19 @@ define map_option_list_whole of_type
         fn list_whole list_whole 
         fn option_list_whole option_list_whole 
 as
-    lambda f dot lambda x dot match of_type option_list_whole x in
+    lambda f dot lambda x dot match x in
         some_list_whole a  to some_list_whole f a
         none_list_whole    to none_list_whole
 
 define greater of_type fn nat fn nat bool as 
-    lambda a dot lambda b dot match of_type nat a in
+    lambda a dot lambda b dot match a in
         one     to false
-        succ c  to match of_type nat b in
+        succ c  to match b in
             one     to true
             succ d  to greater c d
 
 define divisible of_type fn whole fn whole bool as
-    lambda x dot lambda y dot match of_type option_whole divide_exactly x y in
+    lambda x dot lambda y dot match divide_exactly x y in
         some_whole _  to true
         none_whole    to false
 
@@ -268,10 +277,10 @@ define gcd of_type fn nat fn nat nat as
 
 define gcd_helper of_type fn nat fn nat fn nat fn nat nat as 
     lambda output dot lambda try dot lambda x dot lambda y dot
-    match of_type bool or greater try x greater try y in
+    match or greater try x greater try y in
         false to 
             gcd_helper
-                match of_type bool
+                match
                     and 
                         divisible whole x whole try 
                         divisible whole y whole try 
@@ -285,19 +294,17 @@ define gcd_helper of_type fn nat fn nat fn nat fn nat nat as
 
 define lcm of_type fn nat fn nat nat as
     lambda x dot lambda y dot
-        match of_type option_whole
-            divide_exactly whole product_nat x y whole gcd x y 
-        in
+        match divide_exactly whole product_nat x y whole gcd x y in
             none_whole    to i
-            some_whole x  to match of_type whole x in
+            some_whole x  to match x in
               whole x     to x
               whole_zero  to i
 
 define prime_factors of_type fn nat fn whole list_whole as
-    lambda x dot lambda y dot match of_type whole y in
-        whole aaa to match of_type nat aaa in
+    lambda x dot lambda y dot match y in
+        whole aaa to match aaa in
             one     to nil_whole 
-            succ _  to match of_type option_whole divide_exactly y whole x in
+            succ _  to match divide_exactly y whole x in
                 some_whole a  to cons_whole whole x prime_factors x a
                 none_whole    to prime_factors succ x y
         whole_zero to nil_whole 
@@ -306,39 +313,39 @@ define loop_video_forever of_type fn video video as
     lambda x dot seq x loop_video_forever x
 
 define seq of_type fn video fn video video as
-    lambda a dot lambda b dot match of_type video a in
+    lambda a dot lambda b dot match a in
         cons_frame head tail  to cons_frame head seq tail b
         empty_video           to b
 
 define take of_type fn nat fn video video as 
-    lambda counter dot lambda frames dot match of_type nat counter in
-        one to match of_type video frames in
+    lambda counter dot lambda frames dot match counter in
+        one to match frames in
             cons_frame head tail  to cons_frame head empty_video
             empty_video           to empty_video
-        succ a to match of_type video frames in
+        succ a to match frames in
             cons_frame head tail  to cons_frame head take a tail
             empty_video           to empty_video
 
 define layer_frames of_type fn frame fn frame frame as
-    lambda top dot lambda bottom dot match of_type frame top in
+    lambda top dot lambda bottom dot match top in
         unsafe_cons_cell head tail  to insert head layer_frames tail bottom
         empty_frame                 to bottom
 
-define increment_whole of_type fn whole whole as lambda x dot match of_type whole x in
+define increment_whole of_type fn whole whole as lambda x dot match x in
     whole_zero  to whole one
     whole x     to whole succ x
 
 define video_length of_type fn video whole as
-    lambda x dot match of_type video x in
+    lambda x dot match x in
         empty_video           to whole_zero
         cons_frame head tail  to increment_whole video_length tail
 
 define layer_videos of_type fn video fn video video as
-    lambda top dot lambda bottom dot match of_type whole video_length top in
+    lambda top dot lambda bottom dot match video_length top in
         whole_zero     to bottom
-        whole top_len  to match of_type whole video_length bottom in
+        whole top_len  to match video_length bottom in
             whole_zero        to top
-            whole bottom_len  to match of_type nat_wrapper wrapped lcm top_len bottom_len in
+            whole bottom_len  to match wrapped lcm top_len bottom_len in
                 wrapped x to layer_helper 
                      take x loop_video_forever top
                      take x loop_video_forever bottom
@@ -347,8 +354,8 @@ data nat_wrapper contains
     wrapped nat
 
 define layer_helper of_type fn video fn video video as
-    lambda top dot lambda bottom dot match of_type video top in
-        cons_frame top_head top_tail to match of_type video bottom in
+    lambda top dot lambda bottom dot match top in
+        cons_frame top_head top_tail to match bottom in
             cons_frame bottom_head bottom_tail to 
                 cons_frame 
                     layer_frames top_head bottom_head 

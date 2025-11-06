@@ -285,15 +285,22 @@ pub fn build_syntax_tree(mut tokens: TokenStream, table: &HashMap<String, u32>) 
                 let mut indent: u32;
                 let mut pattern = Vec::new();
                 let mut unmatched_matches = 0;
-                let Marked::<Token> {mark, value} = next_non_newline(&mut tokens).expect(""); 
+                let mut tp;
+                while let Some(Marked::<Token> {value: Token::NewLine(_), ..}) = tokens.peek() {
+                    tokens.next();
+                }
+                let Marked::<Token> {mark, value}: Marked<Token> = tokens.peek().expect("").clone(); 
                 match value {
-                    Token::Keyword(Keyword::Of_type) => (),
+                    Token::Keyword(Keyword::Of_type) => {
+                        tokens.next();
+                        tp = Some(parse_type(&mut tokens, table)?);
+                    }
+                    Token::Variable(_) => tp = None,
                     _ => return Err(Error {
                         error_type: Box::new(CompilationError::Empty),
                         mark,
                     })
                 }
-                let tp = parse_type(&mut tokens, table)?;
                 loop {
                     let token = tokens.next().expect("atueha");
                     match &token.value {
@@ -470,7 +477,34 @@ pub fn build_tree(
                 &mut vec,
             )
         }
-        SyntaxTree::Match(tp, pattern, syntax_branches) => {
+        SyntaxTree::Match(typ, pattern, syntax_branches) => {
+            let tp = match typ {
+                Some(x) => x,
+                None => {
+                    let (first_name, mark) = match &*pattern {
+                        SyntaxTree::Tree(root, _) => (&root.value, &root.mark),
+                        _ => panic!("aaaa")
+                    };
+                    let (_, root_type) = if let Some((a, b)) = variables.get(first_name) {
+                        (Id::LambdaArg(*a), b)
+                    } else if let Some((a, b, c)) = global_vars.get(first_name) {
+                        (
+                            if *c {
+                                Id::DataConstructor(*a as u32)
+                            } else {
+                                Id::Variable(*a)
+                            },
+                            b,
+                        )
+                    } else {
+                        return Err(Error {
+                            error_type: Box::new(CompilationError::NotInScope),
+                            mark: mark.clone()
+                        })
+                    };
+                    Type::Type(root_type.final_type())
+                }
+            };
             let pattern_expression = build_tree(
                 tp.clone(), 
                 *pattern, 
@@ -621,7 +655,7 @@ pub enum SyntaxTree {
         Vec<Argument>,            // arguments
     ),                            //
     Match(                        //
-        Type,              //
+        Option<Type>,              //
         Box<SyntaxTree>,          // pattern
         Vec<(                     //
             TokenStream,
