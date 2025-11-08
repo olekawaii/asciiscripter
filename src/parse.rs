@@ -1,4 +1,4 @@
-/* thorn - a general-purpose pure functional programming language
+/* thorn - a pure lazy functional programming language
  * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -39,7 +39,13 @@ fn parse_pattern(
         &mut tokens,
         global_vars
     )?;
-    Ok((pattern, output, number_of_local))
+    match tokens.next() {
+        None => Ok((pattern, output, number_of_local)),
+        Some(x) => Err(Error {
+            mark: x.mark,
+            error_type: Box::new(CompilationError::TrailingCharacters)
+        })
+    }
 }
 
 fn parse_pattern_helper(
@@ -705,14 +711,15 @@ pub enum CompilationError {
     NotInScope,
     TypeMismatch,
     ExpectedRoman,
-    UnexpectedKeyword
+    UnexpectedKeyword,
+    TrailingCharacters,
 }
 
 impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
             Self::Custom(_) => "",
-            Self::Empty => "empty",
+            Self::Empty => "",
             Self::UnexpectedClosingComment => "unexpected delimiter",
             Self::UnexpectedOpeningComment(_) => "unmatched delimiter",
             Self::UnclosedComment => "unclosed comment",
@@ -721,6 +728,7 @@ impl ErrorType for CompilationError {
             Self::TypeMismatch => "unexpected type",
             Self::ExpectedRoman => "expected a roman numeral",
             Self::UnexpectedKeyword => "unexpected keyword",
+            Self::TrailingCharacters => "trailing characters"
         }
     }
 

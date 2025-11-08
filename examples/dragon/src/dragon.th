@@ -1,16 +1,12 @@
 include core std 
 
-define dragon of_type video as 
+define dragon of_type video as layer_videos 
     layer_videos 
+        by vi shift_video west by iii shift_video north center_head
         layer_videos 
-            by vi shift_video west by iii shift_video north center_head
-            layer_videos 
-                right_side
-                shift_video east by vi rotate flip_over_y right_side
-        by iii shift_video west by 
-            iv 
-            shift_video south 
-            dragon_tail
+            right_side
+            shift_video east by vi rotate flip_over_y right_side
+    by iii shift_video west by iv shift_video south dragon_tail
 
 define center_head of_type video as loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...

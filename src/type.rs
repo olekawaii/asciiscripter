@@ -1,4 +1,4 @@
-/* thorn - a general-purpose pure functional programming language
+/* thorn - a pure lazy functional programming language
  * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
  * 
  * This program is free software: you can redistribute it and/or modify
