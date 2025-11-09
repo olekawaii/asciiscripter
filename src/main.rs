@@ -117,7 +117,7 @@ fn parse_file(
         let (name, tp) = match signiture {
             Signiture::Value(name, tp) => (name, {
                 let mut actual_type = tp;
-                parse_type(&mut actual_type, &types).unwrap()
+                parse_type(&mut actual_type, &types)?
             }),
             _ => unreachable!(),
         };

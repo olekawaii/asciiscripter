@@ -12,13 +12,13 @@ data nat contains
 data coordinate contains
     coordinate int int
 
-data video contains
+data bad_video contains
     empty_video
-    cons_frame frame video
+    cons_frame bad_frame bad_video
 
-data frame contains
+data bad_frame contains
     empty_frame
-    unsafe_cons_cell cell frame  
+    unsafe_cons_cell cell bad_frame  
 
 data cell contains
     cell coordinate character

@@ -942,6 +942,7 @@ fn build_tokens_from_art(
     input: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>
 ) -> Result<TokenStream> {
     let mut output = Vec::new();
+    output.push(build_token("from_video", &mark));
     for i in input.into_iter() {
         output.push(build_token("cons_frame", &mark));
         for ((x, y), (c1, c2)) in i.into_iter() {

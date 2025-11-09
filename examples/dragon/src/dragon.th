@@ -1,12 +1,15 @@
 include core std 
 
-define dragon of_type video as layer_videos 
-    layer_videos 
-        by vi shift_video west by iii shift_video north center_head
-        layer_videos 
-            right_side
-            shift_video east by vi rotate flip_over_y right_side
-    by iii shift_video west by iv shift_video south dragon_tail
+define dragon of_type video as layer 
+    layer 
+        by vi shift west by iii shift north center_head
+        layer 
+            right_side 
+            shift east by vi rotate flip_over_y right_side
+    by 
+        iii 
+        shift west 
+        by iv shift south swinging_tail
 
 define center_head of_type video as loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
@@ -19,7 +22,7 @@ define center_head of_type video as loop art xii ix
  '         ).6|||||||||6(          )6||||||||||6(         ` 6|||||||||6.
           ' ..||||||||6.            .||||||||||. `          .6||||||||..
 
-define dragon_tail of_type video as art vi iv
+define swinging_tail of_type video as art vi iv
  \   ).6|||6(   / 6|||6.
   ) / ..6|6. \ (  .6|6..
  ( /  .6|6..  \ ) ..6|6.
@@ -35,8 +38,8 @@ define wing of_type video as art xi iv
 |          2..........
            ...........
 
-define right_head of_type video as layer_videos
-    by ix rotate by xiv shift_video east fire
+define right_head of_type video as layer
+    by ix rotate by xiv shift east fire
     seq blow roar
 
 define blow of_type video as loop extend art xiv v
@@ -51,7 +54,7 @@ define blow of_type video as loop extend art xiv v
  /    `  -^V  .6||||6||677.. /    )__   < .6||||666|||6.
 /  `---^-.~'  6|.666666666../  `-'   `.~' 6|.666...6666.
 
-define roar of_type video as by ii shift_video south loop art xiii vii
+define roar of_type video as by ii shift south loop art xiii vii
 .            7.............            7.............            7............
  ),__        .7766........ ),__        .7766........ ),__        .7766........
   ( o`---~~^,..6|366666666  ( o`---~~^,..6|366666666  ( o`---~~^,..6|366666666
@@ -60,14 +63,13 @@ define roar of_type video as by ii shift_video south loop art xiii vii
   /          ||6..........  / `----.~' ||6.66666666.   \  \,A,A, |||6||677777.
              .............             .............    `----.~' ....66666666.
 
-define right_side of_type video as 
-    layer_videos
-         layer_videos
-             slow ii shift_video south by iv shift_video east rotate foot_right
-             layer_videos 
-                 by vii shift_video north by vi shift_video east right_head
-                 by ii rotate body
-         shift_video north by ix shift_video east wing
+define right_side of_type video as layer
+    layer
+        slow ii shift south by iv shift east rotate foot
+        layer 
+            by vii shift north by vi shift east right_head 
+            by ii rotate body
+    shift north by ix shift east wing
 
 define fire of_type video as art viii iii
         ........        ........        ........        ........        ........
@@ -80,7 +82,7 @@ define fire of_type video as art viii iii
      __ .....11.       _.......1
         ........        ........
 
-define foot_right of_type video as art v ii
+define foot of_type video as art v ii
 \ (  6|6..) /  6|6..
  )_nm.6666|_nm 6666.
 

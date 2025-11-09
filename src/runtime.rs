@@ -188,7 +188,7 @@ fn match_on_expression_helper(
     match pattern { 
         Pattern::Dropped => Some(()),
         Pattern::Captured(id) => {
-            output.insert(*id, std::mem::take(matched));
+            output.insert(*id, matched.clone());
             Some(())
         }
         Pattern::DataConstructor(data_constructor, patterns) => {
@@ -218,7 +218,7 @@ fn match_on_expression_helper(
 impl Default for Expression {
     fn default() -> Self {
         Self::Tree {
-            root: Id::LambdaArg(0),
+            root: Id::LambdaArg(67),
             arguments: Vec::new()
         }
     }
@@ -278,7 +278,10 @@ impl Expression {
                         var.simplify_owned(Arc::clone(&definitions));
                         var
                     }
-                    Id::LambdaArg(_) => unreachable!(),
+                    Id::LambdaArg(a) => {
+                        dbg!(a);
+                        unreachable!()
+                    }
                     _ => unreachable!(),
                 };
                 for mut i in arguments {
@@ -302,15 +305,18 @@ impl Expression {
                 *self = output;
             }
             Expression::Match { mut pattern, mut branches } => {
+                let mut found = false;
                 for (pat, mut new_expression) in branches.into_iter() {
                     if let Some(map) = match_on_expression(&pat, &mut pattern, Arc::clone(&definitions)) {
                         for (id, expression) in map.into_iter() {
                             new_expression.substitute(id, build_mutex(expression));
                         }
                         *self = new_expression;
+                        found = true;
                         break
                     }
                 }
+                if !found {panic!("partial pattern")};
                 self.simplify_owned(Arc::clone(&definitions));
             }
             Expression::Undefined { mark } => {
