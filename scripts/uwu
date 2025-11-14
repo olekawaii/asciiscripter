@@ -12,7 +12,7 @@ error() {
 
 move_to_root() {
     until [ -d .ascr ]; do
-        [ "$(pwd)" = '/' ] && error "not in a project"
+        [ "$(pwd)" = '/' ] && error 'not in a project'
         cd ..
     done
 }
@@ -36,7 +36,7 @@ build() {
         cat ../output/thorn-output | thorn-to-shell
         mv short-output.sh output.sh ../output
         cd ..
-        sleep 0.1
+        sleep 0.05  # to make output newer
         touch output
     fi
 }

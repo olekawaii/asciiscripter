@@ -16,12 +16,15 @@
  *
  */
 
+
 use crate::runtime::{Pattern, Expression, Id};
 use crate::r#type::Type;
 use crate::error::{Error, Mark, Index, ErrorType};
 use std::{collections::HashMap};
 use std::fs::read_to_string;
 use std::sync::Arc;
+
+const INDENTATION: u32 = 4;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -1261,7 +1264,7 @@ pub fn parse_data(
     parent_type: u32,
 ) -> Result<Vec<(String, Type)>> {
     let mut output = Vec::new();
-    for mut i in get_with_indentation(tokens, 4).into_iter() {
+    for mut i in get_with_indentation(tokens, INDENTATION).into_iter() {
         let Marked::<Token> {
             mark: root_mark,
             value: token,

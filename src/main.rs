@@ -18,7 +18,6 @@
 
 use std::{collections::HashMap, env, fmt, fs, fs::read_to_string};
 use std::sync::{Mutex, Arc};
-// save unchanging in map, only leave variables in expression!
 use std::thread::spawn;
 
 mod parse;
@@ -32,7 +31,7 @@ use crate::{
         build_tree, build_type, extract_signiture, parse_data, parse_type, tokenize,
         tokenize_file, parse_roman_numeral, parse_art, get_tokens
     },
-    runtime::{Expression, COUNTER, ExpressionCache, Id},
+    runtime::{optimize_expression, Expression, /*COUNTER,*/ ExpressionCache, Id},
     r#type::Type,
     error::{Error, Mark},
 };
@@ -49,17 +48,21 @@ fn main() -> std::io::Result<()> {
             let (main_index, _, _) = vars_dummy.get("main").expect("no main");
             let mut main = vars[*main_index].clone();
             let global_vars = Arc::new(ExpressionCache { expressions: vars });
-            main = main.evaluate_strictly(Arc::clone(&global_vars));
+            eprintln!("compiled expression");
+            main.evaluate_strictly(Arc::clone(&global_vars));
+            eprintln!("evaluated");
             //println!("{:?}",&main);
             //dbg!(&main);
             let mut map = HashMap::new();
             for (name, (index, _, _)) in vars_dummy {
                 map.insert(index as u32, name);
             }
-            println!("{}", convert_to_file(&main, &map));
+            let mut output = String::new();
+            convert_to_file(&main, &map, &mut output);
+            println!("{output}");
         }
     }
-    unsafe {dbg!(COUNTER);};
+    //unsafe {dbg!(COUNTER);};
     Ok(())
 }
 
@@ -126,32 +129,51 @@ fn parse_file(
         number_of_values += 1;
     }
     for (tp, tokens) in vals.into_iter() {
-        global_vars.push(
-            build_tree(
+        global_vars.push({
+            let mut e = build_tree(
                 tp,
                 build_syntax_tree(tokens, &types)?,
                 HashMap::new(),
                 0,
                 &global_vars_dummy,
-            )?
-        )
+            )?;
+            optimize_expression(&mut e);
+            e
+        })
     }
     Ok((global_vars, global_vars_dummy))
 }
 
-fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>) -> String {
+//fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>) -> String {
+//    match expression {
+//        Expression::Tree {root, arguments} => {
+//            let mut output = match root {
+//                Id::DataConstructor(x) => names.get(x).unwrap().clone(), // unwrap should be safe
+//                _ => unreachable!()
+//            };
+//            output.push(' ');
+//            for i in arguments.iter() {
+//                let a = convert_to_file(i, names);
+//                output.push_str(&a)
+//            }
+//            output
+//        },
+//        _ => panic!("uwu")
+//    }
+//}
+
+fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>, output: &mut String) {
     match expression {
         Expression::Tree {root, arguments} => {
-            let mut output = match root {
-                Id::DataConstructor(x) => names.get(x).unwrap().clone(), // unwrap should be safe
+            let mut word = match root {
+                Id::DataConstructor(x) => names.get(x).unwrap(), // unwrap should be safe
                 _ => unreachable!()
             };
+            output.push_str(word);
             output.push(' ');
             for i in arguments.iter() {
-                let a = convert_to_file(i, names);
-                output.push_str(&a)
+                convert_to_file(i, names, output);
             }
-            output
         },
         _ => panic!("uwu")
     }

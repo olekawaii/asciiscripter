@@ -1,8 +1,8 @@
-include std
+include std new_video
                                                      
-define main of_type video as
-   layer_videos
-      by x shift_video east small_mushroom
+define main of_type bad_video as into_video
+   layer
+      by x shift east small_mushroom
       big_mushroom
 
 define big_mushroom of_type video as art xiii vii

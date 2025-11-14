@@ -25,6 +25,7 @@ define flip_over_y_char of_type fn character character as
                 grave_accent       to single_quote
                 opening_brace      to closing_brace
                 closing_brace      to opening_brace
+                semicolon          to colon
                 _                  to c
             color
 
@@ -34,10 +35,10 @@ define sum_coordinate of_type fn coordinate fn coordinate coordinate as
 
 define eq_int of_type fn int fn int bool as
     lambda x dot lambda y dot match tuple_int_int x y in
-       tuple_int_int zero       zero        to true
-       tuple_int_int positive a positive b  to eq_nat a b
-       tuple_int_int negative a negative b  to eq_nat a b
-       _                                    to false
+        tuple_int_int zero       zero        to true
+        tuple_int_int positive a positive b  to eq_nat a b
+        tuple_int_int negative a negative b  to eq_nat a b
+        _                                    to false
 
 data tuple_int_int contains
    tuple_int_int int int
@@ -49,16 +50,16 @@ define sum_int of_type fn int fn int int as
         positive _  to sum_int decrement x increment y 
 
 define increment of_type fn int int as lambda x dot match x in 
-   zero             to positive one
-   positive a       to positive succ a
-   negative one     to zero 
-   negative succ a  to negative a
+    zero             to positive one
+    positive a       to positive succ a
+    negative one     to zero 
+    negative succ a  to negative a
 
 define decrement of_type fn int int as lambda x dot match x in
-   zero             to negative one
-   negative a       to negative succ a
-   positive one     to zero
-   positive succ a  to positive a
+    zero             to negative one
+    negative a       to negative succ a
+    positive one     to zero
+    positive succ a  to positive a
 
 define recolor_character of_type fn color fn character character as
     lambda color dot lambda character dot match character in
@@ -96,14 +97,16 @@ data tuple_nat_nat contains
 define eq_coordinate of_type fn coordinate fn coordinate bool as
     lambda coordinate a b dot lambda coordinate c d dot and eq_int a c eq_int b d
 
-define insert of_type fn cell fn bad_frame bad_frame as
-    lambda c dot lambda bad_frame dot match c in
-        cell coord _ to match bad_frame in
-            empty_frame                 to unsafe_cons_cell c empty_frame
-            unsafe_cons_cell head tail  to match head in
-                cell coord_ii _ to match eq_coordinate coord_ii coord in
-                    true  to unsafe_cons_cell c tail
-                    false to unsafe_cons_cell head insert c tail
+define next_color of_type fn color color as lambda x dot match x in
+    red to magenta
+    magenta to blue
+    blue to cyan
+    cyan to green
+    green to yellow
+    yellow to red
+
+define complementary of_type fn color color as 
+    lambda x dot next_color next_color next_color x
 
 data option_nat contains
     some_nat nat
@@ -166,6 +169,11 @@ define product_int of_type fn int fn int int as
         tuple_int_int positive a negative b  to negative product_nat a b
         tuple_int_int negative a positive b  to negative product_nat a b
         tuple_int_int negative a negative b  to positive product_nat a b
+
+define abselute_value of_type fn int whole as lambda x dot match x in
+    zero        to whole_zero
+    positive x  to whole x
+    negative x  to whole x
         
 data list_whole contains
     cons_whole whole list_whole
@@ -235,7 +243,7 @@ define prime_factors of_type fn nat fn whole list_whole as
 
 define uwulayer_frames of_type fn bad_frame fn bad_frame bad_frame as
     lambda top dot lambda bottom dot match top in
-        unsafe_cons_cell head tail  to insert head uwulayer_frames tail bottom
+        unsafe_cons_cell head tail  to unsafe_cons_cell head uwulayer_frames tail bottom
         empty_frame                 to bottom
 
 define increment_whole of_type fn whole whole as lambda x dot match x in
