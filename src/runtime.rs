@@ -63,21 +63,23 @@ pub fn optimize_expression(input: &mut Expression) {
     match input {
         Expression::Tree {root, arguments} => {
             arguments.iter_mut().for_each(optimize_expression);
-            *input = Expression::Tree {
-                root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {
-                    root: root.clone(),
-                    arguments: std::mem::take(arguments)}
-                ))),
-                arguments: Vec::new()
+            if !matches!(root, Id::DataConstructor(_)) {
+                *input = Expression::Tree {
+                    root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {
+                        root: root.clone(),
+                        arguments: std::mem::take(arguments)}
+                    ))),
+                    arguments: Vec::new()
+                }
             }
         }
         Expression::Match {branches, ..} => {
+            // no point in optimizing anything since the simplified output will be optimized later
             for (pattern, expression) in branches.iter_mut() {
                 if let Pattern::Dropped = pattern {
                     optimize_expression(expression)
                 }
             }
-            // no point in optimizing the pattern since it'll be deleted after evaluation
         },
         Expression::Lambda {id: Pattern::Dropped, body} => optimize_expression(body),
         Expression::Undefined {..} => (),
