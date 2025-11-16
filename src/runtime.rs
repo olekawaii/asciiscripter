@@ -49,7 +49,7 @@ impl std::fmt::Display for RuntimeError {
     }
 }
 
-fn build_mutex(mut input: Expression) -> Arc<Mutex<Expression>> {
+fn build_thunk(mut input: Expression) -> Arc<Mutex<Expression>> {
     optimize_expression(&mut input);
     Arc::new(Mutex::new(input))
 }
@@ -85,45 +85,6 @@ pub fn optimize_expression(input: &mut Expression) {
     }
 }
 
-//fn optimize_expression(input: &mut Expression) {
-//    if matches!(&input, Expression::Tree {root: Id::DataConstructor(_), arguments} if arguments.len() == 0) ||
-//       matches!(&input, Expression::Tree {root: Id::Thunk(_), arguments} if arguments.len() == 0) {
-//       //matches!(&input, Expression::Lambda {..}) {
-//        return ()
-//    }
-//    match input {
-//        Expression::Tree {root, arguments} => {
-//            //let mut new_arguments = Vec::new();
-//            //for i in arguments.iter_mut() {
-//            //    optimize_expression(i)
-//            //}
-//            *input = Expression::Tree {
-//                root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {root: root.clone(), arguments: std::mem::take(arguments)}))),
-//                arguments: Vec::new()
-//            }
-//        }
-//        Expression::Match {pattern, branches} => {
-//            for (_, (vec, expression)) in branches.iter_mut() {
-//                if vec.iter().all(|x| x.is_none()) {
-//                    optimize_expression(expression);
-//                    //dbg!("s");
-//                }
-//            }
-//
-//            optimize_expression(&mut(*pattern))
-//            //if matches!(**pattern, Expression::Tree { root: Id::Thunk(_), ..}) {
-//            //    *pattern = Box::new(Expression::Tree {
-//            //        root: Id::Thunk(Arc::new(Mutex::new(std::mem::take(pattern)))),
-//            //        arguments: Vec::new()
-//            //    })
-//            //}
-//        }
-//        //Expression::Lambda {id: None, body} => optimize_expression(body),
-//        l@Expression::Lambda {..} => {},
-//        Expression::Undefined {..} => ()
-//    }
-//}
-
 #[derive(Debug, Clone)]
 pub enum Id {
     Thunk(Arc<Mutex<Expression>>),
@@ -143,7 +104,6 @@ pub enum Expression {
         branches: Vec<(Pattern, Expression)> //HashMap<u32, (Vec<Option<u32>>, Expression)>,
     },
     Lambda {
-        //id: Option<u32>,
         id: Pattern,
         body: Box<Expression>,
     },
@@ -157,7 +117,31 @@ pub enum Pattern {
     DataConstructor(u32, Vec<Pattern>)
 }
 
-// should be split into two fns, one that returns a bool and one that captures values
+fn matches_expression(
+    pattern: &Pattern, 
+    matched: &mut Expression,
+) -> bool {
+    match pattern { 
+        Pattern::Dropped => true,
+        Pattern::Captured(id) => true,
+        Pattern::DataConstructor(data_constructor, patterns) => {
+            matched.simplify_owned();
+            match matched {
+                Expression::Tree {root: Id::DataConstructor(id), arguments} => {
+                    if id == data_constructor {
+                        for (pattern, arg) in patterns.iter().zip(arguments.iter_mut()) {
+                            if !matches_expression( pattern, arg,) { return false }
+                        } 
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => unreachable!()
+            }
+        }
+    }
+}
 
 fn match_on_expression(
     pattern: &Pattern, 
@@ -195,32 +179,6 @@ fn match_on_expression_helper(
                                 arg,
                             )
                         } 
-                    }
-                }
-                _ => unreachable!()
-            }
-        }
-    }
-}
-
-fn matches_expression(
-    pattern: &Pattern, 
-    matched: &mut Expression,
-) -> bool {
-    match pattern { 
-        Pattern::Dropped => true,
-        Pattern::Captured(id) => true,
-        Pattern::DataConstructor(data_constructor, patterns) => {
-            matched.simplify_owned();
-            match matched {
-                Expression::Tree {root: Id::DataConstructor(id), arguments} => {
-                    if id == data_constructor {
-                        for (pattern, arg) in patterns.iter().zip(arguments.iter_mut()) {
-                            if !matches_expression( pattern, arg,) { return false }
-                        } 
-                        true
-                    } else {
-                        false
                     }
                 }
                 _ => unreachable!()
@@ -299,7 +257,7 @@ impl Expression {
                         if matches_expression(&id, &mut i) {
                             let map = match_on_expression(&id, i);
                             for (id, expression) in map.into_iter() {
-                                body.substitute(id, build_mutex(expression));
+                                body.substitute(id, build_thunk(expression));
                             }
                             output = *body;
                         } else {
@@ -325,7 +283,7 @@ impl Expression {
                     if matches_expression(&pat, &mut *pattern) {
                         let map = match_on_expression(&pat, *pattern);
                         for (id, expression) in map.into_iter() {
-                            new_expression.substitute(id, build_mutex(expression));
+                            new_expression.substitute(id, build_thunk(expression));
                         }
                         *self = new_expression;
                         found = true;
@@ -368,6 +326,9 @@ impl Expression {
             Expression::Undefined {..} => ()
         }
     }
+
+// the multithreaded evaluation function doesn't work currently because I'm using Mutexes to detect
+// bottoms. Should eventually switch those to state machines.
 
 //    // evaluate an expression strictly, leavivg only a tree of data constructors.
 //    // can't be called on functions

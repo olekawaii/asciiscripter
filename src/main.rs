@@ -40,7 +40,7 @@ fn main() -> std::io::Result<()> {
     // main_test();
     let mut args = env::args();
     let _executable = args.next().unwrap();
-    let file_name = args.next().expect("missing file name");
+    let file_name = args.next().unwrap_or("./main.th".to_string());
     // let file: String = read_to_string(&file_name)?;
     eprintln!("compiling expressions...  ");
     match parse_file(file_name) {
