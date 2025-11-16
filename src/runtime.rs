@@ -24,12 +24,14 @@ use crate::error::{Error, Mark, ErrorType};
 #[derive(Debug)]
 enum RuntimeError {
     EvaluatedUndefined,
+    EvaluatedBottom,
 }
 
 impl ErrorType for RuntimeError {
     fn gist(&self) -> &'static str {
         match self {
-            Self::EvaluatedUndefined => "entered undefined code"
+            Self::EvaluatedUndefined => "entered undefined code",
+            Self::EvaluatedBottom    => "evaluated a bottom _|_"
         }
     }
     
@@ -41,20 +43,15 @@ impl ErrorType for RuntimeError {
 impl std::fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EvaluatedUndefined => write!(f, "attempted to evaluate an undefined expression")
+            Self::EvaluatedUndefined => write!(f, "attempted to evaluate an undefined expression"),
+            Self::EvaluatedBottom    => write!(f, "attempted to evaluate a bottom expression")
         }
     }
 }
 
-// instead of Arc<Expression> use Arc<Mutex<Expression>> and first one to use it modifies it
-
-// build_mutex takes a lambdaarg and makes every branch in a tree a mutex, or pattern in match, 
 fn build_mutex(mut input: Expression) -> Arc<Mutex<Expression>> {
     optimize_expression(&mut input);
-    //dbg!(&input);
-    //panic!();
     Arc::new(Mutex::new(input))
-    //Arc::new(Mutex::new(input))
 }
 
 pub fn optimize_expression(input: &mut Expression) {
@@ -65,44 +62,22 @@ pub fn optimize_expression(input: &mut Expression) {
     }
     match input {
         Expression::Tree {root, arguments} => {
-            //let mut new_arguments = Vec::new();
             arguments.iter_mut().for_each(optimize_expression);
             *input = Expression::Tree {
-                root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {root: root.clone(), arguments: std::mem::take(arguments)}))),
+                root: Id::Thunk(Arc::new(Mutex::new(Expression::Tree {
+                    root: root.clone(),
+                    arguments: std::mem::take(arguments)}
+                ))),
                 arguments: Vec::new()
             }
         }
-        //Expression::Match {pattern, branches} => {
-        //    //pattern = Box::new(Expression::Tree {root: Id::Thunk(build_mutex(*pattern)), arguments: Vec::new()});
-        //    for (_, (vec, expression)) in branches.iter_mut() {
-        //        if vec.iter().all(|x| x.is_none()) {
-        //            optimize_expression(expression);
-        //            //dbg!("s");
-        //        }
-        //    }
-        //
-        //    optimize_expression(&mut(*pattern))
-        //},
-        //Match {
-        //    pattern: Box<Expression>,
-        //    branches: Vec<(Pattern, Expression)> //HashMap<u32, (Vec<Option<u32>>, Expression)>,
-        //},
         Expression::Match {branches, ..} => {
             for (pattern, expression) in branches.iter_mut() {
                 if let Pattern::Dropped = pattern {
                     optimize_expression(expression)
                 }
             }
-            //pattern = Box::new(Expression::Tree {root: Id::Thunk(build_mutex(*pattern)), arguments: Vec::new()});
-            //for (_, (vec, expression)) in branches.iter_mut() {
-            //    if vec.iter().all(|x| x.is_none()) {
-            //        optimize_expression(expression);
-            //        //dbg!("s");
-            //    }
-            //}
-            //
-            //optimize_expression(&mut(*pattern))
-            //optimize_expression(&mut (*pattern));
+            // no point in optimizing the pattern since it'll be deleted after evaluation
         },
         Expression::Lambda {id: Pattern::Dropped, body} => optimize_expression(body),
         Expression::Undefined {..} => (),
@@ -186,47 +161,66 @@ pub enum Pattern {
 
 fn match_on_expression(
     pattern: &Pattern, 
-    matched: &mut Expression,
-    global_vars: Arc<ExpressionCache>
-) -> Option<HashMap<u32, Expression>> {
+    matched: Expression,
+) -> HashMap<u32, Expression> {
     let mut output = HashMap::new();
     match_on_expression_helper(
         &mut output,
         pattern,
         matched,
-        global_vars
-    )?;
-    Some(output)
+    );
+    output
 }
+
 
 fn match_on_expression_helper(
     output: &mut HashMap<u32, Expression>,
     pattern: &Pattern, 
-    matched: &mut Expression,
-    global_vars: Arc<ExpressionCache>
-) -> Option<()> {
+    mut matched: Expression,
+) {
     match pattern { 
-        Pattern::Dropped => Some(()),
+        Pattern::Dropped => (),
         Pattern::Captured(id) => {
             output.insert(*id, matched.clone());
-            Some(())
         }
         Pattern::DataConstructor(data_constructor, patterns) => {
-            matched.simplify_owned(Arc::clone(&global_vars));
+            matched.simplify_owned();
             match matched {
                 Expression::Tree {root: Id::DataConstructor(id), arguments} => {
-                    if id == data_constructor {
-                        for (pattern, arg) in patterns.iter().zip(arguments.iter_mut()) {
+                    if id == *data_constructor {
+                        for (pattern, arg) in patterns.iter().zip(arguments.into_iter()) {
                             match_on_expression_helper(
                                 output,
                                 pattern,
                                 arg,
-                                Arc::clone(&global_vars)
-                            )?
+                            )
                         } 
-                        Some(())
+                    }
+                }
+                _ => unreachable!()
+            }
+        }
+    }
+}
+
+fn matches_expression(
+    pattern: &Pattern, 
+    matched: &mut Expression,
+) -> bool {
+    match pattern { 
+        Pattern::Dropped => true,
+        Pattern::Captured(id) => true,
+        Pattern::DataConstructor(data_constructor, patterns) => {
+            matched.simplify_owned();
+            match matched {
+                Expression::Tree {root: Id::DataConstructor(id), arguments} => {
+                    if id == data_constructor {
+                        for (pattern, arg) in patterns.iter().zip(arguments.iter_mut()) {
+                            if !matches_expression( pattern, arg,) { return false }
+                        } 
+                        true
                     } else {
-                        None
+                        false
                     }
                 }
                 _ => unreachable!()
@@ -259,7 +253,7 @@ impl Expression {
     // substitute them in the root
 
     // rewrite expression until it starts with either a lambda or a data constructor
-    pub fn simplify_owned(&mut self, definitions: Arc<ExpressionCache>) {
+    pub fn simplify_owned(&mut self) {
         //unsafe {
         //    COUNTER += 1;
         //}
@@ -274,19 +268,19 @@ impl Expression {
                         match Arc::try_unwrap(exp) {
                             Ok(x) => {
                                 let mut inner = x.into_inner().unwrap();
-                                inner.simplify_owned(Arc::clone(&definitions));
+                                inner.simplify_owned();
                                 if let Expression::Tree {arguments, ..} = &mut inner {
                                     arguments.iter_mut().for_each(optimize_expression);
                                 }
                                 inner
                             }
                             Err(x) => {
-                                let mut inside = (*x).lock().unwrap();
+                                let mut inside = (*x).try_lock().unwrap();
                                 if !matches!(
                                     &*inside, 
                                     Expression::Tree {root: Id::DataConstructor(_), ..} | Expression::Lambda {..}
                                 ) {
-                                    inside.simplify_owned(Arc::clone(&definitions));
+                                    inside.simplify_owned();
                                     if let Expression::Tree {arguments, ..} = &mut *inside {
                                         arguments.iter_mut().for_each(optimize_expression);
                                     }
@@ -296,36 +290,27 @@ impl Expression {
                             }
                         }
                     }
-                    Id::Variable(index) => {
-                        let mut var = definitions.get(index);
-                        //if !matches!(
-                        //    &var, 
-                        //    Expression::Tree {root: Id::DataConstructor(_), ..} | Expression::Lambda {..}
-                        //) {
-                        var.simplify_owned(Arc::clone(&definitions));
-                        var
-                    }
-                    Id::LambdaArg(a) => {
-                        dbg!(a);
-                        unreachable!()
-                    }
                     _ => unreachable!(),
                 };
                 for mut i in arguments {
                     if let Expression::Tree {arguments, ..} = &mut output {
                         arguments.push(i);
                     } else if let Expression::Lambda { id, mut body } = output {
-                        let map = match_on_expression(&id, &mut i, Arc::clone(&definitions)).unwrap();
-                        for (id, expression) in map.into_iter() {
-                            body.substitute(id, build_mutex(expression));
+                        if matches_expression(&id, &mut i) {
+                            let map = match_on_expression(&id, i);
+                            for (id, expression) in map.into_iter() {
+                                body.substitute(id, build_mutex(expression));
+                            }
+                            output = *body;
+                        } else {
+                            panic!("wuuwwuwuwu")
                         }
-                        output = *body;
                     }
                     if !matches!(
                         &output, 
                         Expression::Tree {root: Id::DataConstructor(_), ..}
                     ) {
-                        output.simplify_owned(Arc::clone(&definitions));
+                        output.simplify_owned();
                     }
                 }
                 //output.simplify(definitions);
@@ -337,7 +322,8 @@ impl Expression {
             Expression::Match { mut pattern, mut branches } => {
                 let mut found = false;
                 for (pat, mut new_expression) in branches.into_iter() {
-                    if let Some(map) = match_on_expression(&pat, &mut pattern, Arc::clone(&definitions)) {
+                    if matches_expression(&pat, &mut *pattern) {
+                        let map = match_on_expression(&pat, *pattern);
                         for (id, expression) in map.into_iter() {
                             new_expression.substitute(id, build_mutex(expression));
                         }
@@ -347,7 +333,7 @@ impl Expression {
                     }
                 }
                 if !found {panic!("partial pattern")};
-                self.simplify_owned(Arc::clone(&definitions));
+                self.simplify_owned();
                 if let Expression::Tree {arguments, ..} = self {
                     arguments.iter_mut().for_each(optimize_expression);
                 }
@@ -385,8 +371,8 @@ impl Expression {
 
 //    // evaluate an expression strictly, leavivg only a tree of data constructors.
 //    // can't be called on functions
-//    pub fn evaluate_strictly(mut self, definitions: Arc<ExpressionCache>) -> Self {
-//        self.simplify_owned(Arc::clone(&definitions));
+//    pub fn evaluate_strictly(mut self, definitions: &ExpressionCache) -> Self {
+//        self.simplify_owned(definitions);
 //        match self {
 //            Expression::Tree {
 //                root,
@@ -407,9 +393,9 @@ impl Expression {
 //                        &i, 
 //                        Expression::Tree {root: Id::DataConstructor(_), arguments}
 //                    ) {
-//                        handles.push(HandleOrValue::Value(i.evaluate_strictly(Arc::clone(&definitions))));
+//                        handles.push(HandleOrValue::Value(i.evaluate_strictly(definitions)));
 //                    } else {
-//                        let r = Arc::clone(&definitions);
+//                        let r = definitions;
 //                        //dbg!("spawned thread");
 //                        let builder = thread::Builder::new().stack_size(1 * 1024 * 1024);
 //                        handles.push(
@@ -437,24 +423,14 @@ impl Expression {
 //    }
 //}
 
-    pub fn evaluate_strictly(&mut self, definitions: Arc<ExpressionCache>) {
-        self.simplify_owned(Arc::clone(&definitions));
+    pub fn evaluate_strictly(&mut self) {
+        self.simplify_owned();
         match self {
             Expression::Tree { root, arguments, } => {
-                arguments.iter_mut().for_each(|x| x.evaluate_strictly(Arc::clone(&definitions)))
+                arguments.iter_mut().for_each(|x| x.evaluate_strictly())
             }
             Expression::Lambda { .. } => panic!("attempted to evaluate a function"),
             _ => unreachable!(),
         }
-    }
-}
-
-pub struct ExpressionCache {
-    pub expressions: Vec<Expression>,
-}
-
-impl ExpressionCache {
-    fn get(&self, index: usize) -> Expression {
-        self.expressions[index].clone()
     }
 }

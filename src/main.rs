@@ -31,7 +31,7 @@ use crate::{
         build_tree, build_type, extract_signiture, parse_data, parse_type, tokenize,
         tokenize_file, parse_roman_numeral, parse_art, get_tokens
     },
-    runtime::{optimize_expression, Expression, /*COUNTER,*/ ExpressionCache, Id},
+    runtime::{optimize_expression, Expression, /*COUNTER,*/ Id},
     r#type::Type,
     error::{Error, Mark},
 };
@@ -42,14 +42,17 @@ fn main() -> std::io::Result<()> {
     let _executable = args.next().unwrap();
     let file_name = args.next().expect("missing file name");
     // let file: String = read_to_string(&file_name)?;
+    eprintln!("compiling expressions...  ");
     match parse_file(file_name) {
         Err(x) => eprintln!("{x}"),
         Ok((vars, vars_dummy)) => {
-            let (main_index, _, _) = vars_dummy.get("main").expect("no main");
-            let mut main = vars[*main_index].clone();
-            let global_vars = Arc::new(ExpressionCache { expressions: vars });
-            eprintln!("compiled expression");
-            main.evaluate_strictly(Arc::clone(&global_vars));
+            //dbg!(&vars[200]);
+            //let (main_index, _, _) = vars_dummy.get("main").expect("no main");
+            //let mut main = vars[*main_index].lock().unwrap().clone();
+            let mut main = build_monolithic_expression(vars, &vars_dummy);
+            eprintln!("\x1b[1A\x1b[20CDone");
+            eprintln!("evaluating main...");
+            main.evaluate_strictly();
             eprintln!("evaluated");
             //println!("{:?}",&main);
             //dbg!(&main);
@@ -64,6 +67,46 @@ fn main() -> std::io::Result<()> {
     }
     //unsafe {dbg!(COUNTER);};
     Ok(())
+}
+
+fn build_monolithic_expression(
+    vec: Vec<Expression>, 
+    vars_dummy: &HashMap<String, (usize, Type, bool)>
+) -> Expression {
+    let expressions: Vec<Arc<Mutex<Expression>>> = vec.into_iter().map(|x| Arc::new(Mutex::new(x))).collect();
+    for i in expressions.iter() {
+        let ptr = &mut (**i).lock().unwrap();
+        monolithic_helper(&expressions, ptr)
+    }
+    let (main_index, _, _) = vars_dummy.get("main").expect("no main");
+    let main = (*expressions[*main_index]).lock().unwrap().clone();
+    return main
+}
+
+fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Expression) {
+    match expression {
+        Expression::Tree {root, arguments} => {
+            arguments.iter_mut().for_each(|x| monolithic_helper(vec, x));
+            match root {
+                Id::DataConstructor(_) | Id::LambdaArg(_) => (),
+                Id::Thunk(x) => {
+                    let ptr = &mut (*x).lock().unwrap();
+                    monolithic_helper(vec, ptr);
+                }
+                Id::Variable(x) => {
+                    *root = Id::Thunk(Arc::clone(vec.get(*x).unwrap()));
+                }
+            }
+        }
+        Expression::Match {pattern, branches} => {
+            monolithic_helper(vec, pattern);
+            for (_, exp) in branches.iter_mut() {
+                monolithic_helper(vec, exp);
+            }
+        }
+        Expression::Lambda {body, ..} => monolithic_helper(vec, &mut *body),
+        Expression::Undefined {..} => ()
+    }
 }
 
 fn parse_file(
@@ -160,7 +203,7 @@ fn parse_file(
 //        },
 //        _ => panic!("uwu")
 //    }
-//}
+//:
 
 fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>, output: &mut String) {
     match expression {
