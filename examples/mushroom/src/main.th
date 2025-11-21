@@ -1,20 +1,26 @@
 include std new_video
                                                      
 define main of_type bad_video as into_video
-   layer
-      by x shift east small_mushroom
-      big_mushroom
+    layer
+        by iv shift north by xi shift east title
+        layer
+            by x shift east small_mushroom
+            big_mushroom
 
-define big_mushroom of_type video as art xiii vii
+define big_mushroom of_type video as art xiii viii
   __c__,___  ..117117111..
-(_c_,O_/\_3_)1171771111711
+(_c__O_/\_3_)1171171111711
+       .     .....||7.....
      | |     .....7|7.....
-    /_. \    ....777|7....
+    / __\    ....7|777....
+       .     .....||7.....
      | |     .....7|7.....
-     |"|     .....777.....
      | |     .....7|7.....
 
 define small_mushroom of_type video as art vi iii
-  __  ..11..
-(c_o_)171711
- (..) .7777.
+ .__  .711..
+(__o_)111711
+ (  ) .7||7.
+
+define title of_type video as art xii i
+thorn v0.1.077777.777777

@@ -1,15 +1,19 @@
-include core std 
+--      _
+--   __| |_ __ __ _  __ _  ___  _ __
+--  / _` | '__/ _` |/ _` |/ _ \| '_ \
+-- | (_| | | | (_| | (_| | (_) | | | |
+--  \__,_|_|  \__,_|\__, |\___/|_| |_|
+--                  |___/
 
-define dragon of_type video as layer 
-    layer 
+include core std
+
+define dragon of_type video as layer
+    layer
         by vi shift west by iii shift north center_head
-        layer 
-            right_side                                    
+        layer
+            right_side
             shift east by vi rotate flip_over_y right_side
-    by 
-        iii 
-        shift west 
-        by iv shift south swinging_tail
+    by iii shift west by iv shift south swinging_tail
 
 define center_head of_type video as loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
@@ -31,8 +35,8 @@ define swinging_tail of_type video as art vi iv
 define right_side of_type video as layer
     layer
         slow ii shift south by iv shift east rotate foot
-        layer 
-            by vii shift north by vi shift east right_head 
+        layer
+            by vii shift north by vi shift east right_head
             by ii rotate body
     shift north by ix shift east wing
 

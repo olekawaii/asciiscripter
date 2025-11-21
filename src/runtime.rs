@@ -73,14 +73,14 @@ pub fn optimize_expression(input: &mut Expression) {
                 }
             }
         }
-        Expression::Match {branches, ..} => {
-            // no point in optimizing anything since the simplified output will be optimized later
-            for (pattern, expression) in branches.iter_mut() {
-                if let Pattern::Dropped = pattern {
-                    optimize_expression(expression)
-                }
-            }
-        },
+        //Expression::Match {branches, ..} => {
+        //    // no point in optimizing anything since the simplified output will be optimized later
+        //    for (pattern, expression) in branches.iter_mut() {
+        //        if let Pattern::Dropped = pattern {
+        //            optimize_expression(expression)
+        //        }
+        //    }
+        //},
         Expression::Lambda {id: Pattern::Dropped, body} => optimize_expression(body),
         Expression::Undefined {..} => (),
         _ => ()
@@ -91,7 +91,7 @@ pub fn optimize_expression(input: &mut Expression) {
 pub enum Id {
     Thunk(Arc<Mutex<Expression>>),
     LambdaArg(u32),
-    Variable(usize),
+    Variable(usize),       // only used during parsing
     DataConstructor(u32),
 }
 
@@ -103,7 +103,7 @@ pub enum Expression {
     },
     Match {
         pattern: Box<Expression>,
-        branches: Vec<(Pattern, Expression)> //HashMap<u32, (Vec<Option<u32>>, Expression)>,
+        branches: Vec<(Pattern, Expression)> 
     },
     Lambda {
         id: Pattern,
@@ -111,6 +111,8 @@ pub enum Expression {
     },
     Undefined {mark: Mark},
 }
+
+// switch Captured(u32) to Captured(Vec<*Id>) to avoid the traversals
 
 #[derive(Debug, Clone)]
 pub enum Pattern {
@@ -235,7 +237,13 @@ impl Expression {
                                 inner
                             }
                             Err(x) => {
-                                let mut inside = (*x).try_lock().unwrap();
+                                let mut inside = match (*x).try_lock() {
+                                    Ok(x) => x,
+                                    Err(_) => {
+                                        eprintln!("\x1b[91merror: \x1b[0mattempted to evaluate a bottom");
+                                        std::process::exit(1);
+                                    }
+                                };
                                 if !matches!(
                                     &*inside, 
                                     Expression::Tree {root: Id::DataConstructor(_), ..} | Expression::Lambda {..}

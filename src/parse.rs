@@ -313,7 +313,7 @@ pub fn build_syntax_tree(mut tokens: TokenStream, table: &HashMap<String, u32>) 
                 loop {
                     let token = tokens.next().expect("atueha");
                     match &token.value {
-                        Token::Keyword(Keyword::In) => {
+                        Token::Keyword(Keyword::With) => {
                             if unmatched_matches == 0 {
                                 let Marked::<Token> { mark, value: token } = tokens.next().expect("uu");
                                 if let Token::NewLine(num) = token {
@@ -548,8 +548,25 @@ pub fn build_tree(
 pub fn parse_art(
     width: usize, 
     height: usize, 
-    text: Vec<Vec<Marked<char>>>
-) -> Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>> {
+    text: Vec<Vec<Marked<char>>>,
+    mark: Mark  // mark of the art keyword
+) -> Result<Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>> {
+    let number_of_lines = text.len();
+    if number_of_lines % height != 0 {
+        return Err(Error {
+            error_type: Box::new(CompilationError::BadArtHeight {height, got: number_of_lines}),
+            mark
+        })
+    }
+    for line in text.iter() {
+        let length = line.len();
+        if length % (width * 2) != 0 {
+            return Err(Error {
+                error_type: Box::new(CompilationError::BadArtLength {width, got: length}),
+                mark: line[length -1].mark.clone()
+            })
+        }
+    }
     let mut output: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>> = Vec::new();
     let mut current_index = 0;
     let mut current_starting_line = 0;
@@ -558,19 +575,18 @@ pub fn parse_art(
         let mut current_map = HashMap::new();
         for x in 0..width as usize {
             for y in 0..height as usize {
+                let line = y + current_starting_line;
                 let art_char = text
-                    [y + current_starting_line]
+                    [line]
                     [x + current_starting_char]
                         .clone();
                 let color_char = text
-                    [y + current_starting_line]
+                    [line]
                     [x + current_starting_char + width]
                         .clone();
                 current_map.insert(
-                    //((x + (current_starting_char / (width * 2)) as usize) as u32, height as u32 - y as u32 - 1), 
-                    //((width - x - 1) as u32, y as u32), 
                     (x as u32, (height - y - 1) as u32), 
-                    ( art_char, color_char)
+                    (art_char, color_char)
                 );
             }
         }
@@ -581,7 +597,7 @@ pub fn parse_art(
             current_starting_char = 0;
             current_starting_line += height;
             if current_starting_line + 1 > text.len() {
-                return output
+                return Ok(output)
             }
         }
     }
@@ -685,7 +701,7 @@ pub enum Keyword {
     Include,
     Lambda,
     Match,
-    In,
+    With,
     Define,
     Of_type,
     As,
@@ -716,6 +732,14 @@ pub enum CompilationError {
     ExpectedRoman,
     UnexpectedKeyword,
     TrailingCharacters,
+    BadArtLength {
+        width: usize,
+        got: usize,
+    },
+    BadArtHeight {
+        height: usize,
+        got: usize,
+    },
 }
 
 impl ErrorType for CompilationError {
@@ -731,7 +755,9 @@ impl ErrorType for CompilationError {
             Self::TypeMismatch => "unexpected type",
             Self::ExpectedRoman => "expected a roman numeral",
             Self::UnexpectedKeyword => "unexpected keyword",
-            Self::TrailingCharacters => "trailing characters"
+            Self::TrailingCharacters => "trailing characters",
+            Self::BadArtLength {..} => "line length not divisible by 2*width",
+            Self::BadArtHeight {..} => "number of lines not divisible by height",
         }
     }
 
@@ -758,7 +784,16 @@ expected a closing delimiter for '---' on line {}
             Self::InvalidName => 
                 write!(f, "invalid keyword or variable name"),
             Self::NotInScope => write!(f, "variable not in scope"),
-            _ => write!(f, "todo")
+            Self::BadArtLength {width, got} => write!(
+                f,
+                "expected line length to be divisible hy {}, but it has {got} chars",
+                width * 2,
+            ),
+            Self::BadArtHeight {height, got} => write!(
+                f,
+                "expected number of lines to be divisible hy {height}, but it has {got} lines",
+            ),
+            _ => write!(f, "todo"),
         }
     }
 }
@@ -809,18 +844,18 @@ pub fn tokenize(
     file: Arc<Vec<String>>,
 ) -> Result<TokenStream> {
     let keywords: HashMap<&str, Keyword> = HashMap::from([
-        ("match", Keyword::Match),
-        ("define", Keyword::Define),
-        ("of_type", Keyword::Of_type),
-        ("as", Keyword::As),
-        ("in", Keyword::In),
-        ("to", Keyword::To),
-        ("lambda", Keyword::Lambda),
-        ("data", Keyword::Data),
+        ("match",    Keyword::Match),
+        ("define",   Keyword::Define),
+        ("of_type",  Keyword::Of_type),
+        ("as",       Keyword::As),
+        ("with",     Keyword::With),
+        ("to",       Keyword::To),
+        ("lambda",   Keyword::Lambda),
+        ("data",     Keyword::Data),
         ("contains", Keyword::Contains),
-        ("include", Keyword::Include),
-        ("dot", Keyword::Dot),
-        ("...", Keyword::Undefined),
+        ("include",  Keyword::Include),
+        ("dot",      Keyword::Dot),
+        ("...",      Keyword::Undefined),
     ]);
     let mut output = Vec::new();
     let mut current_indentation: Option<u32> = None;
@@ -897,7 +932,7 @@ pub fn tokenize(
                         }
                         new_output.push(temp);
                     }
-                    let aaa = parse_art(x as usize, y as usize, new_output);
+                    let aaa = parse_art(x as usize, y as usize, new_output, mark.clone())?;
                     for i in build_tokens_from_art(mark, aaa)? {
                         output.push(i);
                     }

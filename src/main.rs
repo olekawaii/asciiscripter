@@ -16,9 +16,16 @@
  *
  */
 
-use std::{collections::HashMap, env, fmt, fs, fs::read_to_string};
-use std::sync::{Mutex, Arc};
-use std::thread::spawn;
+use std::{
+    collections::HashMap, 
+    env, 
+    fmt, 
+    fs, 
+    fs::read_to_string,
+    sync::{Mutex, Arc},
+    thread::spawn,
+    time::{Instant, Duration},
+};
 
 mod parse;
 mod runtime;
@@ -42,18 +49,17 @@ fn main() -> std::io::Result<()> {
     let _executable = args.next().unwrap();
     let file_name = args.next().unwrap_or("./main.th".to_string());
     // let file: String = read_to_string(&file_name)?;
-    eprintln!("compiling expressions...  ");
     match parse_file(file_name) {
-        Err(x) => eprintln!("{x}"),
+        Err(x) => {
+            eprintln!("{x}");
+            std::process::exit(1)
+        }
         Ok((vars, vars_dummy)) => {
             //dbg!(&vars[200]);
             //let (main_index, _, _) = vars_dummy.get("main").expect("no main");
             //let mut main = vars[*main_index].lock().unwrap().clone();
             let mut main = build_monolithic_expression(vars, &vars_dummy);
-            eprintln!("\x1b[1A\x1b[20CDone");
-            eprintln!("evaluating main...");
             main.evaluate_strictly();
-            eprintln!("evaluated");
             //println!("{:?}",&main);
             //dbg!(&main);
             let mut map = HashMap::new();
@@ -125,7 +131,6 @@ fn parse_file(
             .collect::<Result<(Vec<(Signiture, TokenStream)>), Error>>()?
             .into_iter()
             .partition(|(x, _)| matches!(x, Signiture::Type(_)));
-
     let mut number_of_types = 0;
     let mut types: HashMap<String, u32> = HashMap::new();
     let mut data_blocks: Vec<(u32, TokenStream)> = Vec::new();
