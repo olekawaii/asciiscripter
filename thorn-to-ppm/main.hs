@@ -57,26 +57,26 @@ new = HashMap []
 
 infix 8 ...
 
-main :: IO ()
-main = getContents >>= \x -> let gif = (parseVideo . words) x in
-  case changeFormat gif of
-    (width, height, newGif) ->
-      let
-        file = "output" <> ".sh"
-        shortFile = "short-" <> file
-        (fileSh, command) = formatShell defaultMods width height Nothing . pipeline $ newGif
-      in
-      (
-        if width > 80
-        then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 80 chars in width"
-        else if height > 24
-          then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 24 chars in height"
-          else pure ()
-      ) >>
-      writeFile file fileSh >>
-      writeFile shortFile command >>
-      callCommand ("chmod +x " <> file <> " " <> shortFile) >>
-      putStrLn "\x1b[92mcompiled"
+-- main :: IO ()
+-- main = getContents >>= \x -> let gif = (parseVideo . words) x in
+--   case changeFormat gif of
+--     (width, height, newGif) ->
+--       let
+--         file = "output" <> ".sh"
+--         shortFile = "short-" <> file
+--         (fileSh, command) = formatShell defaultMods width height Nothing . pipeline $ newGif
+--       in
+--       (
+--         if width > 80
+--         then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 80 chars in width"
+--         else if height > 24
+--           then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 24 chars in height"
+--           else pure ()
+--       ) >>
+--       writeFile file fileSh >>
+--       writeFile shortFile command >>
+--       callCommand ("chmod +x " <> file <> " " <> shortFile) >>
+--       putStrLn "\x1b[92mcompiled"
 
 
 showNum :: Int -> String
@@ -90,29 +90,29 @@ makeFiles header (x:xs) n = writeFile fileName content >> makeFiles header xs (n
         content = header <> x
         fileName = "output" <> showNum n <> ".ppm"
 
--- main :: IO ()
--- main = getContents >>= \x -> let gif = (parseVideo . words) x in
---   case changeFormat gif of
---     (width, height, newGif) ->
---         let gifFrames = map pipelineGif newGif in
---         let header = "P3\n" <> show (width * 9) <> " " <> show (height * 14) <> "\n255\n" in
---         makeFiles header gifFrames 0
---       -- let
---       --   file = "output" <> ".sh"
---       --   shortFile = "short-" <> file
---       --   (fileSh, command) = formatShell defaultMods width height Nothing . pipeline $ newGif
---       -- in
---       -- (
---       --   if width > 80
---       --   then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 80 chars in width"
---       --   else if height > 24
---       --     then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 24 chars in height"
---       --     else pure ()
---       -- ) >>
---       -- writeFile file fileSh >>
---       -- writeFile shortFile command >>
---       -- callCommand ("chmod +x " <> file <> " " <> shortFile) >>
---       -- putStrLn "\x1b[92mcompiled"
+main :: IO ()
+main = getContents >>= \x -> let gif = (parseVideo . words) x in
+  case changeFormat gif of
+    (width, height, newGif) ->
+        let gifFrames = map pipelineGif newGif in
+        let header = "P3\n" <> show (width * 9) <> " " <> show (height * 14) <> "\n255\n" in
+        makeFiles header gifFrames 0
+      -- let
+      --   file = "output" <> ".sh"
+      --   shortFile = "short-" <> file
+      --   (fileSh, command) = formatShell defaultMods width height Nothing . pipeline $ newGif
+      -- in
+      -- (
+      --   if width > 80
+      --   then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 80 chars in width"
+      --   else if height > 24
+      --     then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 24 chars in height"
+      --     else pure ()
+      -- ) >>
+      -- writeFile file fileSh >>
+      -- writeFile shortFile command >>
+      -- callCommand ("chmod +x " <> file <> " " <> shortFile) >>
+      -- putStrLn "\x1b[92mcompiled"
 
 parseVideo :: [String] -> RealGif
 parseVideo ("empty_video": xs) = [] 

@@ -66,10 +66,20 @@ fn parse_pattern_helper(
                 return Ok(Pattern::Dropped)
             }
             if let Some((id, tp, is_constructor)) = global_vars.get(&name) {
-                if !expected_type.is_a_function() && *is_constructor && Type::Type(tp.final_type()) == *expected_type {
+                if {
+                    !expected_type.is_a_function() && 
+                    *is_constructor && 
+                    Type::Type(tp.final_type()) == *expected_type 
+                } {
                     let mut patterns = Vec::new();
                     for t in tp.clone().arg_types() {
-                        patterns.push(parse_pattern_helper(number_of_local, &t, output, tokens, global_vars)?)
+                        patterns.push(parse_pattern_helper(
+                            number_of_local, 
+                            &t, 
+                            output, 
+                            tokens, 
+                            global_vars
+                        )?)
                     }
                     return Ok(Pattern::DataConstructor(*id as u32, patterns))
                 } else { 
