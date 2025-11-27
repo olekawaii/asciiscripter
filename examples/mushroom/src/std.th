@@ -12,20 +12,23 @@ define flip_over_y_char of_type fn character character as
         char c color  to char
             match c with
                 single_quote       to grave_accent
+                grave_accent       to single_quote
                 open_paranthesis   to close_paranthesis
                 close_paranthesis  to open_paranthesis
                 comma              to period
                 slash              to backslash
+                backslash          to slash
                 less_than          to greater_than
                 greater_than       to less_than
                 opening_bracket    to closing_bracket
-                backslash          to slash
                 closing_bracket    to opening_bracket
-                underscore         to underscore
-                grave_accent       to single_quote
                 opening_brace      to closing_brace
                 closing_brace      to opening_brace
                 semicolon          to colon
+                lowercase_d        to lowercase_b
+                lowercase_b        to lowercase_d
+                lowercase_p        to lowercase_q
+                lowercase_q        to lowercase_p
                 _                  to c
             color
 

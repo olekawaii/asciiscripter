@@ -7,7 +7,7 @@ data video contains
 data frame contains
     frame column column horizontal
 
-define fresh_frame of_type frame as
+define new_frame of_type frame as
     frame empty_column empty_column empty_horizontal
 
 data horizontal contains
@@ -80,7 +80,7 @@ define from_video of_type fn bad_video video as
 
 define from_frame of_type fn bad_frame frame as
     lambda f dot match f with
-        empty_frame                                  to fresh_frame
+        empty_frame                                  to new_frame
         unsafe_cons_cell cell coordinate x y c tail  to
             insert_frame x y c from_frame tail
 

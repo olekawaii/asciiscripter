@@ -43,7 +43,7 @@ build() {
 make_gif() {
     build
     fps=$(awk 'NR == 1 { print $1 }' .ascr/fps)
-    cat ./output/thorn-output | thorn-to-gif
+    cat ./output/thorn-output | thorn-to-ppm
     ffmpeg -i output%05d.ppm -vf palettegen=max_colors=8 palette.png
     ffmpeg -framerate $fps -i output%05d.ppm -i palette.png \
         -lavfi "paletteuse=dither=none" output.gif
@@ -82,6 +82,7 @@ These can be run from anywhere in the project.
 
 case $1 in
     new   | n ) new $2 ;;
+    gif   | g ) make_gif ;;
     run   | r ) run ;;
     play  | p ) play ;;
     watch | w ) watch ;;

@@ -990,16 +990,13 @@ fn build_tokens_from_art(
     input: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>
 ) -> Result<TokenStream> {
     let mut output = Vec::new();
-    output.push(build_token("from_video", &mark));
     for i in input.into_iter() {
-        output.push(build_token("cons_frame", &mark));
+        output.push(build_token("cons_video", &mark));
         for ((x, y), (c1, c2)) in i.into_iter() {
             let c1_char = c1.value;
             let c2_char = c2.value;
             if c1_char == ' ' && c2_char == '.' { continue }
-            output.push(build_token("unsafe_cons_cell", &mark));
-            output.push(build_token("cell", &mark));
-            output.push(build_token("coordinate", &mark));
+            output.push(build_token("insert_frame", &mark));
             output.push(build_token("positive", &mark));
             for _ in 0..x {
                 output.push(build_token("succ", &mark));
@@ -1158,12 +1155,12 @@ fn build_tokens_from_art(
         }
         output.push(Marked::<Token> {
             mark: mark.clone(),
-            value: Token::Variable(ValueToken::Value("empty_frame".to_string()))
+            value: Token::Variable(ValueToken::Value("new_frame".to_string()))
         });
     }
     output.push(Marked::<Token> {
         mark: mark.clone(),
-        value: Token::Variable(ValueToken::Value("empty_video".to_string()))
+        value: Token::Variable(ValueToken::Value("nil_video".to_string()))
     });
     Ok(output.into_iter().peekable())
 }
