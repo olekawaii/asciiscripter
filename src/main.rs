@@ -1,46 +1,44 @@
 /* thorn - a pure lazy functional programming language
  * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
 
 use std::{
-    collections::HashMap, 
-    env, 
-    fmt, 
-    fs, 
+    collections::HashMap,
+    env, fmt, fs,
     fs::read_to_string,
-    sync::{Mutex, Arc},
+    sync::{Arc, Mutex},
     thread::spawn,
-    time::{Instant, Duration},
+    time::{Duration, Instant},
 };
 
+mod error;
 mod parse;
 mod runtime;
 mod r#type;
-mod error;
 
 use crate::{
-    parse::{
-        Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree,
-        build_tree, build_type, extract_signiture, parse_data, parse_type, tokenize,
-        tokenize_file, parse_roman_numeral, parse_art, get_tokens
-    },
-    runtime::{optimize_expression, Expression, /*COUNTER,*/ Id},
-    r#type::Type,
     error::{Error, Mark},
+    parse::{
+        Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree, build_tree,
+        build_type, extract_signiture, get_tokens, parse_art, parse_data, parse_roman_numeral,
+        parse_type, tokenize, tokenize_file,
+    },
+    runtime::{Expression, /*COUNTER,*/ Id, optimize_expression},
+    r#type::Type,
 };
 
 fn main() -> std::io::Result<()> {
@@ -76,22 +74,23 @@ fn main() -> std::io::Result<()> {
 }
 
 fn build_monolithic_expression(
-    vec: Vec<Expression>, 
-    vars_dummy: &HashMap<String, (usize, Type, bool)>
+    vec: Vec<Expression>,
+    vars_dummy: &HashMap<String, (usize, Type, bool)>,
 ) -> Expression {
-    let expressions: Vec<Arc<Mutex<Expression>>> = vec.into_iter().map(|x| Arc::new(Mutex::new(x))).collect();
+    let expressions: Vec<Arc<Mutex<Expression>>> =
+        vec.into_iter().map(|x| Arc::new(Mutex::new(x))).collect();
     for i in expressions.iter() {
         let ptr = &mut (**i).lock().unwrap();
         monolithic_helper(&expressions, ptr)
     }
     let (main_index, _, _) = vars_dummy.get("main").expect("no main");
     let main = (*expressions[*main_index]).lock().unwrap().clone();
-    return main
+    return main;
 }
 
 fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Expression) {
     match expression {
-        Expression::Tree {root, arguments} => {
+        Expression::Tree { root, arguments } => {
             arguments.iter_mut().for_each(|x| monolithic_helper(vec, x));
             match root {
                 Id::DataConstructor(_) | Id::LambdaArg(_) => (),
@@ -104,14 +103,14 @@ fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Express
                 }
             }
         }
-        Expression::Match {pattern, branches} => {
+        Expression::Match { pattern, branches } => {
             monolithic_helper(vec, pattern);
             for (_, exp) in branches.iter_mut() {
                 monolithic_helper(vec, exp);
             }
         }
-        Expression::Lambda {body, ..} => monolithic_helper(vec, &mut *body),
-        Expression::Undefined {..} => ()
+        Expression::Lambda { body, .. } => monolithic_helper(vec, &mut *body),
+        Expression::Undefined { .. } => (),
     }
 }
 
@@ -120,17 +119,16 @@ fn parse_file(
 ) -> Result<(Vec<Expression>, HashMap<String, (usize, Type, bool)>), Error> {
     let mut temp_vec = Vec::new();
     let blocks = get_tokens(file_name, &mut temp_vec)?;
-    let (type_blocks, values): (Vec<(Signiture, TokenStream)>, _) =
-        blocks
-            .into_iter()
-            .map(|mut x| {
-                let signiture = extract_signiture(&mut x)?;
-                //dbg!(&signiture);
-                Ok((signiture, x))
-            })
-            .collect::<Result<(Vec<(Signiture, TokenStream)>), Error>>()?
-            .into_iter()
-            .partition(|(x, _)| matches!(x, Signiture::Type(_)));
+    let (type_blocks, values): (Vec<(Signiture, TokenStream)>, _) = blocks
+        .into_iter()
+        .map(|mut x| {
+            let signiture = extract_signiture(&mut x)?;
+            //dbg!(&signiture);
+            Ok((signiture, x))
+        })
+        .collect::<Result<(Vec<(Signiture, TokenStream)>), Error>>()?
+        .into_iter()
+        .partition(|(x, _)| matches!(x, Signiture::Type(_)));
     let mut number_of_types = 0;
     let mut types: HashMap<String, u32> = HashMap::new();
     let mut data_blocks: Vec<(u32, TokenStream)> = Vec::new();
@@ -147,14 +145,14 @@ fn parse_file(
     let mut global_vars_dummy: HashMap<String, (usize, Type, bool)> = HashMap::new();
     let mut global_vars: Vec<Expression> = Vec::new();
     for (tp, tokens) in data_blocks.into_iter() {
-        for (num, (name, tp)) in parse_data(tokens, &types, tp)?
-            .into_iter()
-            .enumerate()
-        {
+        for (num, (name, tp)) in parse_data(tokens, &types, tp)?.into_iter().enumerate() {
             //if num +1 == 22 {dbg!(&name);}
             match global_vars_dummy.insert(name, (number_of_values, tp, true)) {
                 None => {}
-                Some(x) => {dbg!(x); panic!("uwuaaaa")}
+                Some(x) => {
+                    dbg!(x);
+                    panic!("uwuaaaa")
+                }
             }
             number_of_values += 1;
             global_vars.push(Expression::Tree {
@@ -212,17 +210,17 @@ fn parse_file(
 
 fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>, output: &mut String) {
     match expression {
-        Expression::Tree {root, arguments} => {
+        Expression::Tree { root, arguments } => {
             let mut word = match root {
                 Id::DataConstructor(x) => names.get(x).unwrap(), // unwrap should be safe
-                _ => unreachable!()
+                _ => unreachable!(),
             };
             output.push_str(word);
             output.push(' ');
             for i in arguments.iter() {
                 convert_to_file(i, names, output);
             }
-        },
-        _ => panic!("uwu")
+        }
+        _ => panic!("uwu"),
     }
 }

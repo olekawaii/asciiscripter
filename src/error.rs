@@ -1,16 +1,16 @@
 /* thorn - a pure lazy functional programming language
  * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
@@ -48,7 +48,6 @@ pub enum Index {
     EndOfWord(usize),
     EndOfLine,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Mark {
@@ -94,7 +93,7 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
             length_of_word = 1;
             output_string = line.into();
         }
-        _ => todo!()
+        _ => todo!(),
     }
     let mut underline = String::new();
     underline.push_str(&" ".repeat(length_to_word));
@@ -117,4 +116,3 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
         underline,
     )
 }
-

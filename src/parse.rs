@@ -1,26 +1,25 @@
 /* thorn - a pure lazy functional programming language
  * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
 
-
-use crate::runtime::{Pattern, Expression, Id};
+use crate::error::{Error, ErrorType, Index, Mark};
+use crate::runtime::{Expression, Id, Pattern};
 use crate::r#type::Type;
-use crate::error::{Error, Mark, Index, ErrorType};
-use std::{collections::HashMap};
+use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::sync::Arc;
 
@@ -40,14 +39,14 @@ fn parse_pattern(
         expected_type,
         &mut output,
         &mut tokens,
-        global_vars
+        global_vars,
     )?;
     match tokens.next() {
         None => Ok((pattern, output, number_of_local)),
         Some(x) => Err(Error {
             mark: x.mark,
-            error_type: Box::new(CompilationError::TrailingCharacters)
-        })
+            error_type: Box::new(CompilationError::TrailingCharacters),
+        }),
     }
 }
 
@@ -58,48 +57,49 @@ fn parse_pattern_helper(
     tokens: &mut TokenStream,
     global_vars: &HashMap<String, (usize, Type, bool)>,
 ) -> Result<Pattern> {
-    let Marked::<Token> {mark, value} = next_non_newline(tokens).unwrap(); //todo
+    let Marked::<Token> { mark, value } = next_non_newline(tokens).unwrap(); //todo
     match value {
         Token::Keyword(_) => panic!("uwu2"),
         Token::Variable(ValueToken::Value(name)) => {
-            if name.chars().next().unwrap() == '_' { //safe
-                return Ok(Pattern::Dropped)
+            if name.chars().next().unwrap() == '_' {
+                //safe
+                return Ok(Pattern::Dropped);
             }
             if let Some((id, tp, is_constructor)) = global_vars.get(&name) {
                 if {
-                    !expected_type.is_a_function() && 
-                    *is_constructor && 
-                    Type::Type(tp.final_type()) == *expected_type 
+                    !expected_type.is_a_function()
+                        && *is_constructor
+                        && Type::Type(tp.final_type()) == *expected_type
                 } {
                     let mut patterns = Vec::new();
                     for t in tp.clone().arg_types() {
                         patterns.push(parse_pattern_helper(
-                            number_of_local, 
-                            &t, 
-                            output, 
-                            tokens, 
-                            global_vars
+                            number_of_local,
+                            &t,
+                            output,
+                            tokens,
+                            global_vars,
                         )?)
                     }
-                    return Ok(Pattern::DataConstructor(*id as u32, patterns))
-                } else { 
+                    return Ok(Pattern::DataConstructor(*id as u32, patterns));
+                } else {
                     *number_of_local = *number_of_local + 1;
                     output.insert(name, (*number_of_local, expected_type.clone()));
-                    return Ok(Pattern::Captured(*number_of_local))
+                    return Ok(Pattern::Captured(*number_of_local));
                 }
             } else {
                 *number_of_local = *number_of_local + 1;
                 output.insert(name, (*number_of_local, expected_type.clone()));
-                return Ok(Pattern::Captured(*number_of_local))
+                return Ok(Pattern::Captured(*number_of_local));
             }
         }
-        Token::NewLine(_) => unreachable!()
+        Token::NewLine(_) => unreachable!(),
     }
 }
 
 pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStream>> {
     if done.contains(&file) {
-        return Ok(Vec::new())
+        return Ok(Vec::new());
     } else {
         eprintln!("including \x1b[95m{file}\x1b[0m");
         done.push(file.clone());
@@ -110,7 +110,10 @@ pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStrea
         }
         //dbg!(matches!(output[0].peek().unwrap().value, Token::Keyword(Keyword::Include)));
         //dbg!(&output);
-        if matches!(output[0].peek().unwrap().value, Token::Keyword(Keyword::Include)) {
+        if matches!(
+            output[0].peek().unwrap().value,
+            Token::Keyword(Keyword::Include)
+        ) {
             let mut imports = output.remove(0);
             //dbg!(&output);
             imports.next(); // remove the import keyword
@@ -122,7 +125,7 @@ pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStrea
                         let mut f = get_tokens(x, done)?;
                         output.append(&mut f)
                     }
-                    _ => todo!()
+                    _ => todo!(),
                 }
             }
         }
@@ -138,12 +141,14 @@ pub fn tokenize_file(input: String, file_name: &Arc<String>) -> Result<Vec<Token
     let mut file = remove_multiline_comments(
         file_lines.iter().map(|x| x.as_str()).enumerate(),
         file_name,
-        &file_lines
-    )?.into_iter();
+        &file_lines,
+    )?
+    .into_iter();
     while let Some((line_number, string)) = file.next() {
-        if string.len() == 0 || string.split_whitespace().next().unwrap() == "--" {  // safe unwrap
-            continue
-        } 
+        if string.len() == 0 || string.split_whitespace().next().unwrap() == "--" {
+            // safe unwrap
+            continue;
+        }
         current_block.push((line_number, string.to_string()));
         'good_lines: loop {
             match file.next() {
@@ -154,7 +159,7 @@ pub fn tokenize_file(input: String, file_name: &Arc<String>) -> Result<Vec<Token
                         Arc::clone(&file_lines),
                     )?);
                     current_block = Vec::new();
-                    break 'good_lines
+                    break 'good_lines;
                 }
                 Some((line_number, string)) => {
                     current_block.push((line_number, string.to_string()));
@@ -168,7 +173,7 @@ pub fn tokenize_file(input: String, file_name: &Arc<String>) -> Result<Vec<Token
 fn remove_multiline_comments<'a>(
     mut input: impl Iterator<Item = (usize, &'a str)>,
     file_name: &Arc<String>,
-    file: &Arc<Vec<String>>
+    file: &Arc<Vec<String>>,
 ) -> Result<Vec<(usize, &'a str)>> {
     let mut output = Vec::new();
     loop {
@@ -177,44 +182,52 @@ fn remove_multiline_comments<'a>(
             Some((line, string)) => match string {
                 "---" => 'multi_line_comment: loop {
                     match input.next() {
-                        None => return Err(Error {
-                            mark: Mark {
-                                file_name: Arc::clone(file_name),
-                                file: Arc::clone(file),
-                                line,
-                                block: None,
-                                word_index: Index::Expression(0),
-                            },
-                            error_type: Box::new(CompilationError::UnclosedComment)
-                        }),
-                        Some((line2, x)) => match x {
-                            "<o>" => break 'multi_line_comment,
-                            "---" => return Err(Error {
+                        None => {
+                            return Err(Error {
                                 mark: Mark {
                                     file_name: Arc::clone(file_name),
                                     file: Arc::clone(file),
-                                    line: line2,
+                                    line,
                                     block: None,
                                     word_index: Index::Expression(0),
                                 },
-                                error_type: Box::new(CompilationError::UnexpectedOpeningComment(line))
-                            }),
-                            _ => ()
+                                error_type: Box::new(CompilationError::UnclosedComment),
+                            });
                         }
+                        Some((line2, x)) => match x {
+                            "<o>" => break 'multi_line_comment,
+                            "---" => {
+                                return Err(Error {
+                                    mark: Mark {
+                                        file_name: Arc::clone(file_name),
+                                        file: Arc::clone(file),
+                                        line: line2,
+                                        block: None,
+                                        word_index: Index::Expression(0),
+                                    },
+                                    error_type: Box::new(
+                                        CompilationError::UnexpectedOpeningComment(line),
+                                    ),
+                                });
+                            }
+                            _ => (),
+                        },
                     }
                 },
-                "<o>" => return Err(Error {
-                    mark: Mark {
-                        file_name: Arc::clone(file_name),
-                        file: Arc::clone(file),
-                        line,
-                        block: None,
-                        word_index: Index::Expression(0),
-                    },
-                    error_type: Box::new(CompilationError::UnexpectedClosingComment)
-                }),
-                _ => output.push((line, string))
-            }
+                "<o>" => {
+                    return Err(Error {
+                        mark: Mark {
+                            file_name: Arc::clone(file_name),
+                            file: Arc::clone(file),
+                            line,
+                            block: None,
+                            word_index: Index::Expression(0),
+                        },
+                        error_type: Box::new(CompilationError::UnexpectedClosingComment),
+                    });
+                }
+                _ => output.push((line, string)),
+            },
         }
     }
     Ok(output)
@@ -222,13 +235,13 @@ fn remove_multiline_comments<'a>(
 
 pub fn parse_roman_numeral(mut numeral: &str) -> Option<u32> {
     let mut numerals: Vec<(&str, u32)> = vec![
-        ("i",   1),
-        ("iv",  4),
-        ("v",   5),
-        ("ix",  9),
-        ("x",  10),
+        ("i", 1),
+        ("iv", 4),
+        ("v", 5),
+        ("ix", 9),
+        ("x", 10),
         ("xl", 40),
-        ("l",  50),
+        ("l", 50),
         ("xc", 90),
         ("c", 100),
     ];
@@ -242,21 +255,25 @@ pub fn parse_roman_numeral(mut numeral: &str) -> Option<u32> {
         let value = tuple.1;
         let pattern_len = pattern.len();
         let numeral_len = numeral.len() - starting_index;
-        if numeral_len == 0 { return Some(output) };
-        if numeral_len < pattern_len || &numeral[starting_index .. starting_index + pattern_len] != pattern {
+        if numeral_len == 0 {
+            return Some(output);
+        };
+        if numeral_len < pattern_len
+            || &numeral[starting_index..starting_index + pattern_len] != pattern
+        {
             tuple = numerals.pop()?;
             consecutive_times = 0;
         } else {
             output += value;
             starting_index += pattern_len;
-            if consecutive_times != 0 && ( pattern_len > 1 || consecutive_times > 3 ) {
-                return None
+            if consecutive_times != 0 && (pattern_len > 1 || consecutive_times > 3) {
+                return None;
             };
             let skips = match value.to_string().chars().next().unwrap() {
-                '1'        => 0,
-                '4' | '5'  => 1,
-                '9'        => 3,
-                _          => unreachable!()
+                '1' => 0,
+                '4' | '5' => 1,
+                '9' => 3,
+                _ => unreachable!(),
             };
             for _ in 0..skips {
                 numerals.pop();
@@ -266,31 +283,37 @@ pub fn parse_roman_numeral(mut numeral: &str) -> Option<u32> {
     }
 }
 
-pub fn build_syntax_tree(mut tokens: TokenStream, table: &HashMap<String, u32>) -> Result<SyntaxTree> {
+pub fn build_syntax_tree(
+    mut tokens: TokenStream,
+    table: &HashMap<String, u32>,
+) -> Result<SyntaxTree> {
     //dbg!(&tokens.clone().count());
     let Marked::<Token> {
         mark: root_mark,
         value: token,
     } = match next_non_newline(&mut tokens) {
-        None => {dbg!(&tokens); unreachable!()},
-        Some(x) => x
+        None => {
+            dbg!(&tokens);
+            unreachable!()
+        }
+        Some(x) => x,
     };
     match token {
         Token::Keyword(keyword) => match keyword {
-            Keyword::Undefined => Ok(SyntaxTree::Undefined {mark: root_mark}),
+            Keyword::Undefined => Ok(SyntaxTree::Undefined { mark: root_mark }),
             Keyword::Lambda => {
                 let mut pattern = Vec::new();
                 loop {
-                    let marked_token@Marked::<Token> { .. } = tokens.next().expect("bluh");
+                    let marked_token @ Marked::<Token> { .. } = tokens.next().expect("bluh");
                     match &marked_token.value {
                         Token::Variable(ValueToken::Value(_)) => pattern.push(marked_token),
-                        Token::Keyword(Keyword::Dot) => {
-                            break
+                        Token::Keyword(Keyword::Dot) => break,
+                        _ => {
+                            return Err(Error {
+                                error_type: Box::new(CompilationError::Empty),
+                                mark: marked_token.mark.clone(),
+                            });
                         }
-                        _ => return Err(Error {
-                            error_type: Box::new(CompilationError::Empty),
-                            mark: marked_token.mark.clone(),
-                        })
                     }
                 }
                 //dbg!(&root_mark);
@@ -305,33 +328,41 @@ pub fn build_syntax_tree(mut tokens: TokenStream, table: &HashMap<String, u32>) 
                 let mut pattern = Vec::new();
                 let mut unmatched_matches = 0;
                 let mut tp;
-                while let Some(Marked::<Token> {value: Token::NewLine(_), ..}) = tokens.peek() {
+                while let Some(Marked::<Token> {
+                    value: Token::NewLine(_),
+                    ..
+                }) = tokens.peek()
+                {
                     tokens.next();
                 }
-                let Marked::<Token> {mark, value}: Marked<Token> = tokens.peek().expect("").clone(); 
+                let Marked::<Token> { mark, value }: Marked<Token> =
+                    tokens.peek().expect("").clone();
                 match value {
                     Token::Keyword(Keyword::Of_type) => {
                         tokens.next();
                         tp = Some(parse_type(&mut tokens, table)?);
                     }
                     Token::Variable(_) => tp = None,
-                    _ => return Err(Error {
-                        error_type: Box::new(CompilationError::Empty),
-                        mark,
-                    })
+                    _ => {
+                        return Err(Error {
+                            error_type: Box::new(CompilationError::Empty),
+                            mark,
+                        });
+                    }
                 }
                 loop {
                     let token = tokens.next().expect("atueha");
                     match &token.value {
                         Token::Keyword(Keyword::With) => {
                             if unmatched_matches == 0 {
-                                let Marked::<Token> { mark, value: token } = tokens.next().expect("uu");
+                                let Marked::<Token> { mark, value: token } =
+                                    tokens.next().expect("uu");
                                 if let Token::NewLine(num) = token {
                                     indent = num;
                                 } else {
                                     panic!("no newline")
                                 }
-                                break
+                                break;
                             } else {
                                 unmatched_matches -= 1;
                                 pattern.push(token);
@@ -342,36 +373,33 @@ pub fn build_syntax_tree(mut tokens: TokenStream, table: &HashMap<String, u32>) 
                             unmatched_matches += 1;
                             pattern.push(token);
                         }
-                        _ => pattern.push(token)
+                        _ => pattern.push(token),
                     }
                 }
                 let mut output_vec = Vec::new();
                 for mut i in get_with_indentation(tokens, indent).into_iter() {
                     let mut pattern = Vec::new();
                     loop {
-                        let marked_token@Marked::<Token> { .. } = i.next().expect("bluuh");
+                        let marked_token @ Marked::<Token> { .. } = i.next().expect("bluuh");
                         match &marked_token.value {
                             Token::Variable(ValueToken::Value(_)) => pattern.push(marked_token),
-                            Token::Keyword(Keyword::To) => {
-                                break
+                            Token::Keyword(Keyword::To) => break,
+                            _ => {
+                                return Err(Error {
+                                    error_type: Box::new(CompilationError::Empty),
+                                    mark: marked_token.mark.clone(),
+                                });
                             }
-                            _ => return Err(Error {
-                                error_type: Box::new(CompilationError::Empty),
-                                mark: marked_token.mark.clone(),
-                            })
                         }
                     }
                     //dbg!(&root_mark);
-                    output_vec.push((
-                        pattern.into_iter().peekable(),
-                        build_syntax_tree(i, table)?
-                    ));
+                    output_vec.push((pattern.into_iter().peekable(), build_syntax_tree(i, table)?));
                 }
                 Ok(SyntaxTree::Match(
-                        tp, 
-                        Box::new(build_syntax_tree(pattern.into_iter().peekable(), table)?), 
-                        //branches
-                        output_vec
+                    tp,
+                    Box::new(build_syntax_tree(pattern.into_iter().peekable(), table)?),
+                    //branches
+                    output_vec,
                 ))
             }
             _ => Err(Error {
@@ -394,15 +422,15 @@ pub fn build_syntax_tree(mut tokens: TokenStream, table: &HashMap<String, u32>) 
                 }
                 let Marked::<Token> { mark, value: token } = tokens.next().unwrap(); // safe
                 match token {
-                    Token::Variable(ValueToken::Value(w)) => args.push(
-                        Argument::Ungrouped(Marked::<String> {
+                    Token::Variable(ValueToken::Value(w)) => {
+                        args.push(Argument::Ungrouped(Marked::<String> {
                             mark: mark,
-                            value: w
-                        })
-                    ),
+                            value: w,
+                        }))
+                    }
                     Token::NewLine(indentation) => {
                         if let None = tokens.peek() {
-                            break
+                            break;
                         }
                         let arg_groups = get_with_indentation(tokens, indentation)
                             .into_iter()
@@ -415,32 +443,34 @@ pub fn build_syntax_tree(mut tokens: TokenStream, table: &HashMap<String, u32>) 
                     _ => unreachable!(),
                 }
             }
-            Ok(SyntaxTree::Tree(Marked::<String> {value: root, mark: root_mark} , args))
+            Ok(SyntaxTree::Tree(
+                Marked::<String> {
+                    value: root,
+                    mark: root_mark,
+                },
+                args,
+            ))
         }
         Token::NewLine(_) => unreachable!(),
     }
 }
 
 fn parse_branch(
-    mut tokens: TokenStream, 
-    table: &HashMap<String, u32>
+    mut tokens: TokenStream,
+    table: &HashMap<String, u32>,
 ) -> Result<(Marked<String>, Vec<Marked<String>>, SyntaxTree)> {
     let Marked::<Token> { mark, value: token } = tokens.next().expect("uwu");
     let constructor = match token {
-        Token::Variable(ValueToken::Value(name)) => Marked::<String> {
-            value: name,
-            mark,
-        },
+        Token::Variable(ValueToken::Value(name)) => Marked::<String> { value: name, mark },
         _ => panic!("d"),
     };
     let mut args = Vec::new();
     loop {
         let Marked::<Token> { mark, value: token } = tokens.next().expect("blauh");
         match token {
-            Token::Variable(ValueToken::Value(name)) => args.push(Marked::<String> {
-                value: name,
-                mark
-            }),
+            Token::Variable(ValueToken::Value(name)) => {
+                args.push(Marked::<String> { value: name, mark })
+            }
             Token::Keyword(Keyword::To) => break,
             _ => panic!("bad match syntax"),
         }
@@ -456,29 +486,25 @@ pub fn build_tree(
     global_vars: &HashMap<String, (usize, Type, bool)>,
 ) -> Result<Expression> {
     match input {
-        SyntaxTree::Undefined {mark} => Ok(Expression::Undefined {mark}),
+        SyntaxTree::Undefined { mark } => Ok(Expression::Undefined { mark }),
         SyntaxTree::Lambda(tokens, keyword_mark, tree) => {
             //let mut id = None;
             if let Type::Function(a, b) = expected_type {
-                let (pattern, local_vars_new, new_local_vars_count) = parse_pattern(
-                    local_vars_count,
-                    &*a,
-                    tokens,
-                    global_vars
-                )?;
+                let (pattern, local_vars_new, new_local_vars_count) =
+                    parse_pattern(local_vars_count, &*a, tokens, global_vars)?;
                 local_vars_count = new_local_vars_count;
                 for (a, b) in local_vars_new {
                     variables.insert(a, b);
                 }
                 let body = build_tree(*b, *tree, variables, local_vars_count, global_vars)?;
                 Ok(Expression::Lambda {
-                    id: pattern, 
-                    body: Box::new(body)
+                    pattern,
+                    body: Box::new(body),
                 })
             } else {
                 Err(Error {
                     error_type: Box::new(CompilationError::TypeMismatch),
-                    mark: keyword_mark
+                    mark: keyword_mark,
                 })
             }
         }
@@ -502,7 +528,7 @@ pub fn build_tree(
                 None => {
                     let (first_name, mark) = match &*pattern {
                         SyntaxTree::Tree(root, _) => (&root.value, &root.mark),
-                        _ => panic!("aaaa")
+                        _ => panic!("aaaa"),
                     };
                     let (_, root_type) = if let Some((a, b)) = variables.get(first_name) {
                         (Id::LambdaArg(*a), b)
@@ -518,63 +544,68 @@ pub fn build_tree(
                     } else {
                         return Err(Error {
                             error_type: Box::new(CompilationError::NotInScope),
-                            mark: mark.clone()
-                        })
+                            mark: mark.clone(),
+                        });
                     };
                     Type::Type(root_type.final_type())
                 }
             };
             let pattern_expression = build_tree(
-                tp.clone(), 
-                *pattern, 
-                variables.clone(), 
-                local_vars_count, 
-                global_vars
+                tp.clone(),
+                *pattern,
+                variables.clone(),
+                local_vars_count,
+                global_vars,
             )?;
             let mut output = Vec::new();
             for (pattern_tokens, syntax_tree) in syntax_branches {
-                let (pattern, local_vars_new, new_local_vars_count) = parse_pattern(
-                    local_vars_count,
-                    &tp,
-                    pattern_tokens,
-                    global_vars
-                )?;
+                let (pattern, local_vars_new, new_local_vars_count) =
+                    parse_pattern(local_vars_count, &tp, pattern_tokens, global_vars)?;
                 local_vars_count = new_local_vars_count;
                 let mut variables = variables.clone();
                 for (a, b) in local_vars_new {
                     variables.insert(a, b);
                 }
-                let body = build_tree(expected_type.clone(), syntax_tree, variables, local_vars_count, global_vars)?;
+                let body = build_tree(
+                    expected_type.clone(),
+                    syntax_tree,
+                    variables,
+                    local_vars_count,
+                    global_vars,
+                )?;
                 output.push((pattern, body))
             }
             Ok(Expression::Match {
                 pattern: Box::new(pattern_expression),
-                branches: output
+                branches: output,
             })
         }
     }
 }
 
 pub fn parse_art(
-    width: usize, 
-    height: usize, 
+    width: usize,
+    height: usize,
     text: Vec<Vec<Marked<char>>>,
-    mark: Mark  // mark of the art keyword
+    mark: Mark, // mark of the art keyword
 ) -> Result<Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>> {
     let number_of_lines = text.len();
     if number_of_lines % height != 0 {
         return Err(Error {
-            error_type: Box::new(CompilationError::BadArtHeight {height, got: number_of_lines}),
-            mark
-        })
+            error_type: Box::new(CompilationError::BadArtHeight {
+                height,
+                got: number_of_lines,
+            }),
+            mark,
+        });
     }
     for line in text.iter() {
         let length = line.len();
         if length % (width * 2) != 0 {
             return Err(Error {
-                error_type: Box::new(CompilationError::BadArtLength {width, got: length}),
-                mark: line[length -1].mark.clone()
-            })
+                error_type: Box::new(CompilationError::BadArtLength { width, got: length }),
+                mark: line[length - 1].mark.clone(),
+            });
         }
     }
     let mut output: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>> = Vec::new();
@@ -586,18 +617,9 @@ pub fn parse_art(
         for x in 0..width as usize {
             for y in 0..height as usize {
                 let line = y + current_starting_line;
-                let art_char = text
-                    [line]
-                    [x + current_starting_char]
-                        .clone();
-                let color_char = text
-                    [line]
-                    [x + current_starting_char + width]
-                        .clone();
-                current_map.insert(
-                    (x as u32, (height - y - 1) as u32), 
-                    (art_char, color_char)
-                );
+                let art_char = text[line][x + current_starting_char].clone();
+                let color_char = text[line][x + current_starting_char + width].clone();
+                current_map.insert((x as u32, (height - y - 1) as u32), (art_char, color_char));
             }
         }
         //dbg!("added");
@@ -607,7 +629,7 @@ pub fn parse_art(
             current_starting_char = 0;
             current_starting_line += height;
             if current_starting_line + 1 > text.len() {
-                return Ok(output)
+                return Ok(output);
             }
         }
     }
@@ -643,14 +665,14 @@ fn evaluate_arguments(
             } else {
                 return Err(Error {
                     error_type: Box::new(CompilationError::NotInScope),
-                    mark: name.mark
-                })
+                    mark: name.mark,
+                });
             };
             if !root_type.is_possible(&expected_type) {
                 return Err(Error {
                     error_type: Box::new(CompilationError::TypeMismatch),
-                    mark: name.mark
-                })
+                    mark: name.mark,
+                });
             }
             let mut output_args = Vec::new();
             let mut current_type = root_type.to_owned();
@@ -681,23 +703,28 @@ fn evaluate_arguments(
 pub enum SyntaxTree {
     Lambda(
         //Marked<String>,           // argument name
-        TokenStream,              // argument name
-        Mark,                     // lambda keyword
-        Box<SyntaxTree>,          // body
-    ),                            //
-    Tree(                         //
-        Marked<String>,           // root
-        Vec<Argument>,            // arguments
-    ),                            //
-    Match(                        //
-        Option<Type>,              //
-        Box<SyntaxTree>,          // pattern
-        Vec<(                     //
+        TokenStream,     // argument name
+        Mark,            // lambda keyword
+        Box<SyntaxTree>, // body
+    ), //
+    Tree(
+        //
+        Marked<String>, // root
+        Vec<Argument>,  // arguments
+    ), //
+    Match(
+        //
+        Option<Type>,    //
+        Box<SyntaxTree>, // pattern
+        Vec<(
+            //
             TokenStream,
-            SyntaxTree,           // body
+            SyntaxTree, // body
         )>,
     ),
-    Undefined {mark: Mark}
+    Undefined {
+        mark: Mark,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -728,7 +755,6 @@ pub struct Marked<T> {
     mark: Mark,
 }
 
-
 #[derive(Debug, Clone)]
 pub enum CompilationError {
     Empty,
@@ -742,14 +768,8 @@ pub enum CompilationError {
     ExpectedRoman,
     UnexpectedKeyword,
     TrailingCharacters,
-    BadArtLength {
-        width: usize,
-        got: usize,
-    },
-    BadArtHeight {
-        height: usize,
-        got: usize,
-    },
+    BadArtLength { width: usize, got: usize },
+    BadArtHeight { height: usize, got: usize },
 }
 
 impl ErrorType for CompilationError {
@@ -766,8 +786,8 @@ impl ErrorType for CompilationError {
             Self::ExpectedRoman => "expected a roman numeral",
             Self::UnexpectedKeyword => "unexpected keyword",
             Self::TrailingCharacters => "trailing characters",
-            Self::BadArtLength {..} => "line length not divisible by 2*width",
-            Self::BadArtHeight {..} => "number of lines not divisible by height",
+            Self::BadArtLength { .. } => "line length not divisible by 2*width",
+            Self::BadArtHeight { .. } => "number of lines not divisible by height",
         }
     }
 
@@ -776,30 +796,28 @@ impl ErrorType for CompilationError {
     }
 }
 
-
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Custom(s) => write!(f, "{s}"),
             Self::Empty => write!(f, "empty error message"),
-            Self::UnexpectedClosingComment => 
-                write!(f, "unexpected closing delimiter"),
-            Self::UnexpectedOpeningComment(line) => 
-                write!(f, 
-"unexpected opening delimiter.
+            Self::UnexpectedClosingComment => write!(f, "unexpected closing delimiter"),
+            Self::UnexpectedOpeningComment(line) => write!(
+                f,
+                "unexpected opening delimiter.
 expected a closing delimiter for '---' on line {}
-", line + 1),
-            Self::UnclosedComment => 
-                write!(f, "unclosed multi-line comment"),
-            Self::InvalidName => 
-                write!(f, "invalid keyword or variable name"),
+",
+                line + 1
+            ),
+            Self::UnclosedComment => write!(f, "unclosed multi-line comment"),
+            Self::InvalidName => write!(f, "invalid keyword or variable name"),
             Self::NotInScope => write!(f, "variable not in scope"),
-            Self::BadArtLength {width, got} => write!(
+            Self::BadArtLength { width, got } => write!(
                 f,
                 "expected line length to be divisible hy {}, but it has {got} chars",
                 width * 2,
             ),
-            Self::BadArtHeight {height, got} => write!(
+            Self::BadArtHeight { height, got } => write!(
                 f,
                 "expected number of lines to be divisible hy {height}, but it has {got} lines",
             ),
@@ -854,18 +872,18 @@ pub fn tokenize(
     file: Arc<Vec<String>>,
 ) -> Result<TokenStream> {
     let keywords: HashMap<&str, Keyword> = HashMap::from([
-        ("match",    Keyword::Match),
-        ("define",   Keyword::Define),
-        ("of_type",  Keyword::Of_type),
-        ("as",       Keyword::As),
-        ("with",     Keyword::With),
-        ("to",       Keyword::To),
-        ("lambda",   Keyword::Lambda),
-        ("data",     Keyword::Data),
+        ("match", Keyword::Match),
+        ("define", Keyword::Define),
+        ("of_type", Keyword::Of_type),
+        ("as", Keyword::As),
+        ("with", Keyword::With),
+        ("to", Keyword::To),
+        ("lambda", Keyword::Lambda),
+        ("data", Keyword::Data),
         ("contains", Keyword::Contains),
-        ("include",  Keyword::Include),
-        ("dot",      Keyword::Dot),
-        ("...",      Keyword::Undefined),
+        ("include", Keyword::Include),
+        ("dot", Keyword::Dot),
+        ("...", Keyword::Undefined),
     ]);
     let mut output = Vec::new();
     let mut current_indentation: Option<u32> = None;
@@ -899,33 +917,54 @@ pub fn tokenize(
                 "--" => break 'words,
                 "art" => {
                     let x = match words.next() {
-                        None => return Err(Error {
-                            mark: Mark { word_index: Index::EndOfWord(word_index), ..mark },
-                            error_type: Box::new(CompilationError::Empty),
-                        }),
-                        Some(x) => match parse_roman_numeral(x) {
-                            None => return Err(Error {
-                                mark: Mark { word_index: Index::Expression(word_index + 1), ..mark },
-                                error_type: Box::new(CompilationError::ExpectedRoman),
-                            }),
-                            Some(x) => x
+                        None => {
+                            return Err(Error {
+                                mark: Mark {
+                                    word_index: Index::EndOfWord(word_index),
+                                    ..mark
+                                },
+                                error_type: Box::new(CompilationError::Empty),
+                            });
                         }
+                        Some(x) => match parse_roman_numeral(x) {
+                            None => {
+                                return Err(Error {
+                                    mark: Mark {
+                                        word_index: Index::Expression(word_index + 1),
+                                        ..mark
+                                    },
+                                    error_type: Box::new(CompilationError::ExpectedRoman),
+                                });
+                            }
+                            Some(x) => x,
+                        },
                     };
                     let y = match words.next() {
-                        None => return Err(Error {
-                            mark: Mark { word_index: Index::EndOfWord(word_index), ..mark },
-                            error_type: Box::new(CompilationError::Empty),
-                        }),
-                        Some(x) => match parse_roman_numeral(x) {
-                            None => return Err(Error {
-                                mark: Mark { word_index: Index::Expression(word_index + 2), ..mark },
-                                error_type: Box::new(CompilationError::ExpectedRoman),
-                            }),
-                            Some(x) => x
+                        None => {
+                            return Err(Error {
+                                mark: Mark {
+                                    word_index: Index::EndOfWord(word_index),
+                                    ..mark
+                                },
+                                error_type: Box::new(CompilationError::Empty),
+                            });
                         }
+                        Some(x) => match parse_roman_numeral(x) {
+                            None => {
+                                return Err(Error {
+                                    mark: Mark {
+                                        word_index: Index::Expression(word_index + 2),
+                                        ..mark
+                                    },
+                                    error_type: Box::new(CompilationError::ExpectedRoman),
+                                });
+                            }
+                            Some(x) => x,
+                        },
                     };
-                    let art: Vec<(usize, Vec<(usize, char)>)> = 
-                        block.map(|(index, line)| (index, line.chars().enumerate().collect())).collect();
+                    let art: Vec<(usize, Vec<(usize, char)>)> = block
+                        .map(|(index, line)| (index, line.chars().enumerate().collect()))
+                        .collect();
                     let mut new_output = Vec::new();
                     for (line_index, line) in art.into_iter() {
                         let mut temp = Vec::new();
@@ -936,7 +975,7 @@ pub fn tokenize(
                                     line: line_index,
                                     word_index: Index::Art(char_index),
                                     ..mark.clone()
-                                }
+                                },
                             };
                             temp.push(marked_char);
                         }
@@ -974,20 +1013,20 @@ pub fn tokenize(
 fn build_token(name: &'static str, mark: &Mark) -> Marked<Token> {
     Marked::<Token> {
         value: Token::Variable(ValueToken::Value(name.to_string())),
-        mark: mark.clone()
+        mark: mark.clone(),
     }
 }
 
 fn build_variable_token(name: String, mark: Mark) -> Marked<Token> {
     Marked::<Token> {
         mark,
-        value: Token::Variable(ValueToken::Value(name))
+        value: Token::Variable(ValueToken::Value(name)),
     }
 }
 
 fn build_tokens_from_art(
-    mark: Mark, 
-    input: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>
+    mark: Mark,
+    input: Vec<HashMap<(u32, u32), (Marked<char>, Marked<char>)>>,
 ) -> Result<TokenStream> {
     let mut output = Vec::new();
     for i in input.into_iter() {
@@ -995,7 +1034,9 @@ fn build_tokens_from_art(
         for ((x, y), (c1, c2)) in i.into_iter() {
             let c1_char = c1.value;
             let c2_char = c2.value;
-            if c1_char == ' ' && c2_char == '.' { continue }
+            if c1_char == ' ' && c2_char == '.' {
+                continue;
+            }
             output.push(build_token("insert_frame", &mark));
             output.push(build_token("positive", &mark));
             for _ in 0..x {
@@ -1011,19 +1052,19 @@ fn build_tokens_from_art(
                 (' ', '|') => {
                     output.push(Marked::<Token> {
                         mark: c1.mark,
-                        value: Token::Variable(ValueToken::Value("space".to_string()))
+                        value: Token::Variable(ValueToken::Value("space".to_string())),
                     });
                 }
                 (c1_char, '$') => {
                     output.push(Marked::<Token> {
                         mark: c1.mark,
-                        value: Token::Variable(ValueToken::Value(c1_char.to_string()))
+                        value: Token::Variable(ValueToken::Value(c1_char.to_string())),
                     });
                 }
                 (c1_char, c2_char) => {
                     output.push(Marked::<Token> {
                         mark: mark.clone(),
-                        value: Token::Variable(ValueToken::Value("char".to_string()))
+                        value: Token::Variable(ValueToken::Value("char".to_string())),
                     });
                     let character = match c1_char {
                         '!' => "bang",
@@ -1120,15 +1161,18 @@ fn build_tokens_from_art(
                         '|' => "vertical_bar",
                         '}' => "closing_brace",
                         '~' => "tilde",
-                        ' ' => return Err(Error {
-                            error_type: Box::new(CompilationError::Empty),
-                            mark: c2.mark
-                        }),
-                        _ => panic!("bad char")
-                    }.to_string();
+                        ' ' => {
+                            return Err(Error {
+                                error_type: Box::new(CompilationError::Empty),
+                                mark: c2.mark,
+                            });
+                        }
+                        _ => panic!("bad char"),
+                    }
+                    .to_string();
                     output.push(Marked::<Token> {
                         mark: mark.clone(),
-                        value: Token::Variable(ValueToken::Value(character))
+                        value: Token::Variable(ValueToken::Value(character)),
                     });
                     let color = match c2_char {
                         '0' => Ok("black"),
@@ -1141,26 +1185,26 @@ fn build_tokens_from_art(
                         '7' => Ok("white"),
                         '8' => Ok("orange"),
                         '9' => Ok("purple"),
-                        x   => Err(x)
+                        x => Err(x),
                     };
                     match color {
                         Ok(x) => output.push(build_token(x, &mark)),
                         Err(x) => output.push(Marked::<Token> {
                             mark: c2.mark,
-                            value: Token::Variable(ValueToken::Value(String::from(x)))
-                        })
+                            value: Token::Variable(ValueToken::Value(String::from(x))),
+                        }),
                     };
                 }
             }
         }
         output.push(Marked::<Token> {
             mark: mark.clone(),
-            value: Token::Variable(ValueToken::Value("new_frame".to_string()))
+            value: Token::Variable(ValueToken::Value("new_frame".to_string())),
         });
     }
     output.push(Marked::<Token> {
         mark: mark.clone(),
-        value: Token::Variable(ValueToken::Value("nil_video".to_string()))
+        value: Token::Variable(ValueToken::Value("nil_video".to_string())),
     });
     Ok(output.into_iter().peekable())
 }
@@ -1232,10 +1276,12 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                         match &w.value {
                             Token::Variable(ValueToken::Value(_)) => type_strings.push(w),
                             Token::Keyword(Keyword::As) => break,
-                            _ => return Err(Error {
-                                mark: w.mark.clone(),
-                                error_type: Box::new(CompilationError::Empty),
-                            })
+                            _ => {
+                                return Err(Error {
+                                    mark: w.mark.clone(),
+                                    error_type: Box::new(CompilationError::Empty),
+                                });
+                            }
                         }
                     }
                     Ok(Signiture::Value(name, type_strings.into_iter().peekable()))
@@ -1276,7 +1322,7 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
 }
 
 pub fn parse_type(tokens: &mut TokenStream, table: &HashMap<String, u32>) -> Result<Type> {
-    let Marked::<Token> { mark, value: token, } = next_non_newline(tokens).expect("kkkk");
+    let Marked::<Token> { mark, value: token } = next_non_newline(tokens).expect("kkkk");
     match token {
         Token::Variable(ValueToken::Value(word)) => match word.as_str() {
             "fn" => {
@@ -1287,16 +1333,16 @@ pub fn parse_type(tokens: &mut TokenStream, table: &HashMap<String, u32>) -> Res
             word => {
                 let index = table.get(word).ok_or(Error {
                     mark,
-                    error_type: Box::new(CompilationError::NotInScope)
+                    error_type: Box::new(CompilationError::NotInScope),
                 })?;
                 Ok(Type::Type(*index))
             }
-        }
+        },
         Token::Keyword(_) => Err(Error {
             error_type: Box::new(CompilationError::UnexpectedKeyword),
             mark: mark,
         }),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -1313,11 +1359,11 @@ pub fn parse_data(
         } = next_non_newline(&mut i).expect("asuhas");
         let name = if let Token::Variable(ValueToken::Value(word)) = token {
             word
-        } else { 
+        } else {
             return Err(Error {
                 error_type: Box::new(CompilationError::Empty),
                 mark: root_mark,
-            })
+            });
         };
         let mut arg_types: Vec<Type> = Vec::new();
         while i.peek().is_some() {
