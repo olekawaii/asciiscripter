@@ -1,20 +1,18 @@
-/* thorn - a pure lazy functional programming language
- * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- */
+// thorn - a pure lazy functional programming language
+// Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::{
     collections::HashMap,
@@ -31,7 +29,7 @@ mod runtime;
 mod r#type;
 
 use crate::{
-    error::{Error, Mark},
+    error::{Error, Mark, Index},
     parse::{
         Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree, build_tree,
         build_type, extract_signiture, get_tokens, parse_art, parse_data, parse_roman_numeral,
@@ -42,34 +40,44 @@ use crate::{
 };
 
 fn main() -> std::io::Result<()> {
-    // main_test();
-    let mut args = env::args();
-    let _executable = args.next().unwrap();
-    let file_name = args.next().unwrap_or("./main.th".to_string());
-    // let file: String = read_to_string(&file_name)?;
+    let mut args: Vec<String> = env::args().collect();
+    let mut arg_file = String::new();
+    args.iter().for_each(|x| {
+        arg_file.push_str(&x);
+        arg_file.push(' ')
+    });
+    let mut marked_args = Vec::new();
+    args.into_iter().enumerate().for_each(|(i, value)| marked_args.push(Marked::<String> {
+        value,
+        mark: Mark {
+            file_name: Arc::new("arguments".to_string()),
+            file: Arc::new(vec![arg_file.clone()]), 
+            line: 0,
+            block: None,
+            word_index: Index::Expression(i)
+        }
+    }));
+    let mut marked_args = marked_args.into_iter();
+    let _executable = marked_args.next().unwrap();
+    let file_name = marked_args.next().unwrap();
     match parse_file(file_name) {
         Err(x) => {
             eprintln!("{x}");
             std::process::exit(1)
         }
         Ok((vars, vars_dummy)) => {
-            //dbg!(&vars[200]);
-            //let (main_index, _, _) = vars_dummy.get("main").expect("no main");
-            //let mut main = vars[*main_index].lock().unwrap().clone();
             let mut main = build_monolithic_expression(vars, &vars_dummy);
-            main.evaluate_strictly();
-            //println!("{:?}",&main);
-            //dbg!(&main);
             let mut map = HashMap::new();
             for (name, (index, _, _)) in vars_dummy {
                 map.insert(index as u32, name);
             }
-            let mut output = String::new();
-            convert_to_file(&main, &map, &mut output);
-            println!("{output}");
+            main.print(&map);
+            //let mut output = String::new();
+            //convert_to_file(&main, &map, &mut output);
+            //println!("{output}");
+            //std::mem::forget(main); // to prevent a stack overflow if it's big
         }
     }
-    //unsafe {dbg!(COUNTER);};
     Ok(())
 }
 
@@ -115,7 +123,7 @@ fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Express
 }
 
 fn parse_file(
-    file_name: String,
+    file_name: Marked<String>,
 ) -> Result<(Vec<Expression>, HashMap<String, (usize, Type, bool)>), Error> {
     let mut temp_vec = Vec::new();
     let blocks = get_tokens(file_name, &mut temp_vec)?;
@@ -209,18 +217,21 @@ fn parse_file(
 //:
 
 fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>, output: &mut String) {
-    match expression {
-        Expression::Tree { root, arguments } => {
-            let mut word = match root {
-                Id::DataConstructor(x) => names.get(x).unwrap(), // unwrap should be safe
-                _ => unreachable!(),
-            };
-            output.push_str(word);
-            output.push(' ');
-            for i in arguments.iter() {
-                convert_to_file(i, names, output);
+    let mut to_print: Vec<&Expression> = vec![expression];
+    while let Some(expression) = to_print.pop() {
+        match expression {
+            Expression::Tree { root, arguments } => {
+                let mut word = match root {
+                    Id::DataConstructor(x) => names.get(x).unwrap(), // unwrap should be safe
+                    _ => unreachable!(),
+                };
+                output.push_str(word);
+                output.push(' ');
+                for i in arguments.iter().rev() {
+                    to_print.push(i)
+                }
             }
+            _ => panic!("uwu"),
         }
-        _ => panic!("uwu"),
     }
 }

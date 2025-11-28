@@ -1,20 +1,18 @@
-/* thorn - a pure lazy functional programming language
- * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- */
+// thorn - a pure lazy functional programming language
+// Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::error::{Error, ErrorType, Mark};
 use std::sync::{Arc, Mutex};
@@ -252,7 +250,7 @@ impl Expression {
                                     Ok(x) => x,
                                     Err(_) => {
                                         eprintln!(
-                                            "\x1b[91merror: \x1b[0mattempted to evaluate a bottom"
+                                            "\x1b[91merror: \x1b[0mattempted to evaluate a bottom _|_"
                                         );
                                         std::process::exit(1);
                                     }
@@ -267,6 +265,9 @@ impl Expression {
                         _ => unreachable!(),
                     };
                     for mut i in arguments {
+                        if !self.is_simplified() {
+                            self.simplify_owned()
+                        }
                         match self {
                             Expression::Tree { arguments, .. } => arguments.push(i),
                             Expression::Lambda { pattern, body } => {
@@ -276,9 +277,6 @@ impl Expression {
                                         body.substitute(id, build_thunk(expression));
                                     }
                                     *self = std::mem::take(&mut *body);
-                                }
-                                if !self.is_simplified() {
-                                    self.simplify_owned()
                                 }
                             }
                             _ => unreachable!(),
@@ -293,7 +291,7 @@ impl Expression {
         }
     }
 
-    // substitute every instance of an id with an expression
+    // substitute every instance of a LambdaArg with an Thunk
     pub fn substitute(&mut self, key: u32, new_expression: Arc<Mutex<Expression>>) {
         match self {
             Expression::Lambda { body, .. } => body.substitute(key, new_expression),
@@ -384,5 +382,31 @@ impl Expression {
                 _ => unreachable!(),
             }
         }
+    }
+
+    // The print function is a combination of evaluate_strictly and 
+    // convert_to_file. It exists to eat much less memory while evaluating large 
+    // structures. It's also able to print stuff like infinity (succ succ ...)
+    // without eating memory at all.
+    
+    pub fn print(self, names: &HashMap<u32, String>) {
+        let mut to_evaluate: Vec<Expression> = vec![self];
+        while let Some(mut x) = to_evaluate.pop() {
+            x.simplify_owned();
+            match x {
+                Expression::Tree { root, arguments } => {
+                    arguments.into_iter().rev().for_each(|ptr| to_evaluate.push(ptr));
+                    let word = match root {
+                        Id::DataConstructor(x) => names.get(&x).unwrap(), // unwrap should be safe
+                        _ => unreachable!(),
+                    };
+                    print!("{word} ")
+
+                }
+                Expression::Lambda { .. } => panic!("attempted to evaluate a function"),
+                _ => unreachable!(),
+            }
+        }
+        print!("\n")
     }
 }

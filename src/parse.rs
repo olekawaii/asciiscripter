@@ -1,20 +1,18 @@
-/* thorn - a pure lazy functional programming language
- * Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- */
+// thorn - a pure lazy functional programming language
+// Copyright (C) 2025  Oleksiy Buell <olekawaii@proton.me>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::error::{Error, ErrorType, Index, Mark};
 use crate::runtime::{Expression, Id, Pattern};
@@ -97,13 +95,21 @@ fn parse_pattern_helper(
     }
 }
 
-pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStream>> {
+pub fn get_tokens(file: Marked<String>, done: &mut Vec<String>) -> Result<Vec<TokenStream>> {
+    let Marked::<String> { value: file, mark } = file;
     if done.contains(&file) {
         return Ok(Vec::new());
     } else {
+        let file_contents = match read_to_string(&file) {
+            Ok(x) => x,
+            Err(_) => return Err(Error {
+                error_type: Box::new(CompilationError::BadFile(file)),
+                mark,
+            })
+        };
         eprintln!("including \x1b[95m{file}\x1b[0m");
         done.push(file.clone());
-        let mut output = tokenize_file(read_to_string(&file).unwrap(), &Arc::new(file))?;
+        let mut output = tokenize_file(file_contents, &Arc::new(file))?;
         //dbg!(output.remove(0));
         while matches!(output[0].peek().unwrap().value, Token::NewLine(_)) {
             output[0].next();
@@ -122,7 +128,13 @@ pub fn get_tokens(file: String, done: &mut Vec<String>) -> Result<Vec<TokenStrea
                 match i.value {
                     Token::Variable(ValueToken::Value(mut x)) => {
                         x.push_str(".th");
-                        let mut f = get_tokens(x, done)?;
+                        let mut f = get_tokens(
+                            Marked::<String> {
+                                value: x,
+                                mark: i.mark.clone()
+                            }, 
+                            done
+                        )?;
                         output.append(&mut f)
                     }
                     _ => todo!(),
@@ -751,8 +763,8 @@ pub enum Keyword {
 
 #[derive(Debug, Clone)]
 pub struct Marked<T> {
-    value: T,
-    mark: Mark,
+    pub value: T,
+    pub mark: Mark,
 }
 
 #[derive(Debug, Clone)]
@@ -770,6 +782,7 @@ pub enum CompilationError {
     TrailingCharacters,
     BadArtLength { width: usize, got: usize },
     BadArtHeight { height: usize, got: usize },
+    BadFile(String),
 }
 
 impl ErrorType for CompilationError {
@@ -788,6 +801,7 @@ impl ErrorType for CompilationError {
             Self::TrailingCharacters => "trailing characters",
             Self::BadArtLength { .. } => "line length not divisible by 2*width",
             Self::BadArtHeight { .. } => "number of lines not divisible by height",
+            Self::BadFile(_) => "couldn't find file"
         }
     }
 
@@ -799,6 +813,7 @@ impl ErrorType for CompilationError {
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::BadFile(s) => write!(f, "unable to open {s}"),
             Self::Custom(s) => write!(f, "{s}"),
             Self::Empty => write!(f, "empty error message"),
             Self::UnexpectedClosingComment => write!(f, "unexpected closing delimiter"),

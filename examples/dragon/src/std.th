@@ -64,6 +64,19 @@ define decrement of_type fn int int as lambda x dot match x with
     positive one     to zero
     positive succ a  to positive a
 
+define increment_whole of_type fn whole nat as lambda x dot match x with
+    whole_zero  to one
+    whole x     to succ x
+
+define decrement_whole of_type fn whole int as lambda x dot match x with
+    whole_zero    to negative one
+    whole one     to zero
+    whole succ x  to positive x
+
+define decrement_nat of_type fn nat whole as lambda x dot match x with
+    one     to whole_zero
+    succ x  to whole x
+
 define recolor_character of_type fn color fn character character as
     lambda color dot lambda character dot match character with
         space     to space
@@ -142,10 +155,6 @@ define absolute of_type fn int whole as lambda x dot match x with
     positive a to whole a
     negative a to whole a
     zero       to whole_zero
-
-define increment_whole of_type fn whole nat as lambda x dot match x with
-    whole_zero  to one
-    whole x     to succ x
 
 define divide_exactly of_type fn whole fn whole option_whole as
     lambda x dot match x with
