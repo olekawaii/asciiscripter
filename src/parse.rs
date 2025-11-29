@@ -813,7 +813,7 @@ impl ErrorType for CompilationError {
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadFile(s) => write!(f, "unable to open {s}"),
+            Self::BadFile(s) => write!(f, "unable to find {s} in this directory"),
             Self::Custom(s) => write!(f, "{s}"),
             Self::Empty => write!(f, "empty error message"),
             Self::UnexpectedClosingComment => write!(f, "unexpected closing delimiter"),

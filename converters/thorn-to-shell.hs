@@ -13,13 +13,7 @@ import Data.Maybe (isJust, fromJust, listToMaybe, isNothing, fromMaybe)
 import Data.Tuple (swap)
 import Data.List (find, nub, transpose, sortOn, intercalate)
 import Text.Read (readMaybe) 
-
-instance Show Character where
-  show Space = " "
-  show (Character char color) = colour color (show char)
-
-instance Show a => Show (Colored a) where
-  show (Colored color c) = colour color (show c)
+import Parse
 
 colour :: Color -> String -> String 
 colour c s = colorCode c <> s <> "\x1b[0m"
@@ -55,16 +49,12 @@ keys (HashMap list) = map fst list
 new :: HashMap a b
 new = HashMap []
 
-infix 8 ...
-
 main :: IO ()
-main = getContents >>= \x -> let gif = (parseVideo . words) x in
-  case changeFormat gif of
-    (width, height, newGif) ->
+main = getVideo >>= \(width, height, newGif) ->
       let
         file = "output" <> ".sh"
         shortFile = "short-" <> file
-        (fileSh, command) = formatShell defaultMods width height Nothing . pipeline $ newGif
+        (fileSh, command) = formatShell 0.2 width height Nothing . pipeline $ newGif
       in
       (
         if width > 80
@@ -78,225 +68,12 @@ main = getContents >>= \x -> let gif = (parseVideo . words) x in
       callCommand ("chmod +x " <> file <> " " <> shortFile) >>
       putStrLn "\x1b[92mcompiled"
 
-
-showNum :: Int -> String
-showNum x = take (5 - length s) (cycle ['0']) <> s
-  where s = show x
-
-makeFiles :: String -> [String] -> Int -> IO ()
-makeFiles _ [] _ = pure ()
-makeFiles header (x:xs) n = writeFile fileName content >> makeFiles header xs (n + 1)
-    where 
-        content = header <> x
-        fileName = "output" <> showNum n <> ".ppm"
-
-parseVideo :: [String] -> RealGif
-parseVideo ("empty_video": xs) = [] 
-parseVideo ("cons_frame": xs) = let (frame, leftover) = parseFrame xs in frame : parseVideo leftover
-
-parseFrame :: [String] -> (Map Coordinate Character, [String])
-parseFrame ("unsafe_cons_cell" : xs) = 
-  let (cell, leftover) = parseCell xs in 
-  first (cell :) (parseFrame leftover)
-parseFrame ("empty_frame" : xs) = ([], xs)
-
-parseCell :: [String] -> ((Coordinate, Character), [String])
-parseCell ("cell" : xs) =
-  let (coord, leftover1) = parseCoordinate xs in
-  let (character, leftover2) = parseChar leftover1 in 
-  ((coord, character), leftover2)
-
-parseCoordinate :: [String] -> (Coordinate, [String])
-parseCoordinate ("coordinate": xs) = 
-  let (x, leftover1) = parse_int xs in
-  let (y, leftover2) = parse_int leftover1 in
-  ((x, y), leftover2)
-
-parse_int :: [String] -> (Int, [String])
-parse_int ("positive" : xs) = parseNat xs
-parse_int ("negative" : xs) = first (* (-1)) (parseNat xs)
-parse_int ("zero" : xs) = (0, xs)
-
-parseNat :: [String] -> (Int, [String])
-parseNat ("succ": xs) = first (1 +) (parseNat xs)
-parseNat ("one": xs) = (1, xs)
-
-parseChar :: [String] -> (Character, [String])
-parseChar ("space": xs) = (Space, xs)
-parseChar ("char": char : color : xs) = 
-  let 
-    c = case char of 
-       "bang" -> '!'
-       "double_quotes" -> '"'
-       "pound" -> '#'
-       "dollar" -> '$'
-       "percent" -> '%'
-       "ampersand" -> '&'
-       "single_quote" -> '\''
-       "open_paranthesis" -> '('
-       "close_paranthesis" -> ')'
-       "asterisk" -> '*'
-       "plus" -> '+'
-       "comma" -> ','
-       "hyphen" -> '-'
-       "period" -> '.'
-       "slash" -> '/'
-       "digit_zero" -> '0'
-       "digit_one" -> '1'
-       "digit_two" -> '2'
-       "digit_three" -> '3'
-       "digit_four" -> '4'
-       "digit_five" -> '5'
-       "digit_six" -> '6'
-       "digit_seven" -> '7'
-       "digit_eight" -> '8'
-       "digit_nine" -> '9'
-       "colon" -> ':'
-       "semicolon" -> ';'
-       "less_than" -> '<'
-       "equals" -> '='
-       "greater_than" -> '>'
-       "question_mark" -> '?'
-       "at_sign" -> '@'
-       "uppercase_a" -> 'A'
-       "uppercase_b" -> 'B'
-       "uppercase_c" -> 'C'
-       "uppercase_d" -> 'D'
-       "uppercase_e" -> 'E'
-       "uppercase_f" -> 'F'
-       "uppercase_g" -> 'G'
-       "uppercase_h" -> 'H'
-       "uppercase_i" -> 'I'
-       "uppercase_j" -> 'J'
-       "uppercase_k" -> 'K'
-       "uppercase_l" -> 'L'
-       "uppercase_m" -> 'M'
-       "uppercase_n" -> 'N'
-       "uppercase_o" -> 'O'
-       "uppercase_p" -> 'P'
-       "uppercase_q" -> 'Q'
-       "uppercase_r" -> 'R'
-       "uppercase_s" -> 'S'
-       "uppercase_t" -> 'T'
-       "uppercase_u" -> 'U'
-       "uppercase_v" -> 'V'
-       "uppercase_w" -> 'W'
-       "uppercase_x" -> 'X'
-       "uppercase_y" -> 'Y'
-       "uppercase_z" -> 'Z'
-       "opening_bracket" -> '['
-       "backslash" -> '\\'
-       "closing_bracket" -> ']'
-       "caret" -> '^'
-       "underscore" -> '_'
-       "grave_accent" -> '`'
-       "lowercase_a" -> 'a'
-       "lowercase_b" -> 'b'
-       "lowercase_c" -> 'c'
-       "lowercase_d" -> 'd'
-       "lowercase_e" -> 'e'
-       "lowercase_f" -> 'f'
-       "lowercase_g" -> 'g'
-       "lowercase_h" -> 'h'
-       "lowercase_i" -> 'i'
-       "lowercase_j" -> 'j'
-       "lowercase_k" -> 'k'
-       "lowercase_l" -> 'l'
-       "lowercase_m" -> 'm'
-       "lowercase_n" -> 'n'
-       "lowercase_o" -> 'o'
-       "lowercase_p" -> 'p'
-       "lowercase_q" -> 'q'
-       "lowercase_r" -> 'r'
-       "lowercase_s" -> 's'
-       "lowercase_t" -> 't'
-       "lowercase_u" -> 'u'
-       "lowercase_v" -> 'v'
-       "lowercase_w" -> 'w'
-       "lowercase_x" -> 'x'
-       "lowercase_y" -> 'y'
-       "lowercase_z" -> 'z'
-       "opening_brace" -> '{'
-       "vertical_bar" -> '|'
-       "closing_brace" -> '}'
-       "tilde" -> '~'
-   in 
-   let 
-     col = case color of
-        "black" -> Black
-        "red" -> Red
-        "green" -> Green
-        "yellow" -> Yellow
-        "blue" -> Blue
-        "magenta" -> Magenta
-        "cyan" -> Cyan
-        "white" -> White
-   in
-      (Character c col, xs)
-
-dimensions :: RealGif -> (Int, Int, Int, Int)
-dimensions gif = case concatMap (map fst) gif of
-  [] -> (0, 0, 0, 0)
-  g  -> getDimensions g
-    where
-      getDimensions :: [Coordinate] -> (Int, Int, Int, Int)
-      getDimensions x =
-        let
-          xCoords = map fst x
-          yCoords = map snd x
-        in
-          (
-            minimum xCoords,
-            maximum xCoords,
-            minimum yCoords,
-            maximum yCoords
-          )
-
-getMark :: Marked x -> Mark
-getMark (Marked m _) = m
-
-defaultMods :: Modifiers
-defaultMods = Modifiers {
-  frameTime = 0.2,
-  directory = ".",
-  message   = False,
-  quiet     = False,
-  check     = False,
-  text      = False,
-  target    = "main",
-  output    = Looping
-}
-
--- check that it's not 0
-changeFormat :: RealGif -> (Int, Int, [[[Character]]])
-changeFormat x = let (x_min, x_max, y_min, y_max) = dimensions x in
-  let
-    chart = liftA2 (flip (,))  [y_max, y_max -1 .. y_min] [x_min..x_max]
-    convertFrame :: Map Coordinate Character -> [[Character]]
-    convertFrame a =  chunksOf (x_max - x_min + 1) $ map lookupChar chart
-      where
-        lookupChar want = fromMaybe Space $ lookup want a
-  in
-  (x_max - x_min + 1, y_max - y_min + 1, map convertFrame x) 
-
-number :: FilePath -> String -> [Marked String]
-number f = zipWith (\x y -> Marked File {origin = f, line = x, block = Nothing} y) [1..] . lines
-
-cons = (:)
-
-unwrap :: Marked a -> a
-unwrap (Marked _ a) = a  
-    
 legalNameChars = '_' : ['a'..'z'] <> ['0'..'9'] 
 
 (...) = (.).(.)
 
-chunksOf :: Int -> [a] -> [[a]]
-chunksOf _ [] = []
-chunksOf n x  = uncurry ((. chunksOf n) . cons) $ splitAt n x
-
-formatShell :: Modifiers -> Int -> Int -> Maybe String -> [Either String Int] -> (ShellScript, ShellScript)
-formatShell mods wd ht message renderedFrames = case renderedFrames of
+formatShell :: Float -> Int -> Int -> Maybe String -> [Either String Int] -> (ShellScript, ShellScript)
+formatShell t wd ht message renderedFrames = case renderedFrames of
   [Left frame] -> (init2 <> gif <> "\\n'", init2 <> hideprompt <> initMove <> cleanup <> gif <> "'\nsleep 2" <> "\ncleanup")
     where gif = "printf '" <> frame
   frames  -> (init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> loop <> body <> done, init2 <> hideprompt <> initMove <> cleanup <> intro <> alloc <> body <> "cleanup")
@@ -304,9 +81,9 @@ formatShell mods wd ht message renderedFrames = case renderedFrames of
       newHelper :: [Either String Int] -> String
       newHelper [] = ""
       newHelper (Left s : xs) = "    draw '" <> s <> "'\n" <> newHelper xs
-      newHelper (Right i : xs) = "    sleep " <> show (fromIntegral i * frameTime mods) <> "\n" <> newHelper xs
+      newHelper (Right i : xs) = "    sleep " <> show (fromIntegral i * t) <> "\n" <> newHelper xs
       intro = "draw() {\n    printf \"$move_up$1\"\n    sleep " <> 
-        show (frameTime mods) <> "\n}\n\n"
+        show t <> "\n}\n\n"
       alloc = "yes '' | head -n " <> show (ht - 1) <> "\n\n"
       loop = "while true; do\n"
       body = newHelper frames
@@ -467,45 +244,7 @@ type Map a b       = [(a,b)]
 
 data HashMap a b = HashMap [(a, b)]
 
-data Modifiers = Modifiers {
-  target      :: String,
-  frameTime   :: Float,
-  directory   :: FilePath,
-  message     :: Bool,
-  quiet       :: Bool,
-  check       :: Bool,
-  text        :: Bool,
-  output      :: OutputType
-} deriving Show
-
-data OutputType = Single | Looping deriving Show
-
 type Coordinate    = (Int,Int)
-type RealGif = [Map Coordinate Character]
-
-
-data SimpleType = Int | Giff | Colour | Direction deriving Eq
 
 data Direction = East | West | North | South deriving (Show, Eq)
 
-data ReturnType = I Int | G RealGif | C Color | D Direction -- deriving Show
-data Character = Space | Character Char Color deriving Eq
-
-type LineNumber    = Int
-
-data Mark 
-  = Arguments
-  | None
-  | File {
-      origin :: FilePath, 
-      line   :: LineNumber, 
-      block  :: Maybe Name
-    }
-
-data Marked a = Marked Mark a -- deriving Show
-
-data Color = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White 
-  deriving (Show, Eq)
-
-data Colored a = Colored Color a deriving Eq
-type Name = String
