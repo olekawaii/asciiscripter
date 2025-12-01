@@ -10,35 +10,6 @@ things left to implement:
 [ ]  syntax for frame variables in art
 
 
-
-COMMENTS
-====================
-
-    .----------------------------------------------------------.
-    | -- this is a comment                                     |
-    |                                                          |
-    | this is not  -- this is                                  |
-    |                                                          |
-    | ---                                                      |
-    | long                                                     |
-    | multi-line                                               |
-    | comment                                                  |
-    | <o>                                                      |
-    |                                                          |
-    | define bottom_of_triangle of_type video as art viii ii   |
-    | --    /\   ...33...                                      |
-    | --   /  \  ..3||3..                                      |
-    |  /    \ .3||||3.                                         |
-    | /______\33333333                                         |
-    |                                                          |
-    | define flag of_type video as art vii iii                 |
-    | -------3333333                                           |
-    | -- * --33|3|33 not a comment                             |
-    | -------3333333                                           |
-    '----------------------------------------------------------'
-
-
-
 Expression Syntax
 ====================
 
@@ -48,10 +19,10 @@ lambda expression
 --------------------
 
 All branches must have the same indentation. The mandetory keywords are
-'match', 'in', and 'to'.
+'match', 'with', and 'to'.
 
     .----------------------------------------------------------.
-    | 'match' <expression> 'in'                                |
+    | 'match' <expression> 'with'                              |
     |    constructor arg ... 'to' <expression>                 |
     |    ...                                                   |
     '----------------------------------------------------------'
@@ -107,7 +78,7 @@ ALGEBRAIC TYPES
     |    some bool                                             |
     |                                                          |
     | define head of_type fn list_of_bools maybe_bool as       |
-    |    lambda input_list dot match input_list in             |
+    |    lambda input_list dot match input_list with           |
     |       empty_list to none                                 |
     |       prepend head tail to some head                     |
     '----------------------------------------------------------'
@@ -193,8 +164,8 @@ two points. Ignore the functions that we haven't defined.
     |                                                          |
     | define distance of_type fn point fn point float as       |
     |    lambda first_point dot lambda second_point dot        |
-    |       match first_point in                               |
-    |          point x_i y_i to match second_point in          |
+    |       match first_point with                             |
+    |          point x_i y_i to match second_point with        |
     |             point x_ii y_ii to sqrt sum                  |
     |                squared diff x_ii x_i                     |
     |                squared diff y_ii y_i                     |
@@ -234,7 +205,7 @@ There are no loops. The only way to 'loop' is to use recursion.
     |    succ nat                            '----------------------'
     |                                                          .
     | define sum of_type fn nat fn nat nat as                  |
-    |    lambda x dot match x in                               |
+    |    lambda x dot match x with                             |
     |       one to succ                                        |  <---.
     |       succ pred_x to                                     |      |
     |          lambda y dot succ sum pred_x y   -- recursive   |      |
@@ -264,11 +235,11 @@ data constructor.
 
     .----------------------------------------------------------.
     | define is_equal of_type fn nat fn nat bool as            |
-    |    lambda x dot lambda y dot match x in                  |
-    |       one to match y in                                  |
+    |    lambda x dot lambda y dot match x with                |
+    |       one to match y with                                |
     |          one to true                                     |
     |          succ _ to false                                 |
-    |       succ pred_x to match y in                          |
+    |       succ pred_x to match y with                        |
     |          one to false                                    |
     |          succ pred_y to                                  |
     |             is_equal pred_x pred_y                       |

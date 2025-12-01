@@ -22,14 +22,14 @@ use std::{collections::HashMap, fmt};
 #[derive(Debug)]
 enum RuntimeError {
     EvaluatedUndefined,
-    EvaluatedBottom,
+    // EvaluatedBottom,
 }
 
 impl ErrorType for RuntimeError {
     fn gist(&self) -> &'static str {
         match self {
             Self::EvaluatedUndefined => "entered undefined code",
-            Self::EvaluatedBottom => "evaluated a bottom _|_",
+            // Self::EvaluatedBottom => "evaluated a bottom _|_",
         }
     }
 
@@ -42,7 +42,7 @@ impl std::fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::EvaluatedUndefined => write!(f, "attempted to evaluate an undefined expression"),
-            Self::EvaluatedBottom => write!(f, "attempted to evaluate a bottom expression"),
+            // Self::EvaluatedBottom => write!(f, "attempted to evaluate a bottom expression"),
         }
     }
 }
@@ -121,7 +121,7 @@ pub enum Pattern {
 fn matches_expression(pattern: &Pattern, matched: &mut Expression) -> bool {
     match pattern {
         Pattern::Dropped => true,
-        Pattern::Captured(id) => true,
+        Pattern::Captured(_) => true,
         Pattern::DataConstructor(data_constructor, patterns) => {
             matched.simplify_owned();
             match matched {
@@ -218,7 +218,7 @@ impl Expression {
                 }
                 Expression::Match {
                     mut pattern,
-                    mut branches,
+                    branches,
                 } => {
                     let mut found = false;
                     for (pat, mut new_expression) in branches.into_iter() {
@@ -370,19 +370,21 @@ impl Expression {
     //    }
     //}
 
-    pub fn evaluate_strictly(&mut self) {
-        let mut to_evaluate: Vec<&mut Expression> = vec![self];
-        while let Some(x) = to_evaluate.pop() {
-            x.simplify_owned();
-            match x {
-                Expression::Tree { root, arguments } => {
-                    arguments.iter_mut().for_each(|ptr| to_evaluate.push(ptr))
-                }
-                Expression::Lambda { .. } => panic!("attempted to evaluate a function"),
-                _ => unreachable!(),
-            }
-        }
-    }
+    // evaluates an currently not used    
+
+    // pub fn evaluate_strictly(&mut self) {
+    //     let mut to_evaluate: Vec<&mut Expression> = vec![self];
+    //     while let Some(x) = to_evaluate.pop() {
+    //         x.simplify_owned();
+    //         match x {
+    //             Expression::Tree { root, arguments } => {
+    //                 arguments.iter_mut().for_each(|ptr| to_evaluate.push(ptr))
+    //             }
+    //             Expression::Lambda { .. } => panic!("attempted to evaluate a function"),
+    //             _ => unreachable!(),
+    //         }
+    //     }
+    // }
 
     // The print function is a combination of evaluate_strictly and 
     // convert_to_file. It exists to eat much less memory while evaluating large 

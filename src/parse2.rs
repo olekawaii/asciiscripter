@@ -39,7 +39,10 @@ fn parse_pattern(
         &mut tokens,
         global_vars,
     )?;
-    Ok((pattern, output, number_of_local))
+    match tokens.next() {
+        None => Ok((pattern, output, number_of_local)),
+        Some(x) => Err(make_error(CompilationError::TrailingCharacters, x.mark))
+    }
 }
 
 fn parse_pattern_helper(
@@ -104,11 +107,8 @@ pub fn get_tokens(file: Marked<String>, done: &mut Vec<String>) -> Result<Vec<To
     ) {
         let mut imports = output.remove(0);
         //dbg!(&output);
-        //dbg!(&output);
         imports.next(); // remove the import keyword
         let mut imports = imports.into_iter();
-        //dbg!(&imports);
-        //dbg!(next_non_newline(&mut imports));
         while let Ok(i) = next_non_newline(&mut imports) {
             match i.value {
                 Token::Word(mut x) => {
@@ -134,7 +134,12 @@ pub fn tokenize_file(input: String, file_name: &Arc<String>) -> Result<Vec<Token
         Arc::new(input.lines().map(|x| x.trim_end().to_string()).collect());
     let mut output: Vec<TokenStream> = Vec::new();
     let mut current_block: Vec<(usize, String)> = Vec::new();
-    let mut file = file_lines.iter().map(|x| x.as_str()).enumerate();
+    let mut file = remove_multiline_comments(
+        file_lines.iter().map(|x| x.as_str()).enumerate(),
+        file_name,
+        &file_lines,
+    )?
+    .into_iter();
     while let Some((line_number, string)) = file.next() {
         if string.len() == 0 || string.split_whitespace().next().unwrap() == "--" {
             // safe unwrap
@@ -156,6 +161,69 @@ pub fn tokenize_file(input: String, file_name: &Arc<String>) -> Result<Vec<Token
                     current_block.push((line_number, string.to_string()));
                 }
             }
+        }
+    }
+    Ok(output)
+}
+
+fn remove_multiline_comments<'a>(
+    mut input: impl Iterator<Item = (usize, &'a str)>,
+    file_name: &Arc<String>,
+    file: &Arc<Vec<String>>,
+) -> Result<Vec<(usize, &'a str)>> {
+    let mut output = Vec::new();
+    loop {
+        match input.next() {
+            None => return Ok(output),
+            Some((line, string)) => match string {
+                "---" => 'multi_line_comment: loop {
+                    match input.next() {
+                        None => {
+                            return Err(Error {
+                                mark: Mark {
+                                    file_name: Arc::clone(file_name),
+                                    file: Arc::clone(file),
+                                    line,
+                                    block: None,
+                                    word_index: Index::Expression(0),
+                                },
+                                error_type: Box::new(CompilationError::UnclosedComment),
+                            });
+                        }
+                        Some((line2, x)) => match x {
+                            "<o>" => break 'multi_line_comment,
+                            "---" => {
+                                return Err(Error {
+                                    mark: Mark {
+                                        file_name: Arc::clone(file_name),
+                                        file: Arc::clone(file),
+                                        line: line2,
+                                        block: None,
+                                        word_index: Index::Expression(0),
+                                    },
+                                    error_type: Box::new(
+                                        CompilationError::UnexpectedOpeningComment(line),
+                                    ),
+                                });
+                            }
+                            _ => (),
+                        },
+                    }
+                },
+                "<o>" => {
+                    return Err(Error {
+                        mark: Mark {
+                            file_name: Arc::clone(file_name),
+                            file: Arc::clone(file),
+                            line,
+                            block: None,
+                            word_index: Index::Expression(0),
+                        },
+                        error_type: Box::new(CompilationError::UnexpectedClosingComment),
+                    });
+                }
+                _ => output.push((line, string)),
+            },
         }
     }
     Ok(output)
@@ -215,18 +283,27 @@ pub fn build_syntax_tree(
     mut tokens: TokenStream,
     table: &HashMap<String, u32>,
 ) -> Result<SyntaxTree> {
-    let (token, root_mark) = next_non_newline(&mut tokens)?.destructure();
+    //dbg!(&tokens.clone().count());
+    let Marked::<Token> {
+        mark: root_mark,
+        value: token,
+    } = next_non_newline(&mut tokens)?;
     match token {
         Token::Keyword(keyword) => match keyword {
             Keyword::Undefined => Ok(SyntaxTree::Undefined { mark: root_mark }),
             Keyword::Lambda => {
                 let mut pattern = Vec::new();
                 loop {
-                    let marked_token = next_token(&mut tokens)?;
+                    let marked_token @ Marked::<Token> { .. } = tokens.next().expect("bluh");
                     match &marked_token.value {
                         Token::Word(_) => pattern.push(marked_token),
                         Token::Keyword(Keyword::Dot) => break,
-                        _ => return Err(make_error(CompilationError::Empty, marked_token.mark))
+                        _ => {
+                            return Err(Error {
+                                error_type: Box::new(CompilationError::Empty),
+                                mark: marked_token.mark.clone(),
+                            });
+                        }
                     }
                 }
                 //dbg!(&root_mark);
@@ -248,21 +325,28 @@ pub fn build_syntax_tree(
                 {
                     tokens.next();
                 }
-                let (value, mark) = tokens.peek().unwrap().clone().destructure();
+                let Marked::<Token> { mark, value }: Marked<Token> =
+                    tokens.peek().expect("").clone();
                 match value {
                     Token::Keyword(Keyword::Of_type) => {
                         tokens.next();
                         tp = Some(parse_type(&mut tokens, table)?);
                     }
                     Token::Word(_) => tp = None,
-                    _ => return Err(make_error(CompilationError::Empty, mark))
+                    _ => {
+                        return Err(Error {
+                            error_type: Box::new(CompilationError::Empty),
+                            mark,
+                        });
+                    }
                 }
                 loop {
-                    let token = next_token(&mut tokens)?;
+                    let token = tokens.next().expect("atueha");
                     match &token.value {
                         Token::Keyword(Keyword::With) => {
                             if unmatched_matches == 0 {
-                                let (token, mark) = next_token(&mut tokens)?.destructure();
+                                let Marked::<Token> { mark, value: token } =
+                                    tokens.next().expect("uu");
                                 if let Token::NewLine(num) = token {
                                     indent = num;
                                 } else {
@@ -286,30 +370,40 @@ pub fn build_syntax_tree(
                 for mut i in get_with_indentation(tokens, indent).into_iter() {
                     let mut pattern = Vec::new();
                     loop {
-                        let marked_token = next_token(&mut i)?;
+                        let marked_token @ Marked::<Token> { .. } = i.next().expect("bluuh");
                         match &marked_token.value {
                             Token::Word(_) => pattern.push(marked_token),
                             Token::Keyword(Keyword::To) => break,
-                            _ => return Err(make_error(CompilationError::Empty, marked_token.mark))
+                            _ => {
+                                return Err(Error {
+                                    error_type: Box::new(CompilationError::Empty),
+                                    mark: marked_token.mark.clone(),
+                                });
+                            }
                         }
                     }
+                    //dbg!(&root_mark);
                     output_vec.push((pattern.into_iter().peekable(), build_syntax_tree(i, table)?));
                 }
                 Ok(SyntaxTree::Match(
                     tp,
-                    Box::new(build_syntax_tree(new_tokenstream(pattern), table)?), //here
+                    Box::new(build_syntax_tree(pattern.into_iter().peekable(), table)?),
+                    //branches
                     output_vec,
                 ))
             }
-            _ => Err(make_error(CompilationError::UnexpectedKeyword, root_mark))
+            _ => Err(Error {
+                mark: root_mark,
+                error_type: Box::new(CompilationError::UnexpectedKeyword),
+            }),
         },
         Token::Word(word) => {
             let root = word;
             let mut args = Vec::new();
             loop {
-                match tokens.peek().unwrap() {
-                    Marked::<Token> {value: Token::EndOfBlock, ..} => break,
-                    x => {
+                match tokens.peek() {
+                    None => break,
+                    Some(x) => {
                         if matches!(x.value, Token::Keyword(_)) {
                             args.push(Argument::Grouped(build_syntax_tree(tokens, table)?));
                             break;
@@ -325,8 +419,7 @@ pub fn build_syntax_tree(
                         }))
                     }
                     Token::NewLine(indentation) => {
-                        if let Some( Marked::<Token> {value: Token::EndOfBlock, ..}) = 
-                            tokens.peek() {
+                        if let None = tokens.peek() {
                             break;
                         }
                         let arg_groups = get_with_indentation(tokens, indentation)
@@ -349,7 +442,6 @@ pub fn build_syntax_tree(
             ))
         }
         Token::NewLine(_) => unreachable!(),
-        _ => todo!()
     }
 }
 
@@ -377,7 +469,10 @@ pub fn build_tree(
                     body: Box::new(body),
                 })
             } else {
-                Err(make_error(CompilationError::TypeMismatch, keyword_mark))
+                Err(Error {
+                    error_type: Box::new(CompilationError::TypeMismatch),
+                    mark: keyword_mark,
+                })
             }
         }
         SyntaxTree::Tree(root, args) => {
@@ -414,7 +509,10 @@ pub fn build_tree(
                             b,
                         )
                     } else {
-                        return Err(make_error(CompilationError::NotInScope, mark.clone()))
+                        return Err(Error {
+                            error_type: Box::new(CompilationError::NotInScope),
+                            mark: mark.clone(),
+                        });
                     };
                     Type::Type(root_type.final_type())
                 }
@@ -491,6 +589,7 @@ pub fn parse_art(
                 current_map.insert((x as u32, (height - y - 1) as u32), (art_char, color_char));
             }
         }
+        //dbg!("added");
         output.push(current_map);
         current_starting_char += width * 2;
         if current_starting_char + 1 >= text[current_starting_line].len() {
@@ -531,10 +630,16 @@ fn evaluate_arguments(
                     b,
                 )
             } else {
-                return Err(make_error(CompilationError::NotInScope, name.mark))
+                return Err(Error {
+                    error_type: Box::new(CompilationError::NotInScope),
+                    mark: name.mark,
+                });
             };
             if !root_type.is_possible(&expected_type) {
-                return Err(make_error(CompilationError::TypeMismatch, name.mark))
+                return Err(Error {
+                    error_type: Box::new(CompilationError::TypeMismatch),
+                    mark: name.mark,
+                });
             }
             let mut output_args = Vec::new();
             let mut current_type = root_type.to_owned();
@@ -724,21 +829,10 @@ pub enum Token {
     Keyword(Keyword),
     NewLine(u32),
     Word(String),
-    EndOfBlock
+    // EndOfBlock
 }
 
 pub type TokenStream = std::iter::Peekable<std::vec::IntoIter<Marked<Token>>>;
-
-fn new_tokenstream(mut tokens: Vec<Marked<Token>>) -> TokenStream {
-    let mut last_mark = tokens[tokens.len() - 1].mark.clone();
-    last_mark.word_index = Index::EndOfLine;
-    tokens.push(Marked::<Token> {
-        value: Token::EndOfBlock,
-        mark: last_mark,
-    });
-    tokens.into_iter().peekable()
-}
-
 
 fn expect_keyword(tokens: &mut TokenStream, keyword: Keyword) -> Result<()> {
     let (value, mark) = next_non_newline(tokens)?.destructure();
@@ -751,22 +845,11 @@ fn expect_keyword(tokens: &mut TokenStream, keyword: Keyword) -> Result<()> {
 
 fn next_non_newline(input: &mut TokenStream) -> Result<Marked<Token>> {
     loop {
-        let current = next_token(input)?;
-        if !matches!(current.value, Token::NewLine(_)) {
-            return Ok(current);
+        let next = input.next().expect("f");
+        if !matches!(next.value, Token::NewLine(_)) {
+            return Ok(next);
         }
     }
-}
-
-fn next_token(input: &mut TokenStream) -> Result<Marked<Token>> {
-    let output = input.next().unwrap();
-    if let Token::EndOfBlock = output.value {
-        return Err(Error {
-            error_type: Box::new(CompilationError::Empty), 
-            mark: output.mark
-        })
-    }
-    Ok(output)
 }
 
 fn next_word (tokens: &mut TokenStream) -> Result<Marked<String>> {
@@ -782,17 +865,17 @@ fn next_word (tokens: &mut TokenStream) -> Result<Marked<String>> {
 fn get_with_indentation(mut input: TokenStream, indentation: u32) -> Vec<TokenStream> {
     let mut output: Vec<TokenStream> = Vec::new();
     let mut current: Vec<Marked<Token>> = Vec::new();
-    while let Ok(token) = next_token(&mut input) {
+    while let Some(token) = input.next() {
         if matches!(&token.value, Token::NewLine(i) if *i == indentation) {
             if !current.is_empty() {
-                output.push(new_tokenstream(current));
+                output.push(current.into_iter().peekable());
                 current = Vec::new();
             }
         } else {
             current.push(token)
         }
     }
-    output.push(new_tokenstream(current));
+    output.push(current.into_iter().peekable());
     output
 }
 
@@ -801,7 +884,6 @@ pub fn tokenize(
     file_name: Arc<String>,
     file: Arc<Vec<String>>,
 ) -> Result<TokenStream> {
-    let final_line: usize = input[input.len() - 1].0;
     let keywords: HashMap<&str, Keyword> = HashMap::from([
         ("match", Keyword::Match),
         ("define", Keyword::Define),
@@ -938,7 +1020,7 @@ pub fn tokenize(
             current_indentation = None;
         }
     }
-    Ok(new_tokenstream(output))
+    Ok(output.into_iter().peekable())
 }
 
 fn build_token(name: &'static str, mark: &Mark) -> Marked<Token> {
@@ -1130,7 +1212,7 @@ fn build_tokens_from_art(
         mark: mark.clone(),
         value: Token::Word("nil_video".to_string()),
     });
-    Ok(new_tokenstream(output))
+    Ok(output.into_iter().peekable())
 }
 
 fn indentation_length(input: &str) -> u32 {
@@ -1157,10 +1239,17 @@ fn convert_to_after(mut mark: Mark) -> Option<Mark> {
 }
 
 pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
-    let (token, mark1) = next_non_newline(input)?.destructure();
+    // unwrap safe assuming it's not empty which it shouldn't be
+    let Marked::<Token> {
+        mark: mark1,
+        value: token,
+    } = next_non_newline(input)?;
     match token {
         Token::Keyword(Keyword::Define) => {
-            let (token, mark2) = next_non_newline(input)?.destructure();
+            let Marked::<Token> {
+                mark: mark2,
+                value: token,
+            } = next_non_newline(input)?;
             match token {
                 Token::Word(name) => {
                     let Marked::<Token> {
@@ -1173,6 +1262,9 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
                     let mut type_strings: Vec<Marked<Token>> = Vec::new();
                     loop {
                         let w = next_non_newline(input)?;
+                        //    Some(x) => x,
+                        //    None => return Err(make_error(CompilationError::Empty, mark3))
+                        //};
                         match &w.value {
                             Token::Word(_) => type_strings.push(w),
                             Token::Keyword(Keyword::As) => break,
@@ -1185,10 +1277,21 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
             }
         }
         Token::Keyword(Keyword::Data) => {
-            let (token, root_mark) = next_non_newline(input)?.destructure();
+            let Marked::<Token> {
+                mark: root_mark,
+                value: token,
+            } = next_non_newline(input)?;
             match token {
                 Token::Word(name) => {
                     expect_keyword(input, Keyword::Contains)?;
+                    //if matches!(
+                    //    next_non_newline(input).map(|x| x.value),
+                    //    Some(Token::Keyword(Keyword::Contains))
+                    //) {
+                    //    Ok(Signiture::Type(name))
+                    //} else {
+                    //    panic!("expected 'contains' keyword")
+                    //}
                     Ok(Signiture::Type(name))
                 }
                 _ => panic!("expected a name"),
@@ -1236,11 +1339,21 @@ pub fn parse_data(
     parent_type: u32,
 ) -> Result<Vec<(String, Type)>> {
     let mut output = Vec::new();
-    //dbg!("hi");
     for mut i in get_with_indentation(tokens, INDENTATION).into_iter() {
-        let (name, root_mark) = next_word(&mut i)?.destructure();
+        let Marked::<Token> {
+            mark: root_mark,
+            value: token,
+        } = next_non_newline(&mut i)?;
+        let name = if let Token::Word(word) = token {
+            word
+        } else {
+            return Err(Error {
+                error_type: Box::new(CompilationError::Empty),
+                mark: root_mark,
+            });
+        };
         let mut arg_types: Vec<Type> = Vec::new();
-        while !matches!(i.peek().unwrap().value, Token::EndOfBlock) {
+        while i.peek().is_some() {
             arg_types.push(parse_type(&mut i, types)?)
         }
         let mut args = arg_types.into_iter();

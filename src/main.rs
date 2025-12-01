@@ -66,7 +66,7 @@ fn main() -> std::io::Result<()> {
             std::process::exit(1)
         }
         Ok((vars, vars_dummy)) => {
-            let mut main = build_monolithic_expression(vars, &vars_dummy);
+            let main = build_monolithic_expression(vars, &vars_dummy);
             let mut map = HashMap::new();
             for (name, (index, _, _)) in vars_dummy {
                 map.insert(index as u32, name);
@@ -198,40 +198,22 @@ fn parse_file(
     Ok((global_vars, global_vars_dummy))
 }
 
-//fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>) -> String {
-//    match expression {
-//        Expression::Tree {root, arguments} => {
-//            let mut output = match root {
-//                Id::DataConstructor(x) => names.get(x).unwrap().clone(), // unwrap should be safe
-//                _ => unreachable!()
-//            };
-//            output.push(' ');
-//            for i in arguments.iter() {
-//                let a = convert_to_file(i, names);
-//                output.push_str(&a)
+//fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>, output: &mut String) {
+//    let mut to_print: Vec<&Expression> = vec![expression];
+//    while let Some(expression) = to_print.pop() {
+//        match expression {
+//            Expression::Tree { root, arguments } => {
+//                let mut word = match root {
+//                    Id::DataConstructor(x) => names.get(x).unwrap(), // unwrap should be safe
+//                    _ => unreachable!(),
+//                };
+//                output.push_str(word);
+//                output.push(' ');
+//                for i in arguments.iter().rev() {
+//                    to_print.push(i)
+//                }
 //            }
-//            output
-//        },
-//        _ => panic!("uwu")
+//            _ => panic!("uwu"),
+//        }
 //    }
-//:
-
-fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>, output: &mut String) {
-    let mut to_print: Vec<&Expression> = vec![expression];
-    while let Some(expression) = to_print.pop() {
-        match expression {
-            Expression::Tree { root, arguments } => {
-                let mut word = match root {
-                    Id::DataConstructor(x) => names.get(x).unwrap(), // unwrap should be safe
-                    _ => unreachable!(),
-                };
-                output.push_str(word);
-                output.push(' ');
-                for i in arguments.iter().rev() {
-                    to_print.push(i)
-                }
-            }
-            _ => panic!("uwu"),
-        }
-    }
-}
+//}

@@ -91,7 +91,12 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
             length_of_word = 1;
             output_string = line.into();
         }
-        _ => todo!(),
+        Index::EndOfLine => {
+            length_to_word = 4;
+            length_of_word = 1;
+            output_string = line.into();
+        }
+        _ => todo!()
     }
     let mut underline = String::new();
     underline.push_str(&" ".repeat(length_to_word));
