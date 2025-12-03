@@ -48,8 +48,15 @@ impl std::fmt::Display for RuntimeError {
 }
 
 fn build_thunk(mut input: Expression) -> Arc<Mutex<Expression>> {
-    optimize_expression(&mut input);
-    Arc::new(Mutex::new(input))
+    match &mut input {
+        Expression::Tree {root: Id::Thunk(x), arguments} if arguments.len() == 0 => {
+            std::mem::take(x)
+        }
+        _ => {
+            optimize_expression(&mut input);
+            Arc::new(Mutex::new(input))
+        }
+    }
 }
 
 pub fn optimize_expression(input: &mut Expression) {

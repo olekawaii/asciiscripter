@@ -1,24 +1,23 @@
--- define main of_type bool as 
---     is three infinity 
--- data nat contains
---     one
---     succ nat
--- 
--- define three of_type nat as succ succ one
--- 
--- define infinity of_type nat as succ infinity
--- 
--- data bool contains
---     true
---     false
--- 
+define main of_type bool as 
+    is three infinity
+
+data nat contains
+    one
+    succ nat
+
+define three of_type nat as succ succ one
+
+define infinity of_type nat as succ infinity
+
+data bool contains
+    true
+    false
 
 data tuple_of_nats contains
     tuple nat nat
 
--- 
--- define is of_type fn nat fn nat bool as 
---     lambda x dot lambda y dot match tuple x y with
---         tuple one one        to true
---         tuple succ a succ b  to is a b
---         _                    to false
+define is of_type fn nat fn nat bool as 
+    lambda x dot lambda y dot match tuple x y with
+        tuple one one        to true
+        tuple succ a succ b  to is a b
+        _                    to false

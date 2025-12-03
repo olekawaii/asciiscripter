@@ -71,6 +71,7 @@ fn main() -> std::io::Result<()> {
             for (name, (index, _, _)) in vars_dummy {
                 map.insert(index as u32, name);
             }
+            eprintln!("\x1b[95mbuilt expression\x1b[0m");
             main.print(&map);
             //let mut output = String::new();
             //convert_to_file(&main, &map, &mut output);

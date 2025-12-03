@@ -1,0 +1,12 @@
+define main of_type nat as sum infinity infinity
+
+define sum of_type fn nat fn nat nat as 
+    lambda x dot match x with
+        one     to succ
+        succ a  to lambda y dot succ sum a y
+
+data nat contains
+    one
+    succ nat
+
+define infinity of_type nat as succ infinity

@@ -173,7 +173,7 @@ define map_option_whole of_type fn fn whole whole fn option_whole option_whole a
 define sum_nat of_type fn nat fn nat nat as
     lambda x dot match x with
         one     to succ
-        succ a  to lambda y dot succ sum_nat a y
+        succ a  to lambda y dot succ sum_nat y a
 
 define product_nat of_type fn nat fn nat nat as 
     lambda x dot lambda y dot match x with
