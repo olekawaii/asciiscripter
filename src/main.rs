@@ -33,7 +33,7 @@ use crate::{
     parse::{
         Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree, build_tree,
         build_type, extract_signiture, get_tokens, parse_art, parse_data, parse_roman_numeral,
-        parse_type, tokenize, tokenize_file,
+        parse_type, tokenize, tokenize_file, parse_expression,
     },
     runtime::{Expression, /*COUNTER,*/ Id, optimize_expression},
     r#type::Type,
@@ -183,15 +183,16 @@ fn parse_file(
         vals.push((tp, tokens));
         number_of_values += 1;
     }
-    for (tp, tokens) in vals.into_iter() {
+    for (tp, mut tokens) in vals.into_iter() {
         global_vars.push({
-            let mut e = build_tree(
-                tp,
-                build_syntax_tree(tokens, &types)?,
-                HashMap::new(),
-                0,
-                &global_vars_dummy,
-            )?;
+            //let mut e = build_tree(
+            //    tp,
+            //    build_syntax_tree(tokens, &types)?,
+            //    HashMap::new(),
+            //    0,
+            //    &global_vars_dummy,
+            //)?;
+            let mut e = parse_expression(tp, &mut tokens, HashMap::new(), 0, &global_vars_dummy, &types)?;
             optimize_expression(&mut e);
             e
         })

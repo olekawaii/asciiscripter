@@ -17,7 +17,7 @@ define empty_horizontal of_type horizontal as
     horizontal empty_grid_cell empty_row empty_row
 
 define insert_horizontal of_type fn int fn character fn horizontal horizontal as
-    lambda index dot lambda chr dot lambda horizontal z n p dot
+    lambda index lambda chr lambda horizontal z n p
         match index with
             zero            to horizontal full_grid_cell chr n p
             negative index  to horizontal z insert_row index chr n p
@@ -32,7 +32,7 @@ data row contains
     cons_row grid_cell row
 
 define insert_row of_type fn nat fn character fn row row as
-    lambda index dot lambda chr dot lambda r dot
+    lambda index lambda chr lambda r
         match of_type row match r with
             empty_row     to cons_row empty_grid_cell empty_row
             cons_row _ _  to r
@@ -47,8 +47,8 @@ data column contains
     cons_column horizontal column
 
 define insert_frame of_type fn int fn int fn character fn frame frame as
-    lambda x dot lambda y dot lambda chr dot
-        lambda frame col_neg col_pos row_zero dot match y with
+    lambda x lambda y lambda chr
+        lambda frame col_neg col_pos row_zero match y with
             negative index to frame
                 insert_column x index chr col_neg
                 col_pos
@@ -63,7 +63,7 @@ define insert_frame of_type fn int fn int fn character fn frame frame as
                 insert_horizontal x chr row_zero
 
 define insert_column of_type fn int fn nat fn character fn column column as
-    lambda x dot lambda y dot lambda chr dot lambda col dot
+    lambda x lambda y lambda chr lambda col
         match of_type column
             match col with
                 empty_column     to cons_column empty_horizontal empty_column
@@ -74,22 +74,22 @@ define insert_column of_type fn int fn nat fn character fn column column as
                 succ i  to cons_column head insert_column x i chr tail
 
 define from_video of_type fn bad_video video as
-    lambda v dot match v with
+    lambda v match v with
         empty_video      to nil_video
         cons_frame x xs  to cons_video from_frame x from_video xs
 
 define from_frame of_type fn bad_frame frame as
-    lambda f dot match f with
+    lambda f match f with
         empty_frame                                  to new_frame
         unsafe_cons_cell cell coordinate x y c tail  to
             insert_frame x y c from_frame tail
 
-define into_video of_type fn video bad_video as lambda vid dot match vid with
+define into_video of_type fn video bad_video as lambda vid match vid with
     nil_video             to empty_video
     cons_video head tail  to cons_frame into_frame head into_video tail
 
 define into_frame of_type fn frame bad_frame as
-    lambda frame neg_col pos_col zer_col dot
+    lambda frame neg_col pos_col zer_col
         uwulayer_frames
             column_to_frame one negative neg_col
             uwulayer_frames
@@ -97,10 +97,10 @@ define into_frame of_type fn frame bad_frame as
                 horizontal_to_frame zero zer_col
 
 define horizontal_to_frame of_type fn int fn horizontal bad_frame as
-    lambda y dot lambda horizontal char neg_row pos_row dot
+    lambda y lambda horizontal char neg_row pos_row
         apply_to_frame
             match char with
-                empty_grid_cell   to lambda x dot x
+                empty_grid_cell   to lambda x x
                 full_grid_cell x  to unsafe_cons_cell cell coordinate zero y x
             uwulayer_frames
                 row_to_frame one y negative neg_row
@@ -109,28 +109,28 @@ define horizontal_to_frame of_type fn int fn horizontal bad_frame as
 define apply_to_frame of_type
     fn fn bad_frame bad_frame fn bad_frame bad_frame
 as
-    lambda f dot lambda x dot f x
+    lambda f lambda x f x
 
 define row_to_frame of_type fn nat fn int fn fn nat int fn row bad_frame as
-    lambda index dot lambda y dot lambda sign dot lambda r dot match r with
+    lambda index lambda y lambda sign lambda r match r with
         empty_row           to empty_frame
         cons_row head tail  to
             apply_to_frame
                 match head with
-                    empty_grid_cell   to lambda x dot x
+                    empty_grid_cell   to lambda x x
                     full_grid_cell x  to
                         unsafe_cons_cell cell coordinate sign index y x
                 row_to_frame succ index y sign tail
 
 define column_to_frame of_type fn nat fn fn nat int fn column bad_frame as
-    lambda index dot lambda sign dot lambda col dot match col with
+    lambda index lambda sign lambda col match col with
         empty_column           to empty_frame
         cons_column head tail  to uwulayer_frames
             horizontal_to_frame sign index head
             column_to_frame succ index sign tail
 
 define shift_frame of_type fn direction fn frame frame as
-    lambda dir dot lambda f dot match f with
+    lambda dir lambda f match f with
         frame col_neg col_pos hor_zero to match dir with
             north to match col_neg with
                 empty_column to frame
@@ -154,12 +154,12 @@ define shift_frame of_type fn direction fn frame frame as
             west to map_columns shift_horizontal left f
 
 define map_video of_type fn fn frame frame fn video video as
-    lambda f dot lambda x dot match x with
+    lambda f lambda x match x with
         nil_video             to nil_video
         cons_video head tail  to cons_video f head map_video f tail
 
 define shift of_type fn direction fn video video as
-    lambda d dot lambda v dot map_video shift_frame d v
+    lambda d lambda v map_video shift_frame d v
 
 data horizontal_direction contains
     right
@@ -168,7 +168,7 @@ data horizontal_direction contains
 define shift_horizontal of_type
     fn horizontal_direction fn horizontal horizontal
 as
-    lambda dir dot lambda horizontal z r_l r_r dot
+    lambda dir lambda horizontal z r_l r_r
          match dir with
             right to match r_l with
                 cons_row head tail  to horizontal head tail cons_row z r_r
@@ -184,24 +184,24 @@ as
                     empty_row
 
 define map_columns of_type fn fn horizontal horizontal fn frame frame as
-    lambda f dot lambda frame cn cp hz dot
+    lambda f lambda frame cn cp hz
         frame
             map_column f cn
             map_column f cp
             f hz
 
 define map_column of_type fn fn horizontal horizontal fn column column as
-    lambda f dot lambda col dot match col with
+    lambda f lambda col match col with
         empty_column           to empty_column
         cons_column head tail  to cons_column f head map_column f tail
 
 define map_video of_type fn fn frame frame fn video video as
-    lambda f dot lambda x dot match x with
+    lambda f lambda x match x with
         nil_video             to nil_video
         cons_video head tail  to cons_video f head map_video f tail
 
 define layer_frames of_type fn frame fn frame frame as
-    lambda frame na pa za dot lambda frame nb pb zb dot
+    lambda frame na pa za lambda frame nb pb zb
         frame
             layer_columns na nb
             layer_columns pa pb
@@ -211,7 +211,7 @@ data tuple_col_col contains
     tuple_col_col column column
 
 define layer_columns of_type fn column fn column column as
-    lambda ca dot lambda cb dot match tuple_col_col ca cb with
+    lambda ca lambda cb match tuple_col_col ca cb with
         tuple_col_col empty_column a to a
         tuple_col_col a empty_column to a
         tuple_col_col cons_column head_a tail_a cons_column head_b tail_b to
@@ -220,7 +220,7 @@ define layer_columns of_type fn column fn column column as
                 layer_columns tail_a tail_b
 
 define layer_horizontal of_type fn horizontal fn horizontal horizontal as
-    lambda horizontal ca aa ba dot lambda horizontal cb ab bb dot
+    lambda horizontal ca aa ba lambda horizontal cb ab bb
         horizontal
             match ca with
                 empty_grid_cell to cb
@@ -232,7 +232,7 @@ data tuple_row_row contains
     tuple_row_row row row
 
 define layer_rows of_type fn row fn row row as
-    lambda x dot lambda b dot match tuple_row_row x b with
+    lambda x lambda b match tuple_row_row x b with
         tuple_row_row empty_row a                    to a
         tuple_row_row a empty_row                    to a
         tuple_row_row cons_row aa ba cons_row ab bb  to
@@ -243,12 +243,12 @@ define layer_rows of_type fn row fn row row as
                 layer_rows ba bb
 
 define video_length of_type fn video whole as
-    lambda x dot match x with
+    lambda x match x with
         nil_video          to whole_zero
         cons_video _ tail  to whole increment_whole video_length tail
 
 define layer of_type fn video fn video video as
-    lambda top dot lambda bottom dot match video_length top with
+    lambda top lambda bottom match video_length top with
         whole_zero     to bottom
         whole top_len  to match video_length bottom with
             whole_zero        to top
@@ -258,22 +258,22 @@ define layer of_type fn video fn video video as
                      take x loop_video_forever bottom
 
 define take of_type fn nat fn video video as
-    lambda counter dot lambda bad_frames dot match bad_frames with
+    lambda counter lambda bad_frames match bad_frames with
         nil_video             to nil_video
         cons_video head tail  to match counter with
             one     to cons_video head nil_video
             succ a  to cons_video head take a tail
 
 define seq of_type fn video fn video video as
-    lambda x dot lambda y dot match x with
+    lambda x lambda y match x with
         nil_video             to y
         cons_video head tail  to cons_video head seq tail y
 
 define loop_video_forever of_type fn video video as
-    lambda x dot seq x loop_video_forever x
+    lambda x seq x loop_video_forever x
 
 define layer_helper of_type fn video fn video video as
-    lambda x dot lambda y dot match x with
+    lambda x lambda y match x with
         nil_video                 to nil_video
         cons_video head_a tail_a  to match y with
             nil_video                 to nil_video
@@ -283,24 +283,24 @@ define layer_helper of_type fn video fn video video as
                     layer_helper tail_a tail_b
 
 define by of_type fn nat fn fn video video fn video video as
-    lambda counter dot lambda fn dot lambda vid dot match counter with
+    lambda counter lambda fn lambda vid match counter with
         one     to fn vid
         succ a  to by a fn fn vid
 
 define rotate of_type fn video video as
-    lambda vid dot match vid with
+    lambda vid match vid with
         nil_video             to nil_video
         cons_video head tail  to seq tail cons_video head nil_video
 
 define slow of_type fn nat fn video video as
-    lambda num dot lambda vid dot match vid with
+    lambda num lambda vid match vid with
         nil_video             to nil_video
         cons_video head tail  to seq
             take num loop_video_forever cons_video head nil_video
             slow num tail
 
 define over_y_hor of_type fn horizontal horizontal as
-    lambda horizontal a b c dot horizontal
+    lambda horizontal a b c horizontal
         a
         map_row flip_over_y_char c
         map_row flip_over_y_char b
@@ -308,37 +308,37 @@ define over_y_hor of_type fn horizontal horizontal as
 define map_over_grid_cell of_type
     fn fn character character fn grid_cell grid_cell
 as
-    lambda f dot lambda x dot match x with
+    lambda f lambda x match x with
         empty_grid_cell   to empty_grid_cell
         full_grid_cell a  to full_grid_cell f a
 
 define map_horizontal of_type
     fn fn character character fn horizontal horizontal
 as
-    lambda f dot lambda horizontal c ra rb dot horizontal
+    lambda f lambda horizontal c ra rb horizontal
         map_over_grid_cell f c
         map_row f ra
         map_row f rb
 
 define map_row of_type fn fn character character fn row row as
-    lambda f dot lambda x dot match x with
+    lambda f lambda x match x with
         empty_row           to empty_row
         cons_row head tail  to cons_row map_over_grid_cell f head map_row f tail
 
 define flip_over_y of_type fn video video as map_video map_columns over_y_hor
 
 define reverse of_type fn video video as
-    lambda x dot match x with
+    lambda x match x with
         nil_video       to nil_video
         cons_video a b  to seq reverse b cons_video a nil_video
 
-define tail of_type fn video video as lambda x dot match x with
+define tail of_type fn video video as lambda x match x with
     nil_video       to nil_video
     cons_video _ b  to b
 
-define loop of_type fn video video as lambda x dot seq x tail reverse tail x
+define loop of_type fn video video as lambda x seq x tail reverse tail x
 
-define extend of_type fn video video as lambda x dot match x with
+define extend of_type fn video video as lambda x match x with
     nil_video                  to nil_video
     cons_video head nil_video  to cons_video head cons_video head nil_video
     cons_video head tail       to cons_video head extend tail

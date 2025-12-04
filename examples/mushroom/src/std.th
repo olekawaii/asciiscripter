@@ -7,7 +7,7 @@ data direction contains
     west
 
 define flip_over_y_char of_type fn character character as 
-    lambda x dot match x with
+    lambda x match x with
         space         to space
         char c color  to char
             match c with
@@ -33,11 +33,11 @@ define flip_over_y_char of_type fn character character as
             color
 
 define sum_coordinate of_type fn coordinate fn coordinate coordinate as
-    lambda coordinate x_i y_i dot lambda coordinate x_ii y_ii dot
+    lambda coordinate x_i y_i lambda coordinate x_ii y_ii
         coordinate sum_int x_i x_ii sum_int y_i y_ii
 
 define eq_int of_type fn int fn int bool as
-    lambda x dot lambda y dot match tuple_int_int x y with
+    lambda x lambda y match tuple_int_int x y with
         tuple_int_int zero       zero        to true
         tuple_int_int positive a positive b  to eq_nat a b
         tuple_int_int negative a negative b  to eq_nat a b
@@ -47,38 +47,38 @@ data tuple_int_int contains
    tuple_int_int int int
 
 define sum_int of_type fn int fn int int as 
-    lambda x dot lambda y dot match x with
+    lambda x lambda y match x with
         zero        to y
         negative _  to sum_int increment x decrement y 
         positive _  to sum_int decrement x increment y 
 
-define increment of_type fn int int as lambda x dot match x with
+define increment of_type fn int int as lambda x match x with
     zero             to positive one
     positive a       to positive succ a
     negative one     to zero 
     negative succ a  to negative a
 
-define decrement of_type fn int int as lambda x dot match x with
+define decrement of_type fn int int as lambda x match x with
     zero             to negative one
     negative a       to negative succ a
     positive one     to zero
     positive succ a  to positive a
 
-define increment_whole of_type fn whole nat as lambda x dot match x with
+define increment_whole of_type fn whole nat as lambda x match x with
     whole_zero  to one
     whole x     to succ x
 
-define decrement_whole of_type fn whole int as lambda x dot match x with
+define decrement_whole of_type fn whole int as lambda x match x with
     whole_zero    to negative one
     whole one     to zero
     whole succ x  to positive x
 
-define decrement_nat of_type fn nat whole as lambda x dot match x with
+define decrement_nat of_type fn nat whole as lambda x match x with
     one     to whole_zero
     succ x  to whole x
 
 define recolor_character of_type fn color fn character character as
-    lambda color dot lambda character dot match character with
+    lambda color lambda character match character with
         space     to space
         char a _  to char a color
 
@@ -87,22 +87,22 @@ data bool contains
     false
 
 define and of_type fn bool fn bool bool as
-    lambda x dot match x with
+    lambda x match x with
         false to const_bool_bool false
         true  to id_bool
 
 define or of_type fn bool fn bool bool as
-    lambda x dot match x with
+    lambda x match x with
         true  to const_bool_bool true
         false to id_bool
 
-define id_bool of_type fn bool bool as lambda x dot x
+define id_bool of_type fn bool bool as lambda x x
 
 define const_bool_bool of_type fn bool fn bool bool as 
-    lambda x dot lambda _ dot x
+    lambda x lambda _ x
 
 define eq_nat of_type fn nat fn nat bool as
-    lambda x dot lambda y dot match tuple_nat_nat x y with
+    lambda x lambda y match tuple_nat_nat x y with
         tuple_nat_nat one    one     to true
         tuple_nat_nat succ a succ b  to eq_nat a b
         _                            to false
@@ -111,9 +111,9 @@ data tuple_nat_nat contains
    tuple_nat_nat nat nat
 
 define eq_coordinate of_type fn coordinate fn coordinate bool as
-    lambda coordinate a b dot lambda coordinate c d dot and eq_int a c eq_int b d
+    lambda coordinate a b lambda coordinate c d and eq_int a c eq_int b d
 
-define next_color of_type fn color color as lambda x dot match x with
+define next_color of_type fn color color as lambda x match x with
     red to magenta
     magenta to blue
     blue to cyan
@@ -122,7 +122,7 @@ define next_color of_type fn color color as lambda x dot match x with
     yellow to red
 
 define complementary of_type fn color color as 
-    lambda x dot next_color next_color next_color x
+    lambda x next_color next_color next_color x
 
 data option_nat contains
     some_nat nat
@@ -137,7 +137,7 @@ data whole contains
     whole nat
 
 define subtract_exactly of_type fn whole fn whole option_whole as
-    lambda x dot lambda y dot match x with
+    lambda x lambda y match x with
         whole a to match y with
             whole_zero  to some_whole whole a
             whole b     to subtract_exactly
@@ -151,44 +151,44 @@ define subtract_exactly of_type fn whole fn whole option_whole as
             whole_zero  to some_whole whole_zero
             whole _     to none_whole
 
-define absolute of_type fn int whole as lambda x dot match x with
+define absolute of_type fn int whole as lambda x match x with
     positive a to whole a
     negative a to whole a
     zero       to whole_zero
 
 define divide_exactly of_type fn whole fn whole option_whole as
-    lambda x dot match x with
-        whole_zero  to lambda _ dot some_whole whole_zero
-        whole _     to lambda y dot match subtract_exactly x y with
+    lambda x match x with
+        whole_zero  to lambda _ some_whole whole_zero
+        whole _     to lambda y match subtract_exactly x y with
             none_whole    to none_whole
             some_whole a  to map_option_whole
-                lambda x dot whole increment_whole x
+                lambda x whole increment_whole x
                 divide_exactly a y
 
 define map_option_whole of_type fn fn whole whole fn option_whole option_whole as
-    lambda f dot lambda x dot match x with
+    lambda f lambda x match x with
         none_whole    to none_whole
         some_whole a  to some_whole f a
 
 define sum_nat of_type fn nat fn nat nat as
-    lambda x dot match x with
+    lambda x match x with
         one     to succ
-        succ a  to lambda y dot succ sum_nat y a
+        succ a  to lambda y succ sum_nat y a
 
 define product_nat of_type fn nat fn nat nat as 
-    lambda x dot lambda y dot match x with
+    lambda x lambda y match x with
         one     to y
         succ a  to sum_nat y product_nat a y
 
 define product_int of_type fn int fn int int as 
-    lambda x dot lambda y dot match tuple_int_int x y with
+    lambda x lambda y match tuple_int_int x y with
         tuple_int_int zero       _           to zero
         tuple_int_int positive a positive b  to positive product_nat a b
         tuple_int_int positive a negative b  to negative product_nat a b
         tuple_int_int negative a negative b  to positive product_nat a b
         _                                    to product_int y x
 
-define abselute_value of_type fn int whole as lambda x dot match x with
+define abselute_value of_type fn int whole as lambda x match x with
     zero        to whole_zero
     positive x  to whole x
     negative x  to whole x
@@ -206,44 +206,40 @@ define map_option_list_whole of_type
         fn list_whole list_whole 
         fn option_list_whole option_list_whole 
 as
-    lambda f dot lambda x dot match x with
+    lambda f lambda x match x with
         some_list_whole a  to some_list_whole f a
         none_list_whole    to none_list_whole
 
 define greater of_type fn nat fn nat bool as 
-    lambda a dot lambda b dot match a with
+    lambda a lambda b match a with
         one     to false
         succ c  to match b with
             one     to true
             succ d  to greater c d
 
 define divisible of_type fn whole fn whole bool as
-    lambda x dot lambda y dot match divide_exactly x y with
+    lambda x lambda y match divide_exactly x y with
         some_whole _  to true
         none_whole    to false
 
 define gcd of_type fn nat fn nat nat as
-    lambda x dot lambda y dot gcd_helper i ii x y
+    lambda x lambda y gcd_helper i ii x y
 
 define gcd_helper of_type fn nat fn nat fn nat fn nat nat as 
-    lambda output dot lambda try dot lambda x dot lambda y dot
+    lambda output lambda try lambda x lambda y
     match or greater try x greater try y with
         false to 
             gcd_helper
-                match
-                    and 
-                        divisible whole x whole try 
-                        divisible whole y whole try 
-                    with
-                        true  to try
-                        false to output
+                match and divisible whole x whole try divisible whole y whole try with
+                    true  to try
+                    false to output
                 succ try
                 x
                 y
         true to output
 
 define lcm of_type fn nat fn nat nat as
-    lambda x dot lambda y dot
+    lambda x lambda y
         match divide_exactly whole product_nat x y whole gcd x y with
             none_whole    to i
             some_whole x  to match x with
@@ -251,7 +247,7 @@ define lcm of_type fn nat fn nat nat as
               whole_zero  to i
 
 define prime_factors of_type fn nat fn whole list_whole as
-    lambda x dot lambda y dot match y with
+    lambda x lambda y match y with
         whole aaa to match aaa with
             one     to nil_whole 
             succ _  to match divide_exactly y whole x with
@@ -260,7 +256,7 @@ define prime_factors of_type fn nat fn whole list_whole as
         whole_zero to nil_whole 
 
 define uwulayer_frames of_type fn bad_frame fn bad_frame bad_frame as
-    lambda top dot lambda bottom dot match top with
+    lambda top lambda bottom match top with
         unsafe_cons_cell head tail  to unsafe_cons_cell head uwulayer_frames tail bottom
         empty_frame                 to bottom
 
