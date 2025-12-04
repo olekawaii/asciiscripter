@@ -2,18 +2,34 @@ thorn is pure functional programming language for making ascii art animations
 
 check out some examples in the examples/ directory.
 
-things left to implement:
+There are currently no generics or type classes so it's a pain to use, but
+those are relatively easy to implement in the future.
 
-[ ]  generics
-[ ]  higher kinded types
-[ ]  type classes
-[ ]  syntax for frame variables in art
+
+INSTALLATION
+====================
+
+thorn has no dependencies. You can build it with 
+
+    $ cargo build --release && mv target/release/thorn /bin
+
+The programs to generate shell scripts and images are found in the converters/
+directory. You can build those with ghc. Once you get those installed, there is
+also a useful shell script 'uwu' in the scripts/ directory to make building 
+your project as quick and easy. You need ffmpeg for generating gifs with uwu.
+All of these are optional. 
+
+the thorn compiler works like a calculator; it parses and compiles the source
+code into an internal representation, but afterwards also executes it, printing
+the evaluated main function.
+
+    $ thorn file.th
 
 
 Expression Syntax
 ====================
 
-An expression is either a lambda, a match, or an argument tree.
+An expression is either a lambda, match, or function with arguments (a tree).
 
 lambda expression
 --------------------
@@ -23,14 +39,14 @@ All branches must have the same indentation. The mandetory keywords are
 
     .----------------------------------------------------------.
     | 'match' <expression> 'with'                              |
-    |    constructor arg ... 'to' <expression>                 |
-    |    ...                                                   |
+    |     <pattern> 'to' <expression>                          |
+    |     ...                                                  |
     '----------------------------------------------------------'
 
 lambda expression
 --------------------
     .----------------------------------------------------------.
-    | 'lambda' arg 'dot' <expression>                          |
+    | 'lambda' <pattern> <expression>                          |
     '----------------------------------------------------------'
 
 argument tree
@@ -45,19 +61,19 @@ sum(v, product(iii, x)) (in C syntax) as an argument tree would be
     | sum v product iii x                                      |
     '----------------------------------------------------------'
 
-This is possible because the types of all variables are known at compile-time,
+This is possible because the types of all variables are known at all times,
 letting us use polish notation to group them into expressions
 
   2 .----------------------------------------------------------.
     | root                                                     |
-    |    <expression>                                          |
-    |    <expression>                                          |
-    |    ...                                                   |
+    |     <expression>                                         |
+    |     <expression>                                         |
+    |     ...                                                  |
     '----------------------------------------------------------'
 
 With the second syntax every argument of the root must be on its own line 
 with the correct indentation. This the only way to use a lambda or match
-expresion directly as an argument.
+expresion directly as an argument to a function.
 
 
 
@@ -66,26 +82,26 @@ ALGEBRAIC TYPES
 
     .----------------------------------------------------------.
     | data bool contains                                       |
-    |    true                                                  |
-    |    false                                                 |
+    |     true                                                 |
+    |     false                                                |
     |                                                          |
     | data list_of_bools contains                              |
-    |    empty_list                                            |
-    |    prepend bool list_of_bools                            |
+    |     empty_list                                           |
+    |     prepend bool list_of_bools                           |
     |                                                          |
     | data maybe_bool contains                                 |
-    |    none                                                  |
-    |    some bool                                             |
+    |     none                                                 |
+    |     some bool                                            |
     |                                                          |
     | define head of_type fn list_of_bools maybe_bool as       |
-    |    lambda input_list dot match input_list with           |
-    |       empty_list to none                                 |
-    |       prepend head tail to some head                     |
+    |     lambda input_list match input_list with              |
+    |         empty_list         to none                       |
+    |         prepend head tail  to some head                  |
     '----------------------------------------------------------'
 
     .----------------------------------------------------------.
     | define main of_type maybe_bool as                        |
-    |    head prepend true prepend false empty_list            |
+    |     head prepend true prepend false empty_list           |
     '----------------------------------------------------------'
     output: some true
 
@@ -113,7 +129,7 @@ has multiple errors:
     | define five of_type int as ...                           |
     |                                                          |
     | define main of_type int as                               |
-  * |    sum five or true five                                 |
+    |     sum five or true five                                | <-
     '----------------------------------------------------------'
 
 There are who issues with this code:
@@ -160,15 +176,15 @@ two points. Ignore the functions that we haven't defined.
 
     .----------------------------------------------------------.
     | data point contains                                      |
-    |    point int int                                         |
+    |     point int int                                        |
     |                                                          |
     | define distance of_type fn point fn point float as       |
-    |    lambda first_point dot lambda second_point dot        |
-    |       match first_point with                             |
-    |          point x_i y_i to match second_point with        |
-    |             point x_ii y_ii to sqrt sum                  |
-    |                squared diff x_ii x_i                     |
-    |                squared diff y_ii y_i                     |
+    |     lambda first_point lambda second_point               |
+    |         match first_point with                           |
+    |             point xa ya to match second_point with       |
+    |                 point xb yb to sqrt sum                  |
+    |                     squared diff xb xa                   |
+    |                     squared diff yb ya                   |
     '----------------------------------------------------------'
 
 This is very verbose because we're patternmatching on all the points to get
@@ -178,10 +194,9 @@ like so:
 
     .----------------------------------------------------------.
     | define distance of_type fn point fn point float as       |
-    |    lambda point x_i y_i dot lambda point x_ii y_ii dot   |
-    |       sqrt sum                                           |
-    |          squared diff x_ii x_i                           |
-    |          squared diff y_ii y_i                           |
+    |     lambda point xa ya lambda point xb yb sqrt sum       |
+    |         squared diff xb xa                               |
+    |         squared diff yb ya                               |
     '----------------------------------------------------------'
 
 In fact, lambda, match, and (in the future) let expressions share the same 
@@ -196,19 +211,20 @@ There are no loops. The only way to 'loop' is to use recursion.
 
     .----------------------------------------------------------.
     | define main of_type nat as                               |
-    |    sum                                                   '
-    |       succ succ one                    .----------------------.
-    |       succ one                         | one              = 1 |
+    |     sum                                                  '
+    |         three                          .----------------------.
+    |         succ one                       | one              = 1 |
     |                                        | succ one         = 2 |
     | data nat contains                      | succ (succ one)  = 3 |
-    |    one                                 | and so on            |
-    |    succ nat                            '----------------------'
+    |     one                                | and so on            |
+    |     succ nat                           '----------------------'
     |                                                          .
+    | define three of_type nat as succ succ one                |
+    |                                                          |
     | define sum of_type fn nat fn nat nat as                  |
-    |    lambda x dot match x with                             |
-    |       one to succ                                        |  <---.
-    |       succ pred_x to                                     |      |
-    |          lambda y dot succ sum pred_x y   -- recursive   |      |
+    |     lambda x match x with                                |
+    |         one     to succ                                  |  <---.
+    |         succ a  to lambda y succ sum a y    -- recursive |      |
     '----------------------------------------------------------'      | 
      output: succ succ succ succ one                                  |
 
@@ -217,7 +233,7 @@ By the way, if you look at the third to last line, the `one` branch returns a
 because the `succ` data constructor has the type `fn nat nat` (all data 
 constructors are curried). 
 
-Alternatively we could've rewritten `succ` as `lambda x dot succ x`, which would 
+Alternatively we could've rewritten `succ` as `lambda x succ x`, which would 
 have the same meaning.
 
 
@@ -234,38 +250,37 @@ To evaluate an expression, it is rewritten until it starts with a
 data constructor.
 
     .----------------------------------------------------------.
+    | data tuple_of_nats contains                              |
+    |     tuple nat nat                                        |
+    |                                                          |
     | define is_equal of_type fn nat fn nat bool as            |
-    |    lambda x dot lambda y dot match x with                |
-    |       one to match y with                                |
-    |          one to true                                     |
-    |          succ _ to false                                 |
-    |       succ pred_x to match y with                        |
-    |          one to false                                    |
-    |          succ pred_y to                                  |
-    |             is_equal pred_x pred_y                       |
+    |     lambda x lambda y match tuple x y with               |
+    |         tuple one    one     to true                     |
+    |         tuple succ a succ b  to is_equal a b             |
+    |         _                    to false                    |
     '----------------------------------------------------------'
 
     .----------------------------------------------------------.
     | define main of_type bool as                              |
-    |    is_equal                                              |
-    |       succ succ one                                      |
-    |       succ succ one                                      |
+    |     is_equal                                             |
+    |         succ succ one                                    |
+    |         succ succ one                                    |
     '----------------------------------------------------------'
     output: true
 
     .----------------------------------------------------------.
     | define main of_type bool as                              |
-    |    is_equal                                              |
-    |       succ succ one                                      |
-    |       succ succ succ one                                 |
+    |     is_equal                                             |
+    |         succ succ one                                    |
+    |         succ succ succ one                               |
     '----------------------------------------------------------'
     output: false
 
     .----------------------------------------------------------.
     | define main of_type bool as                              |
-    |    is_equal                                              |
-    |       succ succ succ one                                 |
-    |       infinity                                           |
+    |     is_equal                                             |
+    |         succ succ succ one                               |
+    |         infinity                                         |
     |                                                          |
     | define infinity of_type nat as succ infinity             |
     '----------------------------------------------------------'
@@ -273,23 +288,23 @@ data constructor.
 
     .----------------------------------------------------------.
     | define main of_type bool as                              |
-    |    is_equal infinity infinity                            |
+    |     is_equal infinity infinity                           |
     '----------------------------------------------------------'
      output: *hangs at runtime*
                                                  .---------------.
     .------------------------------------------- | ... is syntax |
     | define main of_type bool as                | for undefined |
-    |    is_equal                                '---------------'
-    |       succ succ one                                      .
-    |       succ succ succ succ ...                            |
+    |     is_equal                               '---------------'
+    |         succ succ one                                    .
+    |         succ succ succ succ ...                          |
     '----------------------------------------------------------'
     output: false
                                                                   
     .----------------------------------------------------------.  
     | define main of_type bool as                              |  
-    |    is_equal                                              |  
-    |       succ succ succ one                                 |
-    |       succ succ ...                                      |
+    |     is_equal                                             |  
+    |         succ succ succ one                               |
+    |         succ succ ...                                    |
     '----------------------------------------------------------'
     output: *panics at runtime*
 
@@ -335,7 +350,7 @@ name like so:
 
     .----------------------------------------------------------.
     | define dragon_tail of_type fn color video as             |
-    |    lambda c dot art vi iv                                |
+    |     lambda c art vi iv                                   |
     |  \   ).c|||c(   / c|||c.                                 |
     |   ) / ..c|c. \ (  .c|c..                                 |
     |  ( /  .c|c..  \ ) ..c|c.                                 |
@@ -352,7 +367,7 @@ you can have a custom tail tip for example:
 
     .----------------------------------------------------------.
     | define dragon_tail of_type fn character video as         |
-    |    lambda t dot art vi iv                                |
+    |     lambda t art vi iv                                   |
     |  \   ).6|||6(   / 6|||6.                                 |
     |   ) / ..6|6. \ (  .6|6..                                 |
     |  ( /  .6|6..  \ ) ..6|6.                                 |
