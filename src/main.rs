@@ -31,7 +31,7 @@ mod r#type;
 use crate::{
     error::{Error, Mark, Index},
     parse::{
-        Marked, Signiture, SyntaxTree, Token, TokenStream, build_syntax_tree, build_tree,
+        Marked, Signiture, Token, TokenStream,
         build_type, extract_signiture, get_tokens, parse_art, parse_data, parse_roman_numeral,
         parse_type, tokenize, tokenize_file, parse_expression,
     },
