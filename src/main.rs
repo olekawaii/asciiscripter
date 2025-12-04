@@ -16,11 +16,8 @@
 
 use std::{
     collections::HashMap,
-    env, fmt, fs,
-    fs::read_to_string,
+    env,
     sync::{Arc, Mutex},
-    thread::spawn,
-    time::{Duration, Instant},
 };
 
 mod error;
@@ -29,21 +26,17 @@ mod runtime;
 mod r#type;
 
 use crate::{
-    error::{Error, Mark, Index},
-    parse::{
-        parse_file, Marked, Signiture, Token, TokenStream,
-        build_type, extract_signiture, get_tokens, parse_art, parse_data, parse_roman_numeral,
-        parse_type, tokenize, tokenize_file, parse_expression,
-    },
-    runtime::{Expression, /*COUNTER,*/ Id, optimize_expression},
+    error::{Mark, Index},
+    parse::{parse_file, Marked},
+    runtime::{Expression, /*COUNTER,*/ Id},
     r#type::Type,
 };
 
 fn main() -> std::io::Result<()> {
-    let mut args: Vec<String> = env::args().collect();
+    let args: Vec<String> = env::args().collect();
     let mut arg_file = String::new();
     args.iter().for_each(|x| {
-        arg_file.push_str(&x);
+        arg_file.push_str(x);
         arg_file.push(' ')
     });
     let mut marked_args = Vec::new();
@@ -93,8 +86,7 @@ fn build_monolithic_expression(
         monolithic_helper(&expressions, ptr)
     }
     let (main_index, _, _) = vars_dummy.get("main").expect("no main");
-    let main = (*expressions[*main_index]).lock().unwrap().clone();
-    return main;
+    (*expressions[*main_index]).lock().unwrap().clone()
 }
 
 fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Expression) {

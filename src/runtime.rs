@@ -16,8 +16,8 @@
 
 use crate::error::{Error, ErrorType, Mark};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::{collections::HashMap, fmt};
+// use std::thread;
+use std::{collections::HashMap};
 
 #[derive(Debug)]
 enum RuntimeError {
@@ -50,15 +50,15 @@ impl std::fmt::Display for RuntimeError {
 fn build_thunk(mut input: Expression) -> Arc<Mutex<Expression>> {
     optimize_expression(&mut input);
     match &mut input {
-        Expression::Tree {root: Id::Thunk(x), arguments} if arguments.len() == 0 => std::mem::take(x),
+        Expression::Tree {root: Id::Thunk(x), arguments} if arguments.is_empty() => std::mem::take(x),
         _ => Arc::new(Mutex::new(input)),
     }
 }
 
 pub fn optimize_expression(input: &mut Expression) {
-    if matches!(&input, Expression::Tree { arguments, .. } if arguments.len() == 0) {
+    if matches!(&input, Expression::Tree { arguments, .. } if arguments.is_empty()) {
         //matches!(&input, Expression::Lambda {..}) {
-        return ();
+        return
     }
     match input {
         Expression::Tree { root, arguments } => {
@@ -71,18 +71,15 @@ pub fn optimize_expression(input: &mut Expression) {
             }
         }
         // // no point in optimizing anything since the simplified output will be optimized later
-         //Expression::Match {branches, pattern} => {
-         //    optimize_expression(pattern);
-         //    for (pattern, expression) in branches.iter_mut() {
-         //        if let Pattern::Dropped = pattern {
-         //            optimize_expression(expression)
-         //        }
-         //    }
-         //},
-        Expression::Lambda {
-            pattern: Pattern::Dropped,
-            body,
-        } => optimize_expression(body),
+        //Expression::Match {branches, pattern} => {
+        //    optimize_expression(pattern);
+        //    for (pattern, expression) in branches.iter_mut() {
+        //        if let Pattern::Dropped = pattern {
+        //            optimize_expression(expression)
+        //        }
+        //    }
+        //},
+        Expression::Lambda { pattern: Pattern::Dropped, body } => optimize_expression(body),
         Expression::Undefined { .. } => (),
         _ => (),
     }
@@ -169,10 +166,7 @@ fn match_on_expression_helper(
         Pattern::DataConstructor(data_constructor, patterns) => {
             matched.simplify_owned();
             match matched {
-                Expression::Tree {
-                    root: Id::DataConstructor(id),
-                    arguments,
-                } => {
+                Expression::Tree { root: Id::DataConstructor(id), arguments } => {
                     if id == *data_constructor {
                         for (pattern, arg) in patterns.iter().zip(arguments.into_iter()) {
                             match_on_expression_helper(output, pattern, arg)
@@ -205,20 +199,20 @@ impl Expression {
         )
     }
 
-    // rewrite expression until it starts with either a lambda or a data constructor
+    // rewrite expression until it starts with a data constructor or a lambda
     
     pub fn simplify_owned(&mut self) {
-        if self.is_simplified() { return () } // makes it a bit faster
-        unsafe {
+        if self.is_simplified() { return } // makes it a bit faster
+        {
             let mut ptr = COUNTER.lock().unwrap();
-            *ptr +=1
+            *ptr +=1;
         }
         while !self.is_simplified() {
             match std::mem::take(self) {
                 Expression::Undefined { mark } => {
                     let error = Error {
                         error_type: Box::new(RuntimeError::EvaluatedUndefined),
-                        mark: mark,
+                        mark,
                     };
                     eprintln!("{error}");
                     std::process::exit(1);
@@ -229,7 +223,7 @@ impl Expression {
                 } => {
                     let mut found = false;
                     for (pat, mut new_expression) in branches.into_iter() {
-                        if matches_expression(&pat, &mut *pattern) {
+                        if matches_expression(&pat, &mut pattern) {
                             let map = match_on_expression(&pat, *pattern);
                             new_expression.substitute(&map);
                             *self = new_expression;
@@ -244,10 +238,7 @@ impl Expression {
                 Expression::Tree { root, arguments } => {
                     *self = match root {
                         Id::Thunk(exp) => match Arc::try_unwrap(exp) {
-                            Ok(x) => {
-                                let mut inner = x.into_inner().unwrap(); // safe unwrap
-                                inner
-                            }
+                            Ok(x) => x.into_inner().unwrap(), // safe unwrap
                             Err(x) => {
                                 let mut inner = match (*x).try_lock() {
                                     Ok(x) => x,
@@ -264,13 +255,13 @@ impl Expression {
                         },
                         _ => unreachable!(),
                     };
-                    for mut i in arguments {
+                    for i in arguments {
                         self.simplify_owned();
                         match self {
                             Expression::Tree { arguments, .. } => arguments.push(i),
                             Expression::Lambda { pattern, body } => {
                                 // assume the pattern matches
-                                let map = match_on_expression(&pattern, i);
+                                let map = match_on_expression(pattern, i);
                                 body.substitute(&map);
                                 *self = std::mem::take(&mut *body);
                             }
@@ -294,10 +285,8 @@ impl Expression {
                 arguments
                     .iter_mut()
                     .for_each(|i| i.substitute(map));
-                if let Id::LambdaArg(x) = root {
-                    if let Some(new_expression) = map.get(x) {
-                        *root = Id::Thunk(Arc::clone(new_expression));
-                    }
+                if let Id::LambdaArg(x) = root && let Some(new_expression) = map.get(x) {
+                    *root = Id::Thunk(Arc::clone(new_expression));
                 }
             }
             Expression::Match { pattern, branches } => {
@@ -350,9 +339,7 @@ impl Expression {
                 _ => unreachable!(),
             }
         }
-        print!("\n");
-        unsafe {
-            eprintln!("number of simplifies: {}", COUNTER.lock().unwrap())
-        }
+        println!();
+        eprintln!("number of simplifies: {}", COUNTER.lock().unwrap())
     }
 }

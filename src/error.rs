@@ -74,10 +74,8 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
                 if i == *size {
                     length_of_word = word_len;
                     reached = true;
-                } else {
-                    if !reached {
-                        length_to_word += word_len + 1;
-                    }
+                } else if !reached {
+                    length_to_word += word_len + 1;
                 }
                 if word == "--" {
                     output_string.push_str("\x1b[90m");
@@ -100,7 +98,6 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
             length_of_word = 1;
             output_string = line.into();
         }
-        _ => todo!()
     }
     let mut underline = String::new();
     underline.push_str(&" ".repeat(length_to_word));
