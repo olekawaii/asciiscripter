@@ -31,7 +31,7 @@ mod r#type;
 use crate::{
     error::{Error, Mark, Index},
     parse::{
-        Marked, Signiture, Token, TokenStream,
+        parse_file, Marked, Signiture, Token, TokenStream,
         build_type, extract_signiture, get_tokens, parse_art, parse_data, parse_roman_numeral,
         parse_type, tokenize, tokenize_file, parse_expression,
     },
@@ -121,83 +121,6 @@ fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Express
         Expression::Lambda { body, .. } => monolithic_helper(vec, &mut *body),
         Expression::Undefined { .. } => (),
     }
-}
-
-fn parse_file(
-    file_name: Marked<String>,
-) -> Result<(Vec<Expression>, HashMap<String, (usize, Type, bool)>), Error> {
-    let mut temp_vec = Vec::new();
-    let blocks = get_tokens(file_name, &mut temp_vec)?;
-    let (type_blocks, values): (Vec<(Signiture, TokenStream)>, _) = blocks
-        .into_iter()
-        .map(|mut x| {
-            let signiture = extract_signiture(&mut x)?;
-            //dbg!(&signiture);
-            Ok((signiture, x))
-        })
-        .collect::<Result<(Vec<(Signiture, TokenStream)>), Error>>()?
-        .into_iter()
-        .partition(|(x, _)| matches!(x, Signiture::Type(_)));
-    let mut number_of_types = 0;
-    let mut types: HashMap<String, u32> = HashMap::new();
-    let mut data_blocks: Vec<(u32, TokenStream)> = Vec::new();
-    for (signiture, tokens) in type_blocks.into_iter() {
-        let name = match signiture {
-            Signiture::Type(name) => name,
-            _ => unreachable!(),
-        };
-        types.insert(name, number_of_types);
-        data_blocks.push((number_of_types, tokens));
-        number_of_types += 1;
-    }
-    let mut number_of_values = 0;
-    let mut global_vars_dummy: HashMap<String, (usize, Type, bool)> = HashMap::new();
-    let mut global_vars: Vec<Expression> = Vec::new();
-    for (tp, tokens) in data_blocks.into_iter() {
-        for (num, (name, tp)) in parse_data(tokens, &types, tp)?.into_iter().enumerate() {
-            //if num +1 == 22 {dbg!(&name);}
-            match global_vars_dummy.insert(name, (number_of_values, tp, true)) {
-                None => {}
-                Some(x) => {
-                    dbg!(x);
-                    panic!("uwuaaaa")
-                }
-            }
-            number_of_values += 1;
-            global_vars.push(Expression::Tree {
-                root: Id::DataConstructor(num as u32),
-                arguments: Vec::new(),
-            });
-        }
-    }
-    let mut vals: Vec<(Type, TokenStream)> = Vec::new();
-    for (signiture, tokens) in values.into_iter() {
-        let (name, tp) = match signiture {
-            Signiture::Value(name, tp) => (name, {
-                let mut actual_type = tp;
-                parse_type(&mut actual_type, &types)?
-            }),
-            _ => unreachable!(),
-        };
-        global_vars_dummy.insert(name, (number_of_values, tp.clone(), false));
-        vals.push((tp, tokens));
-        number_of_values += 1;
-    }
-    for (tp, mut tokens) in vals.into_iter() {
-        global_vars.push({
-            //let mut e = build_tree(
-            //    tp,
-            //    build_syntax_tree(tokens, &types)?,
-            //    HashMap::new(),
-            //    0,
-            //    &global_vars_dummy,
-            //)?;
-            let mut e = parse_expression(tp, &mut tokens, HashMap::new(), 0, &global_vars_dummy, &types)?;
-            optimize_expression(&mut e);
-            e
-        })
-    }
-    Ok((global_vars, global_vars_dummy))
 }
 
 //fn convert_to_file(expression: &Expression, names: &HashMap<u32, String>, output: &mut String) {

@@ -194,7 +194,7 @@ impl Default for Expression {
     }
 }
 
-//pub static mut COUNTER: usize = 0;
+pub static COUNTER: Mutex<usize> = Mutex::new(0);
 //pub static THREADS_USED: Mutex<usize> = Mutex::new(0);
 
 impl Expression {
@@ -204,8 +204,15 @@ impl Expression {
             Expression::Lambda { .. } | Expression::Tree {root: Id::DataConstructor(_), ..}
         )
     }
+
     // rewrite expression until it starts with either a lambda or a data constructor
+    
     pub fn simplify_owned(&mut self) {
+        if self.is_simplified() { return () } // makes it a bit faster
+        unsafe {
+            let mut ptr = COUNTER.lock().unwrap();
+            *ptr +=1
+        }
         while !self.is_simplified() {
             match std::mem::take(self) {
                 Expression::Undefined { mark } => {
@@ -280,7 +287,7 @@ impl Expression {
     // Substitute every instance of a LambdaArg with a Thunk. To be used with
     // patternmatching (match_on_expression) output
       
-    pub fn substitute(&mut self, map: &HashMap<u32, Arc<Mutex<Expression>>>) {// key: u32, new_expression: Arc<Mutex<Expression>>) {
+    pub fn substitute(&mut self, map: &HashMap<u32, Arc<Mutex<Expression>>>) {
         match self {
             Expression::Lambda { body, .. } => body.substitute(map),
             Expression::Tree { root, arguments } => {
@@ -304,7 +311,7 @@ impl Expression {
     }
 
     // Evaluates an expression, leaving only a tree of data constructors. 
-    // Currently not used    
+    // Currently unused
 
     // pub fn evaluate_strictly(&mut self) {
     //     let mut to_evaluate: Vec<&mut Expression> = vec![self];
@@ -343,6 +350,9 @@ impl Expression {
                 _ => unreachable!(),
             }
         }
-        print!("\n")
+        print!("\n");
+        unsafe {
+            eprintln!("number of simplifies: {}", COUNTER.lock().unwrap())
+        }
     }
 }
