@@ -28,23 +28,6 @@ type Result<T> = std::result::Result<T, Error>;
 fn parse_pattern(
     mut number_of_local: u32,
     expected_type: &Type,
-    mut tokens: TokenStream,
-    global_vars: &HashMap<String, (usize, Type, bool)>,
-) -> Result<(Pattern, HashMap<String, (u32, Type)>, u32)> {
-    let mut output = HashMap::new();
-    let pattern = parse_pattern_helper(
-        &mut number_of_local,
-        expected_type,
-        &mut output,
-        &mut tokens,
-        global_vars,
-    )?;
-    Ok((pattern, output, number_of_local))
-}
-
-fn parse_pattern2(
-    mut number_of_local: u32,
-    expected_type: &Type,
     tokens: &mut TokenStream,
     global_vars: &HashMap<String, (usize, Type, bool)>,
 ) -> Result<(Pattern, HashMap<String, (u32, Type)>, u32)> {
@@ -245,7 +228,7 @@ pub fn parse_expression(
                 match expected_type {
                     Type::Type(_) => Err(make_error(CompilationError::TypeMismatch, mark)),
                     Type::Function(a, b) => {
-                        let (pattern, local_vars_new, local_vars_count) = parse_pattern2(
+                        let (pattern, local_vars_new, local_vars_count) = parse_pattern(
                             local_vars_count, 
                             &*a, 
                             tokens, 
@@ -317,10 +300,10 @@ pub fn parse_expression(
                 )?;
                 let (token, mark) = next_token(tokens)?.destructure();
                 let indentation = if let Token::NewLine(num) = token { num } else { panic!("no newline") };
-                let mut branch_tokens = get_with_indentation2(tokens, indentation);
+                let mut branch_tokens = get_with_indentation(tokens, indentation);
                 let mut branches: Vec<(Pattern, Expression)> = Vec::new();
                 for branch in branch_tokens.iter_mut() {
-                    let (pattern, local_vars_new, local_vars_count) = parse_pattern2(
+                    let (pattern, local_vars_new, local_vars_count) = parse_pattern(
                         local_vars_count, 
                         &tp, 
                         branch, 
@@ -343,7 +326,7 @@ pub fn parse_expression(
                     branches,
                 })
             }
-            x => {dbg!(x); panic!("f")}
+            _ => Err(make_error(CompilationError::UnexpectedKeyword, mark))
         }
         Token::Word(name) => {
             // peek if the next token is a newline
@@ -369,7 +352,7 @@ pub fn parse_expression(
             while current_type != expected_type {
                 match tokens.peek().unwrap().value {
                     Token::NewLine(indentation) => {
-                        let mut arg_groups = get_with_indentation2(tokens, indentation).into_iter();
+                        let mut arg_groups = get_with_indentation(tokens, indentation).into_iter();
                         while current_type != expected_type {
                             let mut current_tokens = arg_groups.next().expect("fffffffffffff");
                             let (next_type, leftover) = match current_type {
@@ -480,7 +463,6 @@ pub enum Keyword {
     Data,
     Contains,
     Undefined,
-    Dot,
 }
 
 impl std::fmt::Display for Keyword {
@@ -497,7 +479,6 @@ impl std::fmt::Display for Keyword {
             Keyword::Data => write!(f, "data"),
             Keyword::Contains => write!(f, "contains"),
             Keyword::Undefined => write!(f, "undefined"),
-            Keyword::Dot => write!(f, "dot"),
         }
     }
 }
@@ -531,11 +512,13 @@ pub enum CompilationError {
     BadArtLength { width: usize, got: usize },
     BadArtHeight { height: usize, got: usize },
     BadFile(String),
+    UnexpectedEnd
 }
 
 impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
+            Self::UnexpectedEnd => "unexpected end",
             Self::ExpectedKeyword(_) => "expected a keyword",
             Self::Custom(_) => "",
             Self::Empty => "",
@@ -562,6 +545,7 @@ impl ErrorType for CompilationError {
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::UnexpectedEnd => write!(f, "unexpected end to expression"),
             Self::ExpectedKeyword(k) => write!(f, "expected the keyword '{}'", k),
             Self::BadFile(s) => write!(f, "unable to find {s} in this directory"),
             Self::Custom(s) => write!(f, "{s}"),
@@ -603,7 +587,9 @@ pub type TokenStream = std::iter::Peekable<std::vec::IntoIter<Marked<Token>>>;
 
 fn new_tokenstream(mut tokens: Vec<Marked<Token>>) -> TokenStream {
     let mut last_mark = tokens[tokens.len() - 1].mark.clone();
-    last_mark.word_index = Index::EndOfLine;
+    if let Index::Expression(index) = last_mark.word_index {
+        last_mark.word_index = Index::EndOfWord(index);
+    }
     tokens.push(Marked::<Token> {
         value: Token::EndOfBlock,
         mark: last_mark,
@@ -635,7 +621,7 @@ fn next_token(input: &mut TokenStream) -> Result<Marked<Token>> {
     let output = input.next().unwrap();
     if let Token::EndOfBlock = output.value {
         return Err(Error {
-            error_type: Box::new(CompilationError::Empty), 
+            error_type: Box::new(CompilationError::UnexpectedEnd), 
             mark: output.mark
         })
     }
@@ -652,24 +638,7 @@ fn next_word (tokens: &mut TokenStream) -> Result<Marked<String>> {
             
 
 
-fn get_with_indentation(mut input: TokenStream, indentation: u32) -> Vec<TokenStream> {
-    let mut output: Vec<TokenStream> = Vec::new();
-    let mut current: Vec<Marked<Token>> = Vec::new();
-    while let Ok(token) = next_token(&mut input) {
-        if matches!(&token.value, Token::NewLine(i) if *i == indentation) {
-            if !current.is_empty() {
-                output.push(new_tokenstream(current));
-                current = Vec::new();
-            }
-        } else {
-            current.push(token)
-        }
-    }
-    output.push(new_tokenstream(current));
-    output
-}
-
-fn get_with_indentation2(input: &mut TokenStream, indentation: u32) -> Vec<TokenStream> {
+fn get_with_indentation(input: &mut TokenStream, indentation: u32) -> Vec<TokenStream> {
     let mut output: Vec<TokenStream> = Vec::new();
     let mut current: Vec<Marked<Token>> = Vec::new();
     while let Ok(token) = next_token(input) {
@@ -703,7 +672,6 @@ pub fn tokenize(
         ("data", Keyword::Data),
         ("contains", Keyword::Contains),
         ("include", Keyword::Include),
-        ("dot", Keyword::Dot),
         ("...", Keyword::Undefined),
     ]);
     let mut output = Vec::new();
@@ -1121,13 +1089,13 @@ pub fn parse_type(tokens: &mut TokenStream, table: &HashMap<String, u32>) -> Res
 }
 
 pub fn parse_data(
-    tokens: TokenStream,
+    mut tokens: TokenStream,
     types: &HashMap<String, u32>,
     parent_type: u32,
 ) -> Result<Vec<(String, Type)>> {
     let mut output = Vec::new();
     //dbg!("hi");
-    for mut i in get_with_indentation(tokens, INDENTATION).into_iter() {
+    for mut i in get_with_indentation(&mut tokens, INDENTATION).into_iter() {
         let (name, root_mark) = next_word(&mut i)?.destructure();
         let mut arg_types: Vec<Type> = Vec::new();
         while !matches!(i.peek().unwrap().value, Token::EndOfBlock) {

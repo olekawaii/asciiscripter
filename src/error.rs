@@ -65,13 +65,13 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
     let mut length_of_word: usize = 0;
     let mut length_to_word: usize = 0;
     let mut output_string = String::new();
-    match mark.word_index {
-        Index::Expression(size) => {
+    match &mark.word_index {
+        Index::Expression(size) | Index::EndOfWord(size) => {
             let words = (*line).split_whitespace();
             let mut reached = false;
             for (i, word) in words.enumerate() {
                 let word_len = word.chars().count();
-                if i == size {
+                if i == *size {
                     length_of_word = word_len;
                     reached = true;
                 } else {
@@ -85,9 +85,13 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
                 output_string.push_str(word);
                 output_string.push(' ');
             }
+            if matches!(mark.word_index, Index::EndOfWord(_)) {
+                length_to_word += length_of_word;
+                length_of_word = 1;
+            }
         }
         Index::Art(index) => {
-            length_to_word = index;
+            length_to_word = *index;
             length_of_word = 1;
             output_string = line.into();
         }
