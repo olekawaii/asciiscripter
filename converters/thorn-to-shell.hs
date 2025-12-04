@@ -50,23 +50,11 @@ new :: HashMap a b
 new = HashMap []
 
 main :: IO ()
-main = getVideo >>= \(width, height, newGif) ->
-      let
-        file = "output" <> ".sh"
-        shortFile = "short-" <> file
-        (fileSh, command) = formatShell 0.2 width height Nothing . pipeline $ newGif
-      in
-      (
-        if width > 80
-        then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 80 chars in width"
-        else if height > 24
-          then putStrLn "\x1b[33;1mWarning:\x1b[0m video should not be over 24 chars in height"
-          else pure ()
-      ) >>
-      writeFile file fileSh >>
-      writeFile shortFile command >>
-      callCommand ("chmod +x " <> file <> " " <> shortFile) >>
-      putStrLn "\x1b[92mcompiled"
+main = getVideo >>= \(width, height, newGif) -> 
+  let
+    fileSh = fst . formatShell 0.2 width height Nothing . pipeline $ newGif
+  in
+  putStrLn fileSh
 
 legalNameChars = '_' : ['a'..'z'] <> ['0'..'9'] 
 

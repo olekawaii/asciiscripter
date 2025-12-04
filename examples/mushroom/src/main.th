@@ -1,4 +1,4 @@
-include std new_video
+include std video
                                                      
 define main of_type bad_video as into_video
     layer

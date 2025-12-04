@@ -32,8 +32,7 @@ build() {
     if [ -z "$(find . -name output -newer src -newer .ascr)" ]; then
         cd src
         thorn main.th > ../output/thorn-output 
-        cat ../output/thorn-output | thorn-to-shell
-        mv short-output.sh output.sh ../output
+        cat ../output/thorn-output | thorn-to-shell > ../output/output.sh
         cd ..
         sleep 0.05  # to make output newer
         touch output

@@ -1,3 +1,5 @@
+-- This program is a demonstration of algebraic types and lazyness
+
 define main of_type bool as 
     is three infinity
 

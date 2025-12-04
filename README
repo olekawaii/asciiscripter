@@ -1,4 +1,4 @@
-thorn is pure functional programming language for making ascii art animations
+thorn is pure lazy functional programming language for making ascii art animations
 
 check out some examples in the examples/ directory.
 
@@ -11,19 +11,24 @@ INSTALLATION
 
 thorn has no dependencies. You can build it with 
 
-    $ cargo build --release && mv target/release/thorn /bin
+    $ cargo build --release  
+
+The executable is at target/release/thorn. Move it to somewhere in your $PATH
 
 The programs to generate shell scripts and images are found in the converters/
 directory. You can build those with ghc. Once you get those installed, there is
 also a useful shell script 'uwu' in the scripts/ directory to make building 
-your project as quick and easy. You need ffmpeg for generating gifs with uwu.
-All of these are optional. 
+your projects quick and easy. You need ffmpeg for generating gifs with uwu. All 
+of these are optional.
 
-the thorn compiler works like a calculator; it parses and compiles the source
+The thorn compiler works like a calculator. It parses and compiles the source
 code into an internal representation, but afterwards also executes it, printing
 the evaluated main function.
 
-    $ thorn file.th
+    $ thorn main.th | thorn-to-shell | sh
+
+to convert a thorn program to a posix shell animation and play it.
+
 
 
 Expression Syntax
@@ -31,22 +36,23 @@ Expression Syntax
 
 An expression is either a lambda, match, or function with arguments (a tree).
 
-lambda expression
+match expression
 --------------------
 
 All branches must have the same indentation. The mandetory keywords are
 'match', 'with', and 'to'.
 
     .----------------------------------------------------------.
-    | 'match' <expression> 'with'                              |
-    |     <pattern> 'to' <expression>                          |
+    | match <expression> with                                  |
+    |     <pattern> to <expression>                            |
+    |     <pattern> to <expression>                            |
     |     ...                                                  |
     '----------------------------------------------------------'
 
 lambda expression
 --------------------
     .----------------------------------------------------------.
-    | 'lambda' <pattern> <expression>                          |
+    | lambda <pattern> <expression>                            |
     '----------------------------------------------------------'
 
 argument tree
@@ -116,8 +122,8 @@ ALGEBRAIC TYPES
 TYPE ERRORS
 ====================
 
-This language has good and innovative type errors. Consider this example that
-has multiple errors:
+One of the main goals of this language is to have good (and I mean VERY good) 
+errors. Consider this example that has multiple type errors:
 
     .----------------------------------------------------------.
     | define or of_type fn bool fn bool bool as ...            |
@@ -128,8 +134,7 @@ has multiple errors:
     |                                                          |
     | define five of_type int as ...                           |
     |                                                          |
-    | define main of_type int as                               |
-    |     sum five or true five                                | <-
+    | define main of_type int as sum five or true five         | <-
     '----------------------------------------------------------'
 
 There are who issues with this code:
@@ -161,7 +166,7 @@ It is a more logical approach. The bigger error in this program isn't that
 the argumunts to `or` are incorrect, it's that the whole `or` expression
 shouldn't even be there.
 
-This also makes it so errors are found from left to right. if you get an error
+This also makes it so all errors are found from left to right. if you get an error
 at the end of the line, you know that everything that came before it was 
 correct. This also eliminates the painful type errors you get in haskell when 
 you misplace paranthesis.
@@ -190,7 +195,7 @@ two points. Ignore the functions that we haven't defined.
 This is very verbose because we're patternmatching on all the points to get
 their x and y values. However, because the point type only contains one
 variant, we can actually patternmatch directly in the lambda expression 
-like so:
+like so
 
     .----------------------------------------------------------.
     | define distance of_type fn point fn point float as       |
@@ -230,8 +235,8 @@ There are no loops. The only way to 'loop' is to use recursion.
 
 By the way, if you look at the third to last line, the `one` branch returns a 
 `succ` while the 'succ pred_x' branch returs a lambda expression. This is 
-because the `succ` data constructor has the type `fn nat nat` (all data 
-constructors are curried). 
+because the `succ` data constructor is a function. (succ one) has the type (nat) 
+but (succ) has the type (fn nat nat). All data constructors are curried.
 
 Alternatively we could've rewritten `succ` as `lambda x succ x`, which would 
 have the same meaning.
@@ -339,13 +344,13 @@ size and has 2 frames.
 The art macro is expanded into regular code during the tokenization phase.
 
 Every frame is made up of who rectangles, one with the ascii art and the 
-other with the corresponding colors. Colors 0-7 correspond to ansi colors
-black-white, '.' marks transparency, and '/' marks a space.
+other with the corresponding colors. Colors 0..7 correspond to ANSI colors
+black..white, '.' marks transparency, and '/' marks a space.
 
 There is also special syntax for including local/global variables in the
 art. 
 
-To use a color variable you just have to replace the number with the variable
+To use a color variable you just replace the color number with the variable 
 name like so:
 
     .----------------------------------------------------------.
@@ -374,8 +379,17 @@ you can have a custom tail tip for example:
     |   t   ..$...   t  ...$..                                 |
     '----------------------------------------------------------'
 
-You can see how the video type is implemented in the core module and there are
-many useful functions in std.
+note that the character type contains the color as well as the character. Here
+is the implementation in core.th
+
+    .----------------------------------------------------------.
+    | data character contains                                  |
+    |     space                                                |
+    |     char visible_character color                         |
+    '----------------------------------------------------------'
+
+You can see how the video type is implemented in the core.th and there are
+many useful functions in video.th
 
 
 

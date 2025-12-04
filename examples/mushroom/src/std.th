@@ -1,4 +1,4 @@
-include core new_video
+include core video
 
 data direction contains
     north
