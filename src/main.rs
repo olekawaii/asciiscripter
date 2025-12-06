@@ -65,7 +65,7 @@ fn main() -> std::io::Result<()> {
                 map.insert(index as u32, name);
             }
             eprintln!("\x1b[95mbuilt expression\x1b[0m");
-            main.print(&map);
+            main.print(&mut map);
             //let mut output = String::new();
             //convert_to_file(&main, &map, &mut output);
             //println!("{output}");
@@ -91,7 +91,7 @@ fn build_monolithic_expression(
 
 fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Expression) {
     match expression {
-        Expression::Tree { root, arguments } => {
+        Expression::Tree { root, arguments, ..} => {
             arguments.iter_mut().for_each(|x| monolithic_helper(vec, x));
             match root {
                 Id::DataConstructor(_) | Id::LambdaArg(_) => (),
@@ -104,8 +104,8 @@ fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Express
                 }
             }
         }
-        Expression::Match { pattern, branches } => {
-            monolithic_helper(vec, pattern);
+        Expression::Match { matched_on, branches } => {
+            monolithic_helper(vec, matched_on);
             for (_, exp) in branches.iter_mut() {
                 monolithic_helper(vec, exp);
             }

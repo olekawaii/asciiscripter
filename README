@@ -3,7 +3,7 @@ thorn is pure lazy functional programming language for making ascii art animatio
 check out some examples in the examples/ directory.
 
 There are currently no generics or type classes so it's a pain to use, but
-those are relatively easy to implement in the future.
+they'll be relatively easy to implement in the future.
 
 
 INSTALLATION

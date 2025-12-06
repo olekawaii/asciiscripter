@@ -31,7 +31,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} {}\n{}",
+            "\x1b[91m{} error\x1b[0m {}\n{}",
             self.error_type.phase(),
             show_mark(self.mark.clone(), self.error_type.gist()),
             self.error_type
@@ -106,7 +106,7 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
     underline.push_str(message);
     let empty_space = " ".repeat(indentation);
     format!(
-        "error in {}{}\n\x1b[91m{}|\n{} | \x1b[0m{}\n\x1b[91m{}| {}\x1b[0m",
+        "in {}{}\n\x1b[91m{}|\n{} | \x1b[0m{}\n\x1b[91m{}| {}\x1b[0m",
         mark.file_name,
         //mark.line + 1,
         match &mark.block {
