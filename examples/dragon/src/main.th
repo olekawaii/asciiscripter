@@ -1,4 +1,3 @@
 include dragon
 
 define main of_type bad_video as into_video dragon
-

@@ -1,5 +1,5 @@
--- This program evaluates an infinite datastructure. Note that the 
--- memory usage stays constant as the it's perpetually printed.
+-- This program evaluates an infinite typestructure. Note that the 
+-- memory usage stays constant as the it's being printed.
 
 define main of_type nat as sum infinity infinity
 
@@ -8,7 +8,7 @@ define sum of_type fn nat fn nat nat as
         one     to succ
         succ a  to lambda y succ sum a y
 
-data nat contains
+type nat contains
     one
     succ nat
 
