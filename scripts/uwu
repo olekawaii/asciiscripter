@@ -46,7 +46,7 @@ make_gif() {
     ffmpeg -i output%05d.ppm -vf palettegen=max_colors=8 palette.png
     ffmpeg -framerate $fps -i output%05d.ppm -i palette.png \
         -lavfi "paletteuse=dither=none" output.gif
-    mv output.gif ../output
+    mv output.gif output
     rm *.png *.ppm
 }
 

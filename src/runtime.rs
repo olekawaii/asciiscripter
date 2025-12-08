@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-static COUNTER: Mutex<u32> = Mutex::new(0);
+//static COUNTER: Mutex<u32> = Mutex::new(0);
 
 use crate::error::{Error, ErrorType, Mark};
 use std::sync::{Arc, Mutex};
@@ -62,7 +62,7 @@ fn build_thunk(mut input: Expression) -> Arc<Mutex<Expression>> {
 
 fn actually_optimize(input: &mut Expression) {
     match input {
-        Expression::Tree { root, arguments} => {
+        Expression::Tree { arguments, .. } => {
             arguments.iter_mut().for_each(optimize_expression);
         }
         Expression::Lambda { pattern: Pattern::Dropped, body } => optimize_expression(body),
@@ -327,7 +327,7 @@ impl Expression {
     // structures. It's also able to print stuff like infinity (succ succ ...)
     // without eating memory at all.
     
-    pub fn print(mut self, names: &mut HashMap<u32, String>) {
+    pub fn print(self, names: &mut HashMap<u32, String>) {
         let mut cache = HashMap::new();
         let mut to_evaluate: Vec<Expression> = vec![self];
         while let Some(mut x) = to_evaluate.pop() {

@@ -15,6 +15,10 @@ import Data.List (find, nub, transpose, sortOn, intercalate)
 import Text.Read (readMaybe) 
 import Parse
 
+fontWidth  = 9
+fontHeight = 14
+padding     = 20
+
 showNum :: Int -> String
 showNum x = take (5 - length s) (cycle ['0']) <> s
   where s = show x
@@ -28,15 +32,21 @@ makeFiles header (x:xs) n = writeFile fileName content >> makeFiles header xs (n
 
 main :: IO ()
 main = getVideo >>= \(width, height, newGif) ->
-        let gifFrames = map pipelineGif newGif in
-        let header = "P3\n" <> show (width * 9) <> " " <> show (height * 14) <> "\n255\n" in
+        let 
+            horizontalPixels = width  * fontWidth  + padding * 2 
+            verticalPixels   = height * fontHeight + padding * 2 
+            gifFrames = map (flip pipelineGif horizontalPixels) newGif 
+            header = "P3\n" <> show (horizontalPixels) <> " " <> show (verticalPixels) <> "\n255\n"
+        in
         makeFiles header gifFrames 0
 
-pipelineGif :: [[Character]] -> String
-pipelineGif = unlines . map showColor . uwu
+pipelineGif :: [[Character]] -> Int -> String
+pipelineGif x y = unlines . map showColor . surround . uwu $ x
+    where surround x = let lns = replicate (y * padding) Black in lns <> x <> lns
 
 uwu :: [[Character]] -> [Color]
-uwu x = concat . map (concat . foldr1 combine . map toBitmap) $ x
+uwu x = concat . map (concat . map surround . foldr1 combine . map toBitmap) $ x
+    where surround x = replicate padding Black <> x <> replicate padding Black
 
 combine :: [[Color]] -> [[Color]] -> [[Color]] 
 combine x y = map (uncurry (++)) $ zip x y

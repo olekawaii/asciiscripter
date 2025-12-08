@@ -1,8 +1,8 @@
+define main of_type bool as is_equal three infinity
+
 type bool contains
     true
     false
-
-define main of_type bool as is_equal three infinity
 
 type nat contains
     zero
