@@ -87,15 +87,15 @@ ALGEBRAIC TYPES
 ====================
 
     .----------------------------------------------------------.
-    | data bool contains                                       |
+    | type bool contains                                       |
     |     true                                                 |
     |     false                                                |
     |                                                          |
-    | data list_of_bools contains                              |
+    | type list_of_bools contains                              |
     |     empty_list                                           |
     |     prepend bool list_of_bools                           |
     |                                                          |
-    | data maybe_bool contains                                 |
+    | type maybe_bool contains                                 |
     |     none                                                 |
     |     some bool                                            |
     |                                                          |
@@ -180,7 +180,7 @@ Consider the following function that finds the distance between
 two points. Ignore the functions that we haven't defined.
 
     .----------------------------------------------------------.
-    | data point contains                                      |
+    | type point contains                                      |
     |     point int int                                        |
     |                                                          |
     | define distance of_type fn point fn point float as       |
@@ -220,7 +220,7 @@ There are no loops. The only way to 'loop' is to use recursion.
     |         three                          .----------------------.
     |         succ one                       | one              = 1 |
     |                                        | succ one         = 2 |
-    | data nat contains                      | succ (succ one)  = 3 |
+    | type nat contains                      | succ (succ one)  = 3 |
     |     one                                | and so on            |
     |     succ nat                           '----------------------'
     |                                                          .
@@ -255,7 +255,7 @@ To evaluate an expression, it is rewritten until it starts with a
 data constructor.
 
     .----------------------------------------------------------.
-    | data tuple_of_nats contains                              |
+    | type tuple_of_nats contains                              |
     |     tuple nat nat                                        |
     |                                                          |
     | define is_equal of_type fn nat fn nat bool as            |
@@ -383,7 +383,7 @@ note that the character type contains the color as well as the character. Here
 is the implementation in core.th
 
     .----------------------------------------------------------.
-    | data character contains                                  |
+    | type character contains                                  |
     |     space                                                |
     |     char visible_character color                         |
     '----------------------------------------------------------'
