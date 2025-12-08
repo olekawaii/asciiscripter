@@ -5,6 +5,9 @@ check out some examples in the examples/ directory.
 There are currently no generics or type classes so it's a pain to use, but
 they'll be relatively easy to implement in the future.
 
+It's still in active development. If you encounter any bugs or issues, please
+let me know.
+
 
 INSTALLATION
 ====================
@@ -345,7 +348,7 @@ The art macro is expanded into regular code during the tokenization phase.
 
 Every frame is made up of who rectangles, one with the ascii art and the 
 other with the corresponding colors. Colors 0..7 correspond to ANSI colors
-black..white, '.' marks transparency, and '/' marks a space.
+black..white, '.' marks transparency, and '|' marks a space.
 
 There is also special syntax for including local/global variables in the
 art. 
