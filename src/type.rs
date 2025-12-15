@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::HashMap;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Type(u32),
@@ -68,5 +70,26 @@ impl Type {
                 Type::Type(_) => return args,
             }
         }
+    }
+    pub fn show(&self, types: &HashMap<String, u32>) -> String {
+        fn helper(tp: &Type, types: &HashMap<&u32, &String>, output: &mut String) {
+            match tp {
+                Type::Type(a) => {
+                    let name = types.get(a).unwrap(); // safe
+                    output.push_str(name);
+                    output.push(' ')
+                }
+                Type::Function(a, b) => {
+                    output.push_str("fn ");
+                    helper(a, types, output);
+                    helper(b, types, output);
+                }
+            }
+        }
+        let mut output = String::new();
+        let mut new_map = HashMap::new();
+        types.iter().for_each(|(k, w)| { new_map.insert(w, k); });
+        helper(self, &new_map, &mut output);
+        output
     }
 }
