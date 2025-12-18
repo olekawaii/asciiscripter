@@ -113,6 +113,7 @@ as
 
 define row_to_frame of_type fn nat fn int fn fn nat int fn row bad_frame as
     lambda index lambda y lambda sign lambda r match r with
+        empty_row           to empty_frame
         cons_row head tail  to
             apply_to_frame
                 match head with
@@ -120,7 +121,6 @@ define row_to_frame of_type fn nat fn int fn fn nat int fn row bad_frame as
                     full_grid_cell x  to
                         unsafe_cons_cell cell coordinate sign index y x
                 row_to_frame succ index y sign tail
-        empty_row           to empty_frame
 
 define column_to_frame of_type fn nat fn fn nat int fn column bad_frame as
     lambda index lambda sign lambda col match col with
@@ -269,13 +269,12 @@ define loop_video_forever of_type fn video video as
 
 define layer_helper of_type fn video fn video video as
     lambda x lambda y match x with
-        cons_video head_a tail_a  to match y with
+        cons_video head_a tail_a to match y with
             nil_video                 to nil_video
-            cons_video head_b tail_b  to
-                cons_video
-                    layer_frames head_a head_b
-                    layer_helper tail_a tail_b
-        nil_video                 to nil_video
+            cons_video head_b tail_b  to cons_video
+                layer_frames head_a head_b
+                layer_helper tail_a tail_b
+        nil_video to nil_video
 
 define by of_type fn nat fn fn video video fn video video as
     lambda counter lambda fn lambda vid match counter with
@@ -289,10 +288,10 @@ define rotate of_type fn video video as
 
 define slow of_type fn nat fn video video as
     lambda num lambda vid match vid with
+        nil_video             to nil_video
         cons_video head tail  to seq
             take num loop_video_forever cons_video head nil_video
             slow num tail
-        nil_video             to nil_video
 
 define over_y_hor of_type fn horizontal horizontal as
     lambda horizontal a b c horizontal

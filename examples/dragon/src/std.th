@@ -211,11 +211,10 @@ as
         none_list_whole    to none_list_whole
 
 define greater of_type fn nat fn nat bool as 
-    lambda a lambda b match a with
-        succ c  to match b with
-            succ d  to greater c d
-            one     to true
-        one     to false
+    lambda a lambda b match tuple_nat_nat a b with
+        tuple_nat_nat succ _ one     to true
+        tuple_nat_nat succ a succ b  to greater a b
+        _                            to false
 
 define divisible of_type fn whole fn whole bool as
     lambda x lambda y match divide_exactly x y with

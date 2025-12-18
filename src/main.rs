@@ -94,7 +94,7 @@ fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Express
         Expression::Tree { root, arguments, ..} => {
             arguments.iter_mut().for_each(|x| monolithic_helper(vec, x));
             match root {
-                Id::DataConstructor(_) | Id::LambdaArg(_) => (),
+                Id::DataConstructor(_) | Id::LocalVarPlaceholder(_) => (),
                 Id::Thunk(x) => {
                     let ptr = &mut (*x).lock().unwrap();
                     monolithic_helper(vec, ptr);

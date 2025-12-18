@@ -27,12 +27,10 @@ const INDENTATION: u32 = 4;
 
 type Result<T> = std::result::Result<T, Error>;
 
-type LocalVars = HashMap<String, (u32, Type)>;
+type LocalVars = HashMap<String, (u32, Type, Mark)>;
 type GlobalVars = HashMap<String, (usize, Type, bool)>;
 
-pub fn parse_file(
-    file_name: Marked<String>,
-) -> Result<(Vec<Expression>, GlobalVars)> {
+pub fn parse_file( file_name: Marked<String>,) -> Result<(Vec<Expression>, GlobalVars)> {
     let mut temp_vec = HashSet::new();
     let blocks = get_tokens(file_name, &mut temp_vec)?;
     let (type_blocks, values): (Vec<(Signiture, TokenStream)>, _) = blocks
@@ -103,7 +101,6 @@ pub fn parse_file(
     Ok((global_vars, global_vars_dummy))
 }
 
-
 fn parse_pattern(
     mut number_of_local: u32,
     expected_type: &Type,
@@ -130,12 +127,12 @@ fn parse_pattern_helper(
     tokens: &mut TokenStream,
     global_vars: &GlobalVars,
 ) -> Result<Pattern> {
-    let (name, _mark) = next_word(tokens)?.destructure();
+    let (name, mark) = next_word(tokens)?.destructure();
     if name.starts_with('_') {
         return Ok(Pattern::Dropped)
     }
-    if let Some((id, tp, is_constructor)) = global_vars.get(&name) {
-        if !expected_type.is_a_function()
+    if let Some((id, tp, is_constructor)) = global_vars.get(&name)
+        && !expected_type.is_a_function()
         && *is_constructor
         && Type::Type(tp.final_type()) == *expected_type {
             let mut patterns = Vec::new();
@@ -149,15 +146,37 @@ fn parse_pattern_helper(
                 )?)
             }
             Ok(Pattern::DataConstructor(*id as u32, patterns))
-        } else {
-            *number_of_local += 1;
-            output.insert(name, (*number_of_local, expected_type.clone()));
-            Ok(Pattern::Captured(*number_of_local))
-        }
     } else {
         *number_of_local += 1;
-        output.insert(name, (*number_of_local, expected_type.clone()));
+        output.insert(name, (*number_of_local, expected_type.clone(), mark));
         Ok(Pattern::Captured(*number_of_local))
+    }
+}
+
+fn is_used(expression: &Expression, id: u32) -> bool {
+    match expression {
+        Expression::Undefined { .. } => true,
+        Expression::Lambda { body, .. } => is_used(&*body, id),
+        Expression::Tree {root, arguments} => {
+            if let Id::LocalVarPlaceholder(x) = root && *x == id {
+                return true
+            }
+            for i in arguments.iter() {
+                if is_used(i, id) {
+                    return true
+                }
+            }
+            false
+        }
+        Expression::Match { matched_on, branches } => {
+            if is_used(&*matched_on, id) { return true }
+            for (pattern, expr) in branches.iter() {
+                if is_used(expr, id) {
+                    return true
+                }
+            }
+            false
+        }
     }
 }
 
@@ -252,9 +271,8 @@ pub fn parse_roman_numeral(numeral: &str) -> Option<u32> {
         let pattern_len = pattern.len();
         let numeral_len = numeral.len() - starting_index;
         if numeral_len == 0 {
-            return Some(output);
-        };
-        if numeral_len < pattern_len
+            return Some(output)
+        } else if numeral_len < pattern_len
             || &numeral[starting_index..starting_index + pattern_len] != pattern
         {
             tuple = numerals.pop()?;
@@ -308,6 +326,7 @@ pub fn parse_expression(
                         )?;
                         //validate_patterns(vec![(pattern.clone(), mark)], constructors, global_vars, keyword_mark)?;
                         local_vars_new
+                            .clone()
                             .into_iter()
                             .for_each(|(k, v)| { local_vars.insert(k, v); });
                         let body = parse_expression(
@@ -319,6 +338,11 @@ pub fn parse_expression(
                             types,
                             constructors
                         )?;
+                        for (_, (id, _tp, mark)) in local_vars_new.into_iter() {
+                            if !is_used(&body, id) {
+                                return Err(make_error(CompilationError::NotUsed, mark))
+                            }
+                        }
                         Ok(Expression::Lambda {
                             pattern,
                             body: Box::new(body),
@@ -335,8 +359,8 @@ pub fn parse_expression(
                         parse_type(tokens, types)?
                     }
                     Token::Word(first_name) => {
-                        let (_, root_type) = if let Some((a, b)) = local_vars.get(&first_name) {
-                            (Id::LambdaArg(*a), b)
+                        let (_, root_type) = if let Some((a, b, m)) = local_vars.get(&first_name) {
+                            (Id::LocalVarPlaceholder(*a), b)
                         } else if let Some((a, b, c)) = global_vars.get(&first_name) {(
                             if *c { Id::DataConstructor(*a as u32) } else { Id::Variable(*a) },
                             b,
@@ -354,14 +378,14 @@ pub fn parse_expression(
                 loop {
                     let token = next_token(tokens)?;
                     match &token.value {
+                        Token::Keyword(Keyword::With) if unmatched_matches == 0 => break,
                         Token::Keyword(Keyword::With) => {
-                            if unmatched_matches == 0 {
-                                break;
-                            } else {
-                                unmatched_matches -= 1;
-                                matched_on_tokens.push(token);
-                                // check if it's negative
+                            unmatched_matches -= 1;
+                            // technically should never happen
+                            if unmatched_matches < 0 {
+                                return Err(make_error(CompilationError::UnexpectedKeyword, token.mark))
                             }
+                            matched_on_tokens.push(token);
                         }
                         Token::Keyword(Keyword::Match) => {
                             unmatched_matches += 1;
@@ -381,7 +405,7 @@ pub fn parse_expression(
                     constructors
                 )?;
                 let (token, _mark) = next_token(tokens)?.destructure();
-                let indentation = if let Token::NewLine(num) = token { num } else { panic!("no newline") };
+                let Token::NewLine(indentation) = token else { panic!("no newline") };
                 let mut branch_tokens = get_with_indentation(tokens, indentation);
                 let mut branches: Vec<(Pattern, Expression)> = Vec::with_capacity(branch_tokens.len());
                 let mut patterns = Vec::new();
@@ -392,17 +416,23 @@ pub fn parse_expression(
                         branch, 
                         global_vars
                     )?;
-                    local_vars_new.into_iter().for_each(|(k, v)| { local_vars.insert(k, v); });
+                    let mut loc = local_vars.clone();
+                    local_vars_new.clone().into_iter().for_each(|(k, v)| { loc.insert(k, v); });
                     expect_keyword(branch, Keyword::To)?;
                     let body = parse_expression(
                         expected_type.clone(),
                         branch, 
-                        local_vars.clone(), 
+                        loc,
                         local_vars_count, 
                         global_vars, 
                         types,
                         constructors
                     )?;
+                    for (_, (id, _tp, mark)) in local_vars_new.into_iter() {
+                        if !is_used(&body, id) {
+                            return Err(make_error(CompilationError::NotUsed, mark))
+                        }
+                    }
                     patterns.push((pattern.clone(), mark));
                     branches.push((pattern, body))
                 }
@@ -416,8 +446,8 @@ pub fn parse_expression(
         }
         Token::Word(name) => {
             // peek if the next token is a newline
-            let (root_id, root_type) = if let Some((a, b)) = local_vars.get(&name) {
-                (Id::LambdaArg(*a), b)
+            let (root_id, root_type) = if let Some((a, b, m)) = local_vars.get(&name) {
+                (Id::LocalVarPlaceholder(*a), b)
             } else if let Some((a, b, c)) = global_vars.get(&name) {
                 (
                     if *c {
@@ -588,6 +618,7 @@ impl<T> Marked<T> {
 pub enum CompilationError {
     //RedundantPattern,
     //PartialPattern,
+    NotUsed,
     ExpectedMoreArguments,
     Custom(String),
     InvalidName,
@@ -610,6 +641,7 @@ pub enum CompilationError {
 impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
+            Self::NotUsed => "local variable never used",
             Self::MultipleDeclorations => "multiple declorations",
             //Self::PartialPattern => "not all patterns covered",
             //Self::RedundantPattern => "redundent pattern",
@@ -640,6 +672,7 @@ impl ErrorType for CompilationError {
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::NotUsed => write!(f, "consider prepending it with an '_' to drop the value"),
             //Self::RedundantPattern => write!(f, "this branch will never be reached"),
             Self::ColorOnSpace => write!(f, "colors can not be used on spaces. instead use . or |"),
             Self::TranspOnChar => write!(f, "colors . and | can only be used with spaces to mark transparency"),
@@ -702,7 +735,6 @@ fn expect_keyword(tokens: &mut TokenStream, keyword: Keyword) -> Result<()> {
         _ => Err(make_error(CompilationError::ExpectedKeyword(keyword), mark))
     }
 }
-
 
 fn next_non_newline(input: &mut TokenStream) -> Result<Marked<Token>> {
     remove_leading_newlines(input);
