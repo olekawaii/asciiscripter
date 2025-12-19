@@ -618,6 +618,7 @@ impl<T> Marked<T> {
 pub enum CompilationError {
     //RedundantPattern,
     //PartialPattern,
+    InvalidColor,
     NotUsed,
     ExpectedMoreArguments,
     Custom(String),
@@ -642,6 +643,7 @@ impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
             Self::NotUsed => "local variable never used",
+            Self::InvalidColor => "invalid color",
             Self::MultipleDeclorations => "multiple declorations",
             //Self::PartialPattern => "not all patterns covered",
             //Self::RedundantPattern => "redundent pattern",
@@ -695,7 +697,7 @@ impl std::fmt::Display for CompilationError {
                 f, 
                 "expected a value of type \x1b[95m{tp}\x1b[0mhowever this can never evaluate to it",
             ),
-            _ => todo!(),
+            _ => write!(f, "todo")
         }
     }
 }
@@ -922,6 +924,7 @@ fn build_tokens_from_art(
             }
             output.push(build_token("one", &mark));
             match (c1_char, c2_char) {
+                (_, ' ') => return Err(make_error(CompilationError::InvalidColor, c2.mark)),
                 (' ', '|') => {
                     output.push(Marked::<Token> {
                         mark: c1.mark,
