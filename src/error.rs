@@ -31,7 +31,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "\x1b[91m{} error\x1b[0m {}\n{}",
+            "\n\x1b[91m{} error\x1b[0m {}\n\x1b[90m\n{}\x1b[0m\n",
             self.error_type.phase(),
             show_mark(self.mark.clone(), self.error_type.gist()),
             self.error_type
@@ -65,6 +65,7 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
     let mut length_of_word: usize = 0;
     let mut length_to_word: usize = 0;
     let mut output_string = String::new();
+    let mut line_before: String = String::new();
     match &mark.word_index {
         Index::Expression(size) | Index::EndOfWord(size) => {
             let words = (*line).split_whitespace();
@@ -89,6 +90,7 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
             }
         }
         Index::Art(index) => {
+            line_before = format!("\x1b[90m{}", mark.file[mark.line - 1]);
             length_to_word = *index;
             length_of_word = 1;
             output_string = line.into();
@@ -106,7 +108,7 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
     underline.push_str(message);
     let empty_space = " ".repeat(indentation);
     format!(
-        "in {}{}\n\x1b[91m{}|\n{} | \x1b[0m{}\n\x1b[91m{}| {}\x1b[0m",
+        "in {}{}\n\x1b[91m{}| {}\n\x1b[91m{} | \x1b[0m{}\n\x1b[91m{}| {}\x1b[0m",
         mark.file_name,
         //mark.line + 1,
         match &mark.block {
@@ -114,6 +116,7 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
             Some(name) => format!(", in the definition of {}", (*name).clone()),
         },
         &empty_space,
+        line_before,
         mark.line + 1,
         output_string,
         &empty_space,

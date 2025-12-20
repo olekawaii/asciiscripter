@@ -23,13 +23,11 @@ use std::{
 mod error;
 mod parse;
 mod runtime;
-mod r#type;
 
 use crate::{
     error::{Mark, Index},
-    parse::{parse_file, Marked},
+    parse::{parse_file, Marked, Type},
     runtime::{Expression, /*COUNTER,*/ Id},
-    r#type::Type,
 };
 
 fn main() -> std::io::Result<()> {

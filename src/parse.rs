@@ -16,10 +16,9 @@
 
 use crate::error::{Error, ErrorType, Index, Mark};
 use crate::runtime::{Expression, Id, Pattern};
-use crate::r#type::Type;
 use std::collections::{HashMap, HashSet};
 use std::fs::read_to_string;
-use std::sync::Arc;
+use std::sync::{Mutex, Arc};
 
 use crate::runtime::optimize_expression;
 
@@ -29,6 +28,8 @@ type Result<T> = std::result::Result<T, Error>;
 
 type LocalVars = HashMap<String, (u32, Type, Mark)>;
 type GlobalVars = HashMap<String, (usize, Type, bool)>;
+
+static TYPES: Mutex<Option<HashMap<String, u32>>> = Mutex::new(None);
 
 pub fn parse_file( file_name: Marked<String>,) -> Result<(Vec<Expression>, GlobalVars)> {
     let mut temp_vec = HashSet::new();
@@ -52,13 +53,17 @@ pub fn parse_file( file_name: Marked<String>,) -> Result<(Vec<Expression>, Globa
         }
         data_blocks.push((number_of_types, tokens));
     }
+    {
+        let mut ptr = TYPES.lock().unwrap();
+        *ptr = Some(types);
+    }
     let mut number_of_values = 0;
     let mut global_vars_dummy: GlobalVars = HashMap::new();
     let mut global_vars: Vec<Expression> = Vec::with_capacity(data_blocks.len());
     let mut constructors: HashMap<u32, HashSet<usize>> = HashMap::new();
     for (tp, tokens) in data_blocks.into_iter() {
         let mut set = HashSet::new();
-        for (num, (name, constructor_tp, name_mark)) in parse_data(tokens, &types, tp)?.into_iter().enumerate() {
+        for (num, (name, constructor_tp, name_mark)) in parse_data(tokens, tp)?.into_iter().enumerate() {
             set.insert(number_of_values);
             if global_vars_dummy.insert(name, (number_of_values, constructor_tp, true)).is_some() {
                 return Err(make_error(CompilationError::MultipleDeclorations, name_mark))
@@ -75,7 +80,7 @@ pub fn parse_file( file_name: Marked<String>,) -> Result<(Vec<Expression>, Globa
     let mut vals: Vec<(Type, TokenStream)> = Vec::with_capacity(values.len());
     for (signiture, tokens) in values.into_iter() {
         let Signiture::Value(name, name_mark, mut type_tokens) = signiture else { unreachable!() };
-        let tp = parse_type(&mut type_tokens, &types)?;
+        let tp = parse_type(&mut type_tokens)?;
         if global_vars_dummy.insert(name, (number_of_values, tp.clone(), false)).is_some() {
             return Err(make_error(CompilationError::MultipleDeclorations, name_mark))
         }
@@ -91,7 +96,6 @@ pub fn parse_file( file_name: Marked<String>,) -> Result<(Vec<Expression>, Globa
                 HashMap::new(), 
                 0, 
                 &global_vars_dummy, 
-                &types, 
                 &constructors
             )?;
             optimize_expression(&mut e);
@@ -303,7 +307,6 @@ pub fn parse_expression(
     mut local_vars:        LocalVars,
     local_vars_count:      u32,
     global_vars:           &GlobalVars,
-    types:                 &HashMap<String, u32>,
     constructors:          &HashMap<u32, HashSet<usize>>
 ) -> Result<Expression> {
     let (token, keyword_mark) = next_non_newline(tokens)?.destructure();
@@ -313,8 +316,8 @@ pub fn parse_expression(
             Keyword::Undefined => Ok(Expression::Undefined { mark: keyword_mark }),
             Keyword::Lambda => {
                 match expected_type {
-                    Type::Type(_) => Err(make_error(
-                        CompilationError::TypeMismatch(expected_type.show(types)), 
+                    Type::Type(t) => Err(make_error(
+                        CompilationError::TypeMismatch(expected_type, None), 
                         keyword_mark
                     )),
                     Type::Function(a, b) => {
@@ -335,7 +338,6 @@ pub fn parse_expression(
                             local_vars, 
                             local_vars_count, 
                             global_vars, 
-                            types,
                             constructors
                         )?;
                         for (_, (id, _tp, mark)) in local_vars_new.into_iter() {
@@ -356,7 +358,7 @@ pub fn parse_expression(
                 let tp = match value {
                     Token::Keyword(Keyword::OfType) => {
                         tokens.next(); // safe
-                        parse_type(tokens, types)?
+                        parse_type(tokens)?
                     }
                     Token::Word(first_name) => {
                         let (_, root_type) = if let Some((a, b, m)) = local_vars.get(&first_name) {
@@ -401,7 +403,6 @@ pub fn parse_expression(
                     local_vars.clone(), 
                     local_vars_count, 
                     global_vars, 
-                    types,
                     constructors
                 )?;
                 let (token, _mark) = next_token(tokens)?.destructure();
@@ -425,7 +426,6 @@ pub fn parse_expression(
                         loc,
                         local_vars_count, 
                         global_vars, 
-                        types,
                         constructors
                     )?;
                     for (_, (id, _tp, mark)) in local_vars_new.into_iter() {
@@ -461,7 +461,10 @@ pub fn parse_expression(
                 return Err(make_error(CompilationError::NotInScope, keyword_mark))
             };
             if !root_type.is_possible(&expected_type) {
-                return Err(make_error(CompilationError::TypeMismatch(expected_type.show(types)), keyword_mark))
+                return Err(make_error(
+                    CompilationError::TypeMismatch( expected_type, Some(root_type.clone())), 
+                    keyword_mark
+                ))
             }
             let mut output_args = Vec::new();
             let mut current_type = root_type.to_owned();
@@ -484,7 +487,6 @@ pub fn parse_expression(
                                 local_vars.clone(),
                                 local_vars_count,
                                 global_vars,
-                                types,
                                 constructors
                             )?;
                             output_args.push(next_arg);
@@ -503,7 +505,6 @@ pub fn parse_expression(
                             local_vars.clone(),
                             local_vars_count,
                             global_vars,
-                            types,
                             constructors
                         )?;
                         output_args.push(next_arg);
@@ -624,7 +625,7 @@ pub enum CompilationError {
     Custom(String),
     InvalidName,
     NotInScope,
-    TypeMismatch(String),
+    TypeMismatch(Type, Option<Type>),
     ExpectedRoman,
     UnexpectedKeyword,
     ExpectedKeyword(Keyword),
@@ -656,7 +657,7 @@ impl ErrorType for CompilationError {
             Self::Custom(_) => "",
             Self::InvalidName => "invalid name",
             Self::NotInScope => "not in scope",
-            Self::TypeMismatch(_) => "of unexpected type",
+            Self::TypeMismatch(_, _) => "of unexpected type",
             Self::ExpectedRoman => "expected a roman numeral",
             Self::UnexpectedKeyword => "unexpected keyword",
             //Self::TrailingCharacters => "trailing characters",
@@ -693,9 +694,18 @@ impl std::fmt::Display for CompilationError {
                 f,
                 "expected number of lines to be divisible hy {height}, but it has {got} lines",
             ),
-            Self::TypeMismatch(tp) => write!(
+            Self::TypeMismatch(tp1, tp2) => write!(
                 f, 
-                "expected a value of type \x1b[95m{tp}\x1b[0mhowever this can never evaluate to it",
+                "expected a value of type \x1b[97m{}\x1b[90mhowever this value can never evaluate to it{}",
+                tp1.show(),
+                if let Some(tp2) = tp2 {
+                    format!(
+                        ".\nit is of type \x1b[97m{}\x1b[90m",
+                        tp2.show()
+                    )
+                } else {
+                    String::new()
+                }
             ),
             _ => write!(f, "todo")
         }
@@ -1141,16 +1151,17 @@ fn make_error(error: CompilationError, mark: Mark) -> Error {
     }
 }
 
-pub fn parse_type(tokens: &mut TokenStream, table: &HashMap<String, u32>) -> Result<Type> {
+pub fn parse_type(tokens: &mut TokenStream) -> Result<Type> {
     let (word, mark) = next_word(tokens)?.destructure();
     match word.as_str() {
         "fn" => {
-            let arg1 = parse_type(tokens, table)?;
-            let arg2 = parse_type(tokens, table)?;
+            let arg1 = parse_type(tokens)?;
+            let arg2 = parse_type(tokens)?;
             Ok(Type::Function(Box::new(arg1), Box::new(arg2)))
         }
         word => {
-            let index = table.get(word).ok_or(Error {
+            let ptr = TYPES.lock().unwrap();
+            let index = ptr.as_ref().unwrap().get(word).ok_or(Error {
                 mark,
                 error_type: Box::new(CompilationError::NotInScope),
             })?;
@@ -1161,7 +1172,6 @@ pub fn parse_type(tokens: &mut TokenStream, table: &HashMap<String, u32>) -> Res
 
 pub fn parse_data(
     mut tokens: TokenStream,
-    types: &HashMap<String, u32>,
     parent_type: u32,
 ) -> Result<Vec<(String, Type, Mark)>> {
     let mut output = Vec::new();
@@ -1170,7 +1180,7 @@ pub fn parse_data(
         let (name, name_mark) = next_word(&mut i)?.destructure();
         let mut arg_types: Vec<Type> = Vec::new();
         while !matches!(i.peek().unwrap().value, Token::EndOfBlock) {
-            arg_types.push(parse_type(&mut i, types)?)
+            arg_types.push(parse_type(&mut i)?)
         }
         let mut args = arg_types.into_iter();
         output.push((name, build_type(&mut args, Type::Type(parent_type)), name_mark));
@@ -1185,3 +1195,81 @@ pub fn build_type(input: &mut impl Iterator<Item = Type>, result: Type) -> Type 
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Type {
+    Type(u32),
+    Function(Box<Type>, Box<Type>),
+}
+
+impl Type {
+    pub fn is_a_function(&self) -> bool {
+        match self {
+            Self::Type(_) => false,
+            Self::Function(_, _) => true,
+        }
+    }
+
+    pub fn final_type(&self) -> u32 {
+        match self {
+            Self::Type(x) => *x,
+            Self::Function(_, b) => b.final_type(),
+        }
+    }
+
+    pub fn is_possible(&self, test: &Self) -> bool {
+        *self == *test
+            || match self {
+                Self::Type(_) => false,
+                Self::Function(_, output) => output.is_possible(test),
+            }
+    }
+
+    //pub fn apply_type(self, arg: Self) -> Option<Self> {
+    //    match self {
+    //        Self::Type(u32) => None,
+    //        Self::Function(x, y) => {
+    //            if arg == *x {
+    //                Some(*y)
+    //            } else {
+    //                None
+    //            }
+    //        }
+    //    }
+    //}
+
+    pub fn arg_types(self) -> Vec<Type> {
+        let mut args = Vec::new();
+        let mut current_type = self;
+        loop {
+            match current_type {
+                Type::Function(a, b) => {
+                    args.push(*a);
+                    current_type = *b;
+                }
+                Type::Type(_) => return args,
+            }
+        }
+    }
+    pub fn show(&self) -> String {
+        fn helper(tp: &Type, types: &HashMap<&u32, &String>, output: &mut String) {
+            match tp {
+                Type::Type(a) => {
+                    let name = types.get(a).unwrap(); // safe
+                    output.push_str(name);
+                    output.push(' ')
+                }
+                Type::Function(a, b) => {
+                    output.push_str("fn ");
+                    helper(a, types, output);
+                    helper(b, types, output);
+                }
+            }
+        }
+        let mut output = String::new();
+        let mut new_map = HashMap::new();
+        let ptr = TYPES.lock().unwrap();
+        ptr.as_ref().unwrap().iter().for_each(|(k, w)| { new_map.insert(w, k); });
+        helper(self, &new_map, &mut output);
+        output
+    }
+}
