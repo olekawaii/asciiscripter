@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::error::{Error, ErrorType, Index, Mark};
-use crate::runtime::{Expression, Id, Pattern};
+use crate::runtime::{Expression, Pattern};
 use std::collections::{HashMap, HashSet};
 use std::fs::read_to_string;
 use std::sync::{Mutex, Arc};
@@ -69,11 +69,7 @@ pub fn parse_file( file_name: Marked<String>,) -> Result<(Vec<Expression>, Globa
                 return Err(make_error(CompilationError::MultipleDeclorations, name_mark))
             }
             number_of_values += 1;
-            global_vars.push(Expression::Tree {
-                root: Id::DataConstructor(num as u32),
-                arguments: Vec::new(),
-                //is_optimized: false
-            });
+            global_vars.push(Expression::DataConstructor(num as u32));
         }
         constructors.insert(tp, set);
     }
@@ -162,9 +158,7 @@ fn is_used(expression: &Expression, id: u32) -> bool {
         Expression::Undefined { .. } => true,
         Expression::Lambda { body, .. } => is_used(&*body, id),
         Expression::Tree {root, arguments} => {
-            if let Id::LocalVarPlaceholder(x) = root && *x == id {
-                return true
-            }
+            if is_used(root, id) { return true }
             for i in arguments.iter() {
                 if is_used(i, id) {
                     return true
@@ -172,15 +166,17 @@ fn is_used(expression: &Expression, id: u32) -> bool {
             }
             false
         }
+        Expression::LocalVarPlaceholder(x) => *x == id,
         Expression::Match { matched_on, branches } => {
             if is_used(&*matched_on, id) { return true }
-            for (pattern, expr) in branches.iter() {
+            for (_pattern, expr) in branches.iter() {
                 if is_used(expr, id) {
                     return true
                 }
             }
             false
         }
+        Expression::Thunk(_) | Expression::DataConstructor(_) | Expression::Variable(_) => false
     }
 }
 
@@ -313,10 +309,10 @@ pub fn parse_expression(
     match token {
         Token::EndOfBlock | Token::NewLine(_) => unreachable!(),
         Token::Keyword(k) => match k {
-            Keyword::Undefined => Ok(Expression::Undefined { mark: keyword_mark }),
+            Keyword::Undefined => Ok(Expression::Undefined { mark: Box::new(keyword_mark) }),
             Keyword::Lambda => {
                 match expected_type {
-                    Type::Type(t) => Err(make_error(
+                    Type::Type(_) => Err(make_error(
                         CompilationError::TypeMismatch(expected_type, None), 
                         keyword_mark
                     )),
@@ -360,12 +356,22 @@ pub fn parse_expression(
                         tokens.next(); // safe
                         parse_type(tokens)?
                     }
+                    //Token::Word(first_name) => {
+                    //    let (_, root_type) = if let Some((a, b, m)) = local_vars.get(&first_name) {
+                    //        (Id::LocalVarPlaceholder(*a), b)
+                    //    } else if let Some((a, b, c)) = global_vars.get(&first_name) {(
+                    //        if *c { Id::DataConstructor(*a as u32) } else { Id::Variable(*a) },
+                    //        b,
+                    //    )} else {
+                    //        return Err(make_error(CompilationError::NotInScope, mark.clone()))
+                    //    };
+                    //    Type::Type(root_type.final_type())
+                    //}
                     Token::Word(first_name) => {
-                        let (_, root_type) = if let Some((a, b, m)) = local_vars.get(&first_name) {
-                            (Id::LocalVarPlaceholder(*a), b)
-                        } else if let Some((a, b, c)) = global_vars.get(&first_name) {(
-                            if *c { Id::DataConstructor(*a as u32) } else { Id::Variable(*a) },
-                            b,
+                        let root_type = if let Some((_, b, _)) = local_vars.get(&first_name) {
+                            b
+                        } else if let Some((_, b, _)) = global_vars.get(&first_name) {(
+                            b
                         )} else {
                             return Err(make_error(CompilationError::NotInScope, mark.clone()))
                         };
@@ -446,14 +452,14 @@ pub fn parse_expression(
         }
         Token::Word(name) => {
             // peek if the next token is a newline
-            let (root_id, root_type) = if let Some((a, b, m)) = local_vars.get(&name) {
-                (Id::LocalVarPlaceholder(*a), b)
+            let (root_id, root_type) = if let Some((a, b, _)) = local_vars.get(&name) {
+                (Expression::LocalVarPlaceholder(*a), b)
             } else if let Some((a, b, c)) = global_vars.get(&name) {
                 (
                     if *c {
-                        Id::DataConstructor(*a as u32)
+                        Expression::DataConstructor(*a as u32)
                     } else {
-                        Id::Variable(*a)
+                        Expression::Variable(*a)
                     },
                     b,
                 )
@@ -511,11 +517,23 @@ pub fn parse_expression(
                     }
                 }
             }
-            Ok(Expression::Tree {
-                root: root_id,
-                arguments: output_args,
-                //is_optimized: false
+
+            Ok(if output_args.len() == 0 {
+                root_id
+            } else {
+                Expression::Tree {
+                    root: Box::new(root_id),
+                    arguments: output_args,
+                    //is_optimized: false
+                }
             })
+
+            //Ok(Expression::Tree {
+            //    root: Box::new(root_id),
+            //    arguments: output_args,
+            //    //is_optimized: false
+            //})
+
         }
     }
 }

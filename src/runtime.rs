@@ -24,17 +24,9 @@ use std::io::Write;
 use std::{collections::HashMap};
 
 #[derive(Debug, Clone)]
-pub enum Id {
-    Thunk(Arc<Mutex<Expression>>),
-    LocalVarPlaceholder(u32),
-    Variable(usize), // only used during parsing
-    DataConstructor(u32),
-}
-
-#[derive(Debug, Clone)]
 pub enum Expression {
     Tree {
-        root: Id,
+        root: Box<Expression>,
         arguments: Vec<Expression>,
     },
     Match {
@@ -46,8 +38,12 @@ pub enum Expression {
         body: Box<Expression>,
     },
     Undefined {
-        mark: Mark,
+        mark: Box<Mark>,
     },
+    Thunk(Arc<Mutex<Expression>>),
+    LocalVarPlaceholder(u32),
+    DataConstructor(u32),
+    Variable(usize), // only used during parsing
 }
 
 #[derive(Debug, Clone)]
@@ -64,8 +60,9 @@ fn matches_expression(pattern: &Pattern, matched: &mut Expression) -> bool {
         Pattern::DataConstructor(data_constructor, patterns) => {
             matched.simplify();
             match matched {
-                Expression::Tree { root: Id::DataConstructor(id), arguments, .. } => {
-                    id == data_constructor && {
+                Expression::Tree { root, arguments, .. } => {
+                    let Expression::DataConstructor(id) = **root else { unreachable!() };
+                    id == *data_constructor && {
                         for (pattern, arg) in patterns.iter().zip(arguments.iter_mut()) {
                             if !matches_expression(pattern, arg) {
                                 return false;
@@ -74,6 +71,7 @@ fn matches_expression(pattern: &Pattern, matched: &mut Expression) -> bool {
                         true
                     }
                 }
+                Expression::DataConstructor(id) => id == data_constructor,
                 _ => unreachable!(),
             }
         }
@@ -99,13 +97,15 @@ fn match_on_expression_helper(
         Pattern::DataConstructor(data_constructor, patterns) => {
             matched.simplify();
             match matched {
-                Expression::Tree { root: Id::DataConstructor(id), arguments, .. } => {
+                Expression::Tree { root, arguments, .. } => {
+                    let Expression::DataConstructor(id) = *root else { unreachable!() };
                     if id == *data_constructor {
                         for (pattern, arg) in patterns.iter().zip(arguments.into_iter()) {
                             match_on_expression_helper(output, pattern, arg)
                         }
                     }
                 }
+                Expression::DataConstructor(_) => (),
                 _ => unreachable!(),
             }
         }
@@ -114,20 +114,14 @@ fn match_on_expression_helper(
 
 impl Default for Expression {
     fn default() -> Self {
-        Self::Tree {
-            root: Id::LocalVarPlaceholder(67),
-            arguments: Vec::new(),
-            //is_optimized: true
-        }
+        Self::LocalVarPlaceholder(67)
     }
 }
 
 impl Expression {
     fn is_simplified(&self) -> bool {
-        matches!(
-            self, 
-            Expression::Lambda { .. } | Expression::Tree {root: Id::DataConstructor(_), ..}
-        )
+        matches!(self, Expression::Lambda { .. } | Expression::DataConstructor(_)) || 
+        matches!(self, Expression::Tree {root, ..} if matches!(&**root, Expression::DataConstructor(_)))
     }
 
     // rewrite expression until it starts with a data constructor or a lambda
@@ -135,35 +129,42 @@ impl Expression {
     pub fn simplify(&mut self) {
         while !self.is_simplified() {
             match std::mem::take(self) {
+                Expression::Thunk(exp) => match Arc::try_unwrap(exp) {
+                    Ok(x) => *self = x.into_inner().unwrap(), // safe unwrap
+                    Err(x) => {
+                        let Ok(mut inner) = (*x).try_lock() else {
+                            eprintln!(
+                                "\x1b[91mruntime error: \x1b[0mattempted to evaluate a bottom _|_"
+                            );
+                            std::process::exit(1);
+                        };
+                        if !inner.is_simplified() {
+                            inner.simplify();
+                            actually_optimize(&mut inner);
+                        }
+                        *self = inner.clone()
+                    }
+                }
                 Expression::Tree { root, arguments, .. } => {
-                    *self = match root {
-                        Id::Thunk(exp) => match Arc::try_unwrap(exp) {
-                            Ok(x) => x.into_inner().unwrap(), // safe unwrap
-                            Err(x) => {
-                                let Ok(mut inner) = (*x).try_lock() else {
-                                    eprintln!(
-                                        "\x1b[91mruntime error: \x1b[0mattempted to evaluate a bottom _|_"
-                                    );
-                                    std::process::exit(1);
-                                };
-                                if !inner.is_simplified() {
-                                    inner.simplify();
-                                    actually_optimize(&mut inner);
-                                }
-                                inner.clone()
-                            }
-                        },
-                        _ => unreachable!(),
-                    };
-                    for i in arguments {
+                    *self = *root;
+                    for mut i in arguments {
                         self.simplify();
                         match self {
                             Expression::Tree { arguments, .. } => arguments.push(i),
                             Expression::Lambda { pattern, body } => {
                                 // assume the pattern matches
+                                if !matches_expression(&pattern, &mut i) {
+                                    panic!()
+                                }
                                 let map = match_on_expression(pattern, i);
                                 body.substitute(&map);
                                 *self = std::mem::take(&mut *body);
+                            }
+                            Expression::DataConstructor(_) => {
+                                *self = Expression::Tree {
+                                    root: Box::new(std::mem::take(self)),
+                                    arguments: vec![i]
+                                }
                             }
                             _ => unreachable!(),
                         }
@@ -190,12 +191,13 @@ impl Expression {
                 Expression::Undefined { mark } => {
                     let error = Error {
                         error_type: Box::new(RuntimeError::EvaluatedUndefined),
-                        mark,
+                        mark: *mark,
                     };
                     eprintln!("{error}");
                     std::process::exit(1);
                 }
-                _ => unreachable!(),
+                x => {dbg!(x); panic!()},
+                _ => unreachable!()
             }
         }
     }
@@ -206,13 +208,16 @@ impl Expression {
     pub fn substitute(&mut self, map: &HashMap<u32, Arc<Mutex<Expression>>>) {
         match self {
             Expression::Lambda { body, .. } => body.substitute(map),
+            Expression::LocalVarPlaceholder(id) => {
+                if let Some(new_expression) = map.get(id) {
+                    *self = Expression::Thunk(Arc::clone(new_expression));
+                }
+            }
             Expression::Tree { root, arguments, .. } => {
+                root.substitute(map);
                 arguments
                     .iter_mut()
                     .for_each(|i| i.substitute(map));
-                if let Id::LocalVarPlaceholder(x) = root && let Some(new_expression) = map.get(x) {
-                    *root = Id::Thunk(Arc::clone(new_expression));
-                }
             }
             Expression::Match { matched_on, branches } => {
                 branches
@@ -220,7 +225,8 @@ impl Expression {
                     .for_each(|(_, i)| i.substitute(map));
                 matched_on.substitute(map);
             }
-            Expression::Undefined { .. } => (),
+            Expression::Undefined { .. } | Expression::Thunk(_) | Expression::DataConstructor(_) => (),
+            Expression::Variable(_) => unreachable!()
         }
     }
 
@@ -255,7 +261,9 @@ impl Expression {
             match x {
                 Expression::Tree { root, arguments, .. } => {
                     arguments.into_iter().rev().for_each(|x| to_evaluate.push(x));
-                    let Id::DataConstructor(id) = root else { unreachable!() };
+                    to_evaluate.push(*root);
+                }
+                Expression::DataConstructor(id) => {
                     let word = match cache.get(&id) {
                         Some(x) => x,
                         None => {
@@ -305,13 +313,22 @@ impl std::fmt::Display for RuntimeError {
 
 fn build_thunk(mut input: Expression) -> Arc<Mutex<Expression>> {
     actually_optimize(&mut input);
-    match &mut input {
-        Expression::Tree {root: Id::Thunk(x), arguments, ..} if arguments.is_empty() => {
-            //dbg!(&x);
-            std::mem::take(x)
-        }
-        _ => Arc::new(Mutex::new(input)),
+    if let Expression::Tree {root, arguments} = &mut input && 
+            arguments.is_empty() && 
+            let Expression::Thunk(x) = &mut **root {
+        std::mem::take(x)
+    } else {
+        Arc::new(Mutex::new(input))
     }
+
+
+    //match &mut input {
+    //    Expression::Tree {root: Id::Thunk(x), arguments, ..} if arguments.is_empty() => {
+    //        //dbg!(&x);
+    //        std::mem::take(x)
+    //    }
+    //    _ => Arc::new(Mutex::new(input)),
+    //}
 }
 
 fn actually_optimize(input: &mut Expression) {
@@ -333,11 +350,8 @@ pub fn optimize_expression(input: &mut Expression) {
     match input {
         Expression::Tree { root, arguments} => {
             arguments.iter_mut().for_each(optimize_expression);
-            if !matches!(root, Id::DataConstructor(_)) {
-                *input = Expression::Tree {
-                    root: Id::Thunk(Arc::new(Mutex::new(std::mem::take(input)))),
-                    arguments: Vec::new(),
-                }
+            if !matches!(&**root, Expression::DataConstructor(_)) {
+                *input = Expression::Thunk(Arc::new(Mutex::new(std::mem::take(input))))
             }
         }
         // // no point in optimizing anything since the simplified output will be optimized later

@@ -27,7 +27,7 @@ mod runtime;
 use crate::{
     error::{Mark, Index},
     parse::{parse_file, Marked, Type},
-    runtime::{Expression, /*COUNTER,*/ Id},
+    runtime::{Expression},
 };
 
 fn main() -> std::io::Result<()> {
@@ -91,16 +91,7 @@ fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Express
     match expression {
         Expression::Tree { root, arguments, ..} => {
             arguments.iter_mut().for_each(|x| monolithic_helper(vec, x));
-            match root {
-                Id::DataConstructor(_) | Id::LocalVarPlaceholder(_) => (),
-                Id::Thunk(x) => {
-                    let ptr = &mut (*x).lock().unwrap();
-                    monolithic_helper(vec, ptr);
-                }
-                Id::Variable(x) => {
-                    *root = Id::Thunk(Arc::clone(vec.get(*x).unwrap()));
-                }
-            }
+            monolithic_helper(vec, root);
         }
         Expression::Match { matched_on, branches } => {
             monolithic_helper(vec, matched_on);
@@ -110,6 +101,14 @@ fn monolithic_helper(vec: &Vec<Arc<Mutex<Expression>>>, expression: &mut Express
         }
         Expression::Lambda { body, .. } => monolithic_helper(vec, &mut *body),
         Expression::Undefined { .. } => (),
+        Expression::DataConstructor(_) | Expression::LocalVarPlaceholder(_) => (),
+        Expression::Thunk(x) => {
+            let ptr = &mut (*x).lock().unwrap();
+            monolithic_helper(vec, ptr);
+        }
+        Expression::Variable(x) => {
+            *expression = Expression::Thunk(Arc::clone(vec.get(*x).unwrap()));
+        }
     }
 }
 
