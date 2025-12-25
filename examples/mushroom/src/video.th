@@ -169,7 +169,7 @@ define shift_horizontal of_type
     fn horizontal_direction fn horizontal horizontal
 as
     lambda dir lambda horizontal z r_l r_r
-         match dir with
+        match dir with
             right to match r_l with
                 cons_row head tail  to horizontal head tail cons_row z r_r
                 empty_row           to horizontal 
@@ -247,8 +247,8 @@ define layer of_type fn video fn video video as
         whole top_len  to match video_length bottom with
             whole bottom_len  to match lcm top_len bottom_len with
                 x to layer_helper
-                     take x loop_video_forever top
-                     take x loop_video_forever bottom
+                    take x loop_video_forever top
+                    take x loop_video_forever bottom
             whole_zero        to top
         whole_zero     to bottom
 

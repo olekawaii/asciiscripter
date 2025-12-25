@@ -44,7 +44,7 @@ define eq_int of_type fn int fn int bool as
         _                                    to false
 
 type tuple_int_int contains
-   tuple_int_int int int
+    tuple_int_int int int
 
 define sum_int of_type fn int fn int int as 
     lambda x lambda y match x with
@@ -108,7 +108,7 @@ define eq_nat of_type fn nat fn nat bool as
         _                            to false
 
 type tuple_nat_nat contains
-   tuple_nat_nat nat nat
+    tuple_nat_nat nat nat
 
 define eq_coordinate of_type fn coordinate fn coordinate bool as
     lambda coordinate a b lambda coordinate c d and eq_int a c eq_int b d
@@ -242,8 +242,8 @@ define lcm of_type fn nat fn nat nat as
         match divide_exactly whole product_nat x y whole gcd x y with
             none_whole    to i
             some_whole x  to match x with
-              whole x     to x
-              whole_zero  to i
+                whole x     to x
+                whole_zero  to i
 
 define prime_factors of_type fn nat fn whole list_whole as
     lambda x lambda y match y with

@@ -223,9 +223,8 @@ pub fn tokenize_file(input: String, file_name: &Arc<String>) -> Result<Vec<Token
     let mut current_block: Vec<(usize, String)> = Vec::new();
     let mut file = file_lines.iter().map(|x| x.as_str()).enumerate();
     while let Some((line_number, string)) = file.next() {
-        if string.is_empty() || string.split_whitespace().next().unwrap() == "--" {
-            // safe unwrap
-            continue;
+        if string.is_empty() || string.split_whitespace().next().unwrap() == "--" { // safe unwrap
+            continue
         }
         current_block.push((line_number, string.to_string()));
         'good_lines: loop {
@@ -309,7 +308,7 @@ pub fn parse_expression(
     match token {
         Token::EndOfBlock | Token::NewLine(_) => unreachable!(),
         Token::Keyword(k) => match k {
-            Keyword::Undefined => Ok(Expression::Undefined { mark: Box::new(keyword_mark) }),
+            Keyword::Undefined => Ok(Expression::Undefined(Box::new(keyword_mark))),
             Keyword::Lambda => {
                 match expected_type {
                     Type::Type(_) => Err(make_error(
@@ -342,7 +341,7 @@ pub fn parse_expression(
                             }
                         }
                         Ok(Expression::Lambda {
-                            pattern,
+                            pattern: Arc::new(pattern),
                             body: Box::new(body),
                         })
                     }
@@ -356,25 +355,10 @@ pub fn parse_expression(
                         tokens.next(); // safe
                         parse_type(tokens)?
                     }
-                    //Token::Word(first_name) => {
-                    //    let (_, root_type) = if let Some((a, b, m)) = local_vars.get(&first_name) {
-                    //        (Id::LocalVarPlaceholder(*a), b)
-                    //    } else if let Some((a, b, c)) = global_vars.get(&first_name) {(
-                    //        if *c { Id::DataConstructor(*a as u32) } else { Id::Variable(*a) },
-                    //        b,
-                    //    )} else {
-                    //        return Err(make_error(CompilationError::NotInScope, mark.clone()))
-                    //    };
-                    //    Type::Type(root_type.final_type())
-                    //}
                     Token::Word(first_name) => {
-                        let root_type = if let Some((_, b, _)) = local_vars.get(&first_name) {
-                            b
-                        } else if let Some((_, b, _)) = global_vars.get(&first_name) {(
-                            b
-                        )} else {
-                            return Err(make_error(CompilationError::NotInScope, mark.clone()))
-                        };
+                        let root_type = if let Some((_, b, _)) = local_vars.get(&first_name) { b } 
+                        else if let Some((_, b, _)) = global_vars.get(&first_name) {( b)} 
+                        else { return Err(make_error(CompilationError::NotInScope, mark.clone())) };
                         Type::Type(root_type.final_type())
                     }
                     Token::Keyword(_) => return Err(make_error(CompilationError::UnexpectedKeyword, mark)),
@@ -414,7 +398,7 @@ pub fn parse_expression(
                 let (token, _mark) = next_token(tokens)?.destructure();
                 let Token::NewLine(indentation) = token else { panic!("no newline") };
                 let mut branch_tokens = get_with_indentation(tokens, indentation);
-                let mut branches: Vec<(Pattern, Expression)> = Vec::with_capacity(branch_tokens.len());
+                let mut branches: Vec<(Arc<Pattern>, Expression)> = Vec::with_capacity(branch_tokens.len());
                 let mut patterns = Vec::new();
                 for branch in branch_tokens.iter_mut() {
                     let (pattern, mark, local_vars_new, local_vars_count) = parse_pattern(
@@ -440,7 +424,7 @@ pub fn parse_expression(
                         }
                     }
                     patterns.push((pattern.clone(), mark));
-                    branches.push((pattern, body))
+                    branches.push((Arc::new(pattern), body))
                 }
                 //validate_patterns(patterns, constructors, global_vars, keyword_mark)?;
                 Ok(Expression::Match {
@@ -518,22 +502,16 @@ pub fn parse_expression(
                 }
             }
 
-            Ok(if output_args.len() == 0 {
-                root_id
-            } else {
-                Expression::Tree {
-                    root: Box::new(root_id),
-                    arguments: output_args,
-                    //is_optimized: false
+            Ok(
+                if output_args.len() == 0 {
+                    root_id
+                } else {
+                    Expression::Tree {
+                        root: Box::new(root_id),
+                        arguments: output_args,
+                    }
                 }
-            })
-
-            //Ok(Expression::Tree {
-            //    root: Box::new(root_id),
-            //    arguments: output_args,
-            //    //is_optimized: false
-            //})
-
+            )
         }
     }
 }
@@ -637,6 +615,7 @@ impl<T> Marked<T> {
 pub enum CompilationError {
     //RedundantPattern,
     //PartialPattern,
+    BadIndentation,
     InvalidColor,
     NotUsed,
     ExpectedMoreArguments,
@@ -661,6 +640,7 @@ pub enum CompilationError {
 impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
+            Self::BadIndentation => "indentation not divisible by four",
             Self::NotUsed => "local variable never used",
             Self::InvalidColor => "invalid color",
             Self::MultipleDeclorations => "multiple declorations",
@@ -813,23 +793,32 @@ pub fn tokenize(
     file: Arc<Vec<String>>,
 ) -> Result<TokenStream> {
     let keywords: HashMap<&str, Keyword> = HashMap::from([
-        ("match", Keyword::Match),
-        ("define", Keyword::Define),
-        ("of_type", Keyword::OfType),
-        ("as", Keyword::As),
-        ("with", Keyword::With),
-        ("to", Keyword::To),
-        ("lambda", Keyword::Lambda),
-        ("type", Keyword::Type),
-        ("contains", Keyword::Contains),
-        ("include", Keyword::Include),
-        ("...", Keyword::Undefined),
+        ( "match",     Keyword::Match     ),
+        ( "define",    Keyword::Define    ),
+        ( "of_type",   Keyword::OfType    ),
+        ( "as",        Keyword::As        ),
+        ( "with",      Keyword::With      ),
+        ( "to",        Keyword::To        ),
+        ( "lambda",    Keyword::Lambda    ),
+        ( "type",      Keyword::Type      ),
+        ( "contains",  Keyword::Contains  ),
+        ( "include",   Keyword::Include   ),
+        ( "...",       Keyword::Undefined ),
     ]);
     let mut output = Vec::new();
     let mut current_indentation: Option<u32> = None;
     let mut block = input.into_iter();
     'lines: while let Some((line_number, line)) = block.next() {
         let indentation = indentation_length(&line);
+        if indentation % INDENTATION != 0 {
+            return Err(make_error(CompilationError::BadIndentation, Mark {
+                file_name: Arc::clone(&file_name),
+                file: Arc::clone(&file),
+                line: line_number,
+                block: None,
+                word_index: Index::Art(indentation as usize - 1),
+            }))
+        }
         if current_indentation.is_none() {
             output.push(Marked::<Token> {
                 mark: Mark {
