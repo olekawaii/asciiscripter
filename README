@@ -8,6 +8,8 @@ they'll be relatively easy to implement in the future.
 It's still in active development. If you encounter any bugs or issues, please
 let me know.
 
+Please use https://codeberg.org/olekawaii/thorn for issues and contributions
+
 
 INSTALLATION
 ====================
@@ -140,7 +142,7 @@ errors. Consider this example that has multiple type errors:
     | define main of_type int as sum five or true five         | <-
     '----------------------------------------------------------'
 
-There are who issues with this code:
+There are two issues with this code:
 
   1. `or` expects two bool arguments but the second argument is an int
 
