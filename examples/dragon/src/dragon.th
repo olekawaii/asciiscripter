@@ -8,11 +8,9 @@
 include core std
 
 define dragon of_type video as layer
-    layer
-        by vi shift west by iii shift north center_head
-        layer
-            right_half
-            shift east by vi rotate flip_over_y right_half
+    layer by vi shift west by iii shift north center_head layer 
+        right_half 
+        shift east by vi rotate flip_over_y right_half
     by iii shift west by iv shift south swinging_tail
 
 define center_head of_type video as loop art xii ix
@@ -27,11 +25,9 @@ define center_head of_type video as loop art xii ix
           ' ..||||||||6.            .||||||||||. `          .6||||||||..
 
 define right_half of_type video as layer
-    layer
-        slow ii shift south by iv shift east rotate foot
-        layer
-            by vii shift north by vi shift east right_head
-            by ii rotate body
+    layer slow ii shift south by iv shift east rotate foot layer
+        by vii shift north by vi shift east right_head
+        by ii rotate body
     shift north by x shift east seq wing cons_video new_frame nil_video
 
 define right_head of_type video as layer

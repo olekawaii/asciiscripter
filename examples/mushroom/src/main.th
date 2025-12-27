@@ -1,11 +1,9 @@
 include std video
                                                      
-define main of_type bad_video as into_video
-    layer
+define main of_type bad_video as 
+    into_video layer
         by iv shift north by xi shift east title
-        layer
-            by x shift east small_mushroom
-            big_mushroom
+        layer big_mushroom by x shift east small_mushroom 
 
 define big_mushroom of_type video as art xiii viii
   __c__,___  ..117117111..
