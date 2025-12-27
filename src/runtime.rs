@@ -14,13 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-//static COUNTER: Mutex<u32> = Mutex::new(0);
-
 use crate::error::{Error, ErrorType, Mark};
 use std::sync::{Arc, Mutex};
 use std::io;
 use std::io::Write;
-// use std::thread;
 use std::{collections::HashMap};
 
 #[derive(Debug, Clone)]
@@ -149,7 +146,7 @@ impl Expression {
                             Expression::Tree { arguments, .. } => arguments.push(i),
                             Expression::Lambda { pattern, body } => {
                                 // assume the pattern matches
-                                if !matches_expression(&pattern, &mut i) {
+                                if !matches_expression(pattern, &mut i) {
                                     panic!()
                                 }
                                 let map = match_on_expression(pattern, i);
@@ -264,17 +261,17 @@ impl Expression {
                         None => {
                             let name = names.remove(&id).unwrap();
                             cache.insert(id, name);
-                            cache.get(&id).unwrap()
+                            cache.get(&id).unwrap() // safe
                         }
                     };
-                    let _ = stdout.write(word.as_bytes());
-                    let _ = stdout.write(b" ");
+                    stdout.write_all(word.as_bytes()).expect("");
+                    stdout.write_all(b" ").expect("");
                 }
-                Expression::Lambda { .. } => panic!("attempted to print a function"),
+                Expression::Lambda { .. } => stdout.write_all(b"<lambda> ").unwrap(),
                 _ => unreachable!(),
             }
         }
-        let _ = stdout.write(b"\n");
+        stdout.write_all(b"\n").expect("");
     }
 }
 

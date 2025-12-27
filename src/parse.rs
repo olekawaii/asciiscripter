@@ -168,7 +168,9 @@ fn is_used(expression: &Expression, id: u32) -> bool {
         }
         Expression::LocalVarPlaceholder(x) => *x == id,
         Expression::Match { matched_on, branches } => {
-            if is_used(&*matched_on, id) { return true }
+            if is_used(&*matched_on, id) { 
+                return true 
+            }
             for (_pattern, expr) in branches.iter() {
                 if is_used(expr, id) {
                     return true
@@ -179,7 +181,7 @@ fn is_used(expression: &Expression, id: u32) -> bool {
         Expression::Thunk(_) | Expression::DataConstructor(_) | Expression::Variable(_) => false
     }
 }
-
+ 
 pub fn get_tokens(file: Marked<String>, done: &mut HashSet<String>) -> Result<Vec<TokenStream>> {
     let (file, mark) = file.destructure();
     if done.contains(&file) { 
@@ -357,7 +359,7 @@ pub fn parse_expression(
                     }
                     Token::Word(first_name) => {
                         let root_type = if let Some((_, b, _)) = local_vars.get(&first_name) { b } 
-                        else if let Some((_, b, _)) = global_vars.get(&first_name) {( b)} 
+                        else if let Some((_, b, _)) = global_vars.get(&first_name) { b } 
                         else { return Err(make_error(CompilationError::NotInScope, mark.clone())) };
                         Type::Type(root_type.final_type())
                     }
@@ -368,7 +370,13 @@ pub fn parse_expression(
                 let mut matched_on_tokens = Vec::new();
                 let mut unmatched_matches = 0;
                 loop {
-                    let token = next_token(tokens)?;
+                    let token = match next_token(tokens) {
+                        Ok(x) => x,
+                        Err(mut e) => {
+                            e.error_type = Box::new(CompilationError::KeywordNotFound(Keyword::With));
+                            return Err(e)
+                        }
+                    };
                     match &token.value {
                         Token::Keyword(Keyword::With) if unmatched_matches == 0 => break,
                         Token::Keyword(Keyword::With) => {
@@ -503,7 +511,7 @@ pub fn parse_expression(
             }
 
             Ok(
-                if output_args.len() == 0 {
+                if output_args.is_empty() {
                     root_id
                 } else {
                     Expression::Tree {
@@ -566,7 +574,7 @@ pub fn parse_art(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Keyword {
     Include,
     Lambda,
@@ -635,11 +643,13 @@ pub enum CompilationError {
     TranspOnChar,
     ColorOnSpace,
     MultipleDeclorations,
+    KeywordNotFound(Keyword),
 }
 
 impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
+            Self::KeywordNotFound(_) => "looking for keyword but reached the end",
             Self::BadIndentation => "indentation not divisible by four",
             Self::NotUsed => "local variable never used",
             Self::InvalidColor => "invalid color",
@@ -673,6 +683,10 @@ impl ErrorType for CompilationError {
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::KeywordNotFound(k) => write!(
+                f, 
+                "expected to find the \x1b[97m{k}\x1b[90m keyword but reached the end"
+            ),
             Self::NotUsed => write!(f, "consider prepending it with an '_' to drop the value"),
             //Self::RedundantPattern => write!(f, "this branch will never be reached"),
             Self::ColorOnSpace => write!(f, "colors can not be used on spaces. instead use . or |"),
@@ -710,7 +724,7 @@ impl std::fmt::Display for CompilationError {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Token {
     Keyword(Keyword),
     NewLine(u32),
@@ -744,6 +758,24 @@ fn expect_keyword(tokens: &mut TokenStream, keyword: Keyword) -> Result<()> {
         Token::Keyword(k) if k == keyword => Ok(()),
         _ => Err(make_error(CompilationError::ExpectedKeyword(keyword), mark))
     }
+}
+
+fn collect_until(tokens: &mut TokenStream, keyword: Keyword) -> Result<TokenStream> {
+    let mut output = Vec::new();
+    loop {
+        let token = match next_token(tokens) {
+            Ok(x) => x,
+            Err(mut e) => {
+                e.error_type = Box::new(CompilationError::KeywordNotFound(keyword));
+                return Err(e)
+            }
+        };
+        if matches!(&token.value, Token::Keyword(k) if *k == keyword) {
+            break
+        }
+        output.push(token);
+    }
+    Ok(new_tokenstream(output))
 }
 
 fn next_non_newline(input: &mut TokenStream) -> Result<Marked<Token>> {
@@ -1124,17 +1156,8 @@ pub fn extract_signiture(input: &mut TokenStream) -> Result<Signiture> {
         Token::Keyword(Keyword::Define) => {
             let (name, name_mark) = next_word(input)?.destructure();
             expect_keyword(input, Keyword::OfType)?;
-            let mut type_strings: Vec<Marked<Token>> = Vec::new();
-            loop {
-                let w = next_non_newline(input)?;
-                match &w.value {
-                    Token::Word(_) => type_strings.push(w),
-                    Token::Keyword(Keyword::As) => break,
-                    Token::Keyword(_) => return Err(make_error(CompilationError::UnexpectedKeyword, w.mark)),
-                    Token::NewLine(_) | Token::EndOfBlock => unreachable!(),
-                }
-            }
-            Ok(Signiture::Value(name, name_mark, new_tokenstream(type_strings)))
+            let type_strings = collect_until(input, Keyword::As)?;
+            Ok(Signiture::Value(name, name_mark, type_strings))
         }
         Token::Keyword(Keyword::Type) => {
             let (name, name_mark) = next_word(input)?.destructure();
