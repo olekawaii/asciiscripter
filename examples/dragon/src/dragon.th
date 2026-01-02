@@ -5,7 +5,7 @@
 --  \__,_|_|  \__,_|\__, |\___/|_| |_|
 --                  |___/
 
-include core std
+include core std video
 
 define dragon of_type video as layer
     layer by vi shift west by iii shift north center_head layer 
@@ -28,7 +28,7 @@ define right_half of_type video as layer
     layer slow ii shift south by iv shift east rotate foot layer
         by vii shift north by vi shift east right_head
         by ii rotate body
-    shift north by x shift east seq wing cons_video new_frame nil_video
+    shift north by x shift east seq wing single new_frame 
 
 define right_head of_type video as layer
     by ix rotate by xiv shift east fire

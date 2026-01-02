@@ -1,8 +1,8 @@
-include core
+include core std
 
 type video contains
-    nil_video
-    cons_video frame video
+    single frame
+    prepend frame video
 
 type frame contains
     frame column column horizontal
@@ -37,10 +37,10 @@ define insert_row of_type fn nat fn character fn row row as
             cons_row _ _  to r
             empty_row     to cons_row empty_grid_cell empty_row
         with
+            empty_row          to ...
             cons_row head tail to match index with
                 one     to cons_row full_grid_cell chr tail
                 succ i  to cons_row head insert_row i chr tail
-            empty_row          to ...  -- unreachable
 
 type column contains
     empty_column
@@ -75,8 +75,9 @@ define insert_column of_type fn int fn nat fn character fn column column as
 
 define from_video of_type fn bad_video video as
     lambda v match v with
-        cons_frame x xs  to cons_video from_frame x from_video xs
-        empty_video      to nil_video
+        cons_frame x xs           to prepend from_frame x from_video xs
+        cons_frame x empty_video  to single from_frame x
+        empty_video               to ...
 
 define from_frame of_type fn bad_frame frame as
     lambda f match f with
@@ -85,8 +86,8 @@ define from_frame of_type fn bad_frame frame as
         empty_frame                                  to new_frame
 
 define into_video of_type fn video bad_video as lambda vid match vid with
-    cons_video head tail  to cons_frame into_frame head into_video tail
-    nil_video             to empty_video
+    prepend head tail  to cons_frame into_frame head into_video tail
+    single f           to cons_frame into_frame f empty_video
 
 define into_frame of_type fn frame bad_frame as
     lambda frame neg_col pos_col zer_col
@@ -155,8 +156,8 @@ define shift_frame of_type fn direction fn frame frame as
 
 define map_video of_type fn fn frame frame fn video video as
     lambda f lambda x match x with
-        cons_video head tail  to cons_video f head map_video f tail
-        nil_video             to nil_video
+        prepend head tail  to prepend f head map_video f tail
+        single head        to single f head
 
 define shift of_type fn direction fn video video as
     lambda d lambda v map_video shift_frame d v
@@ -239,8 +240,8 @@ define layer_rows of_type fn row fn row row as
 
 define video_length of_type fn video whole as
     lambda x match x with
-        cons_video _ tail  to whole increment_whole video_length tail
-        nil_video          to whole_zero
+        prepend _ tail  to whole increment_whole video_length tail
+        single _        to whole one
 
 define layer of_type fn video fn video video as
     lambda top lambda bottom match video_length top with
@@ -252,29 +253,34 @@ define layer of_type fn video fn video video as
             whole_zero        to top
         whole_zero     to bottom
 
-define take of_type fn nat fn video video as
-    lambda counter lambda bad_frames match bad_frames with
-        nil_video             to nil_video
-        cons_video head tail  to match counter with
-            succ a  to cons_video head take a tail
-            one     to cons_video head nil_video
-
-define seq of_type fn video fn video video as
-    lambda x lambda y match x with
-        cons_video head tail  to cons_video head seq tail y
-        nil_video             to y
-
-define loop_video_forever of_type fn video video as
-    lambda x seq x loop_video_forever x
+-- expects videos of equal length. will refactor to use infinite_video in the
+-- future.
 
 define layer_helper of_type fn video fn video video as
     lambda x lambda y match x with
-        cons_video head_a tail_a to match y with
-            nil_video                 to nil_video
-            cons_video head_b tail_b  to cons_video
+        prepend head_a tail_a to match y with
+            single head_b          to ...
+            prepend head_b tail_b  to prepend
                 layer_frames head_a head_b
                 layer_helper tail_a tail_b
-        nil_video to nil_video
+        single a to match y with
+            single b     to single layer_frames a b
+            prepend _ _  to ...
+
+define take of_type fn nat fn video video as
+    lambda counter lambda bad_frames match bad_frames with
+        single head        to single head
+        prepend head tail  to match counter with
+            succ a  to prepend head take a tail
+            one     to single head
+
+define seq of_type fn video fn video video as
+    lambda x lambda y match x with
+        prepend head tail  to prepend head seq tail y
+        single head        to prepend head y
+
+define loop_video_forever of_type fn video video as
+    lambda x seq x loop_video_forever x
 
 define by of_type fn nat fn fn video video fn video video as
     lambda counter lambda fn lambda vid match counter with
@@ -283,14 +289,14 @@ define by of_type fn nat fn fn video video fn video video as
 
 define rotate of_type fn video video as
     lambda vid match vid with
-        cons_video head tail  to seq tail cons_video head nil_video
-        nil_video             to nil_video
+        prepend head tail  to seq tail single head
+        single head        to single head
 
 define slow of_type fn nat fn video video as
     lambda num lambda vid match vid with
-        nil_video             to nil_video
-        cons_video head tail  to seq
-            take num loop_video_forever cons_video head nil_video
+        single head        to take num loop_video_forever single head
+        prepend head tail  to seq
+            take num loop_video_forever single head
             slow num tail
 
 define over_y_hor of_type fn horizontal horizontal as
@@ -323,16 +329,15 @@ define flip_over_y of_type fn video video as map_video map_columns over_y_hor
 
 define reverse of_type fn video video as
     lambda x match x with
-        cons_video a b  to seq reverse b cons_video a nil_video
-        nil_video       to nil_video
+        prepend a b  to seq reverse b single a
+        single a     to single a
 
 define tail of_type fn video video as lambda x match x with
-    cons_video _ b  to b
-    nil_video       to nil_video
+    prepend _ b  to b
+    single a       to single a
 
 define loop of_type fn video video as lambda x seq x tail reverse tail x
 
 define extend of_type fn video video as lambda x match x with
-    cons_video head nil_video  to cons_video head cons_video head nil_video
-    cons_video head tail       to cons_video head extend tail
-    nil_video                  to nil_video
+    prepend head tail       to prepend head extend tail
+    single a                to prepend a single a

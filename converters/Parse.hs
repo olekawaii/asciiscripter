@@ -67,7 +67,7 @@ data Color = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
   deriving (Show, Eq)
 
 parseVideo :: [String] -> [Map Coordinate Character]
-parseVideo ("empty_video": xs) = [] 
+parseVideo ("empty_video": xs) = []
 parseVideo ("cons_frame": xs) = let (frame, leftover) = parseFrame xs in frame : parseVideo leftover
 
 parseFrame :: [String] -> (Map Coordinate Character, [String])

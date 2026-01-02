@@ -954,7 +954,7 @@ fn build_tokens_from_art(
 ) -> Result<TokenStream> {
     let mut output = Vec::new();
     for i in input.into_iter() {
-        output.push(build_token("cons_video", &mark));
+        output.push(build_token("prepend", &mark));
         for ((x, y), (c1, c2)) in i.into_iter() {
             let c1_char = c1.value;
             let c2_char = c2.value;
@@ -1128,10 +1128,16 @@ fn build_tokens_from_art(
             value: Token::Word("new_frame".to_string()),
         });
     }
-    output.push(Marked::<Token> {
-        mark: mark.clone(),
-        value: Token::Word("nil_video".to_string()),
-    });
+    let mut i = output.len() - 1;
+    loop {
+        match output.get_mut(i).unwrap().value {
+            Token::Word(ref mut x) if x == "prepend" => {
+                *x = "single".to_owned();
+                break;
+            }
+            _ => i -= 1
+        }
+    }
     Ok(new_tokenstream(output))
 }
 
