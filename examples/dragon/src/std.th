@@ -6,31 +6,36 @@ type direction contains
     east
     west
 
+define flip_over_y_visible of_type fn visible_character visible_character as 
+    lambda c match c with
+        single_quote       to grave_accent
+        grave_accent       to single_quote
+        open_paranthesis   to close_paranthesis
+        close_paranthesis  to open_paranthesis
+        comma              to period
+        slash              to backslash
+        backslash          to slash
+        less_than          to greater_than
+        greater_than       to less_than
+        opening_bracket    to closing_bracket
+        closing_bracket    to opening_bracket
+        opening_brace      to closing_brace
+        closing_brace      to opening_brace
+        semicolon          to colon
+        lowercase_d        to lowercase_b
+        lowercase_b        to lowercase_d
+        lowercase_p        to lowercase_q
+        lowercase_q        to lowercase_p
+        _                  to c
+
 define flip_over_y_char of_type fn character character as 
-    lambda x match x with
-        space         to space
-        char c color  to char
-            match c with
-                single_quote       to grave_accent
-                grave_accent       to single_quote
-                open_paranthesis   to close_paranthesis
-                close_paranthesis  to open_paranthesis
-                comma              to period
-                slash              to backslash
-                backslash          to slash
-                less_than          to greater_than
-                greater_than       to less_than
-                opening_bracket    to closing_bracket
-                closing_bracket    to opening_bracket
-                opening_brace      to closing_brace
-                closing_brace      to opening_brace
-                semicolon          to colon
-                lowercase_d        to lowercase_b
-                lowercase_b        to lowercase_d
-                lowercase_p        to lowercase_q
-                lowercase_q        to lowercase_p
-                _                  to c
-            color
+    map_over_char flip_over_y_visible
+
+define map_over_char of_type 
+    fn fn visible_character visible_character fn character character
+as lambda f lambda x match x with
+    space         to space
+    char c color  to char f c color
 
 define sum_coordinate of_type fn coordinate fn coordinate coordinate as
     lambda coordinate x_i y_i lambda coordinate x_ii y_ii

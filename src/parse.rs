@@ -961,7 +961,7 @@ fn build_tokens_from_art(
             if c1_char == ' ' && c2_char == '.' {
                 continue;
             }
-            output.push(build_token("insert_frame", &mark));
+            output.push(build_token("insert", &mark));
             output.push(build_token("positive", &mark));
             for _ in 0..x {
                 output.push(build_token("succ", &mark));
