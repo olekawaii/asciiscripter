@@ -57,12 +57,8 @@ parseGrid ("cons": xs) =
 parseNewRow :: [String] -> ([Character], [String])
 parseNewRow ("nil" : xs) = ([], xs)
 parseNewRow ("cons": xs) =
-    let (out, leftover) = parseNewCell xs in
+    let (out, leftover) = parseChar xs in
         first (out :) (parseNewRow leftover)
-
-parseNewCell :: [String] -> (Character, [String])
-parseNewCell ("cell" : char : color: xs) = 
-    let (out, _) = parseChar ["char", char, color] in (out, xs)
 
 dimensions :: [Map Coordinate Character] -> (Int, Int, Int, Int)
 dimensions gif = case concatMap (map fst) $ map (filter (\(_, x) -> isSpace x)) gif of
@@ -177,9 +173,8 @@ convertNewFrame (a, b) =
 
 
 parseChar :: [String] -> (Character, [String])
-parseChar ("space": xs) = (Space, xs)
-parseChar ("char": "space_char" : color : xs) = (Space, xs)
-parseChar ("char": char : color : xs) = 
+parseChar ("cell_space": xs) = (Space, xs)
+parseChar ("cell": char : color : xs) = 
   let 
     c = case char of 
        "space_char" -> ' '

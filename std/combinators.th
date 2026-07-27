@@ -2,12 +2,14 @@ forall a
 define identity as the fn a a lambda x x
 
 forall a b c 
-define flip as the fn fn a fn b c fn b fn a c 
+define flip as the 
+    fn fn a fn b c fn b fn a c 
     lambda f lambda a lambda b f b a
 
 forall a b c 
-define compose as the fn fn b c fn fn a b fn a c 
-    lambda g lambda f lambda x  g f x
+define compose as the 
+    fn fn b c fn fn a b fn a c 
+    lambda g lambda f lambda x g f x
 
 forall a b 
 define apply as the fn fn a b fn a b identity

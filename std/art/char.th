@@ -1,14 +1,13 @@
 include color
 
-type character contains
-    space
-    char visible_character color
+type cell contains
+    cell_space
+    cell visible_character color
 
 --  Visible ASCII characters. Names taken from
 --  the Rust standard library
 
 type visible_character contains
-    space_char
     exclamation_mark
     quotation_mark
     number_sign
@@ -128,19 +127,19 @@ define flip_over_y_visible as the
         case _                       c
 
 define flip_over_y_char as the 
-    fn character character 
+    fn cell cell 
     map_over_char flip_over_y_visible
 
 define map_over_char as the 
     fn 
         fn visible_character visible_character 
-        fn character character
+        fn cell cell
     lambda f lambda x match x 
-        case space                   space
-        case char c color            char f c color
+        case cell_space              cell_space
+        case cell c color            cell f c color
 
 define recolor_character as the 
-    fn color fn character character 
+    fn color fn cell cell 
     lambda color lambda character match character
-        case space                   space
-        case char a _                char a color
+        case cell_space              cell_space
+        case cell a _                cell a color

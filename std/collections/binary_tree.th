@@ -5,7 +5,7 @@ type tree contains
     empty
     node 
         a          -- value
-        tree a     -- left subtree
+        tree a     -- left  subtree
         tree a     -- right subtree
 
 forall a b 

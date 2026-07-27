@@ -16,7 +16,7 @@ define snd as the fn tuple a b b lambda tuple _ y y
 forall a b c 
 define uncurry as the 
     fn fn a fn b c fn tuple a b c 
-    lambda f lambda tuple a b f a b
+    lambda f lambda tuple a b    f a b
 
 forall a b c 
 define curry as the 
@@ -28,13 +28,12 @@ define curry as the
 forall a b c d 
 define bimap as the 
     fn fn a c fn fn b d fn tuple a b tuple c d 
-    lambda f lambda g lambda tuple x y tuple f x g y
+    lambda f lambda g lambda tuple x y    tuple f x g y
 
 forall a b c 
 define map_fst as the 
     fn fn a c fn tuple a b tuple c b 
-    lambda f bimap 
-        f 
+    lambda f bimap f 
         the fn b b identity
 
 forall a b c 

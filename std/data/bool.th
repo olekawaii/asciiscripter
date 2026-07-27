@@ -29,14 +29,14 @@ define and as the fn bool fn bool bool
         case false      const false
         case true       identity
 
-define xor as the fn bool fn bool bool lambda a lambda b not xand a b
+define xor  as the fn bool fn bool bool lambda a lambda b not xand a b
 
 define xand as the fn bool fn bool bool eq_bool
 
-define nor as the fn bool fn bool bool lambda a lambda b not or a b
+define nor  as the fn bool fn bool bool lambda a lambda b not or a b
     
 define nand as the fn bool fn bool bool lambda a lambda b not and a b
 
 define eq_bool as the fn bool fn bool bool lambda x match x
-    case true    identity
-    case false   not
+    case true           identity
+    case false          not

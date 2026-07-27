@@ -89,11 +89,9 @@ define take as the
 forall a 
 define drop as the 
     fn whole fn list a list a 
-    lambda pred n lambda l match n
-        case one             l
-        case succ x          match l
-            case nil             nil
-            case cons _ t        drop pred x t
+    lambda n lambda l match tuple n l
+        case tuple pred succ x cons _ t     drop pred x t
+        case _                              l
 
 --  Zip two lists into a single list of tuples.
 --  The output has the length of the smaller list
@@ -102,21 +100,47 @@ forall a b
 define zip as the 
     fn list a fn list b list tuple a b 
     lambda x lambda y match tuple x y
-        case 
-            tuple cons ha ta cons hb tb    
-            cons tuple ha hb zip ta tb
-        case 
-            either tuple nil _ tuple _ nil 
-            nil
+        case tuple cons ha ta cons hb tb    cons tuple ha hb zip ta tb
+        case _                              nil
 
 forall a b c 
 define zip_with as the 
     fn fn a fn b c fn list a fn list b list c
-    lambda f lambda la lambda lb 
-        map_list
-            uncurry 
-                f 
-            zip la lb
+    lambda f lambda la lambda lb map_list
+        uncurry f 
+        zip la lb
+
+--  Like zip_with but doesn't cut off the rest 
+--  of the larger video
+
+forall a
+define zip_with_leftover as the 
+    fn fn a fn a a fn list a fn list a list a
+    lambda f lambda la lambda lb match tuple la lb
+        case tuple nil       _              lb
+        case tuple _         nil            la
+        case tuple cons x xs cons y ys      cons 
+            f x y 
+            zip_with_leftover f xs ys
+
+--  zip_with_leftover_right f [x, y, z] [a, b, c, d, e] 
+--  [
+--      f x a, 
+--      f y b, 
+--      f z c, 
+--      d, 
+--      e
+--  ]
+
+forall a b
+define zip_with_leftover_right as the 
+    fn fn b fn a a fn list b fn list a list a
+    lambda f lambda la lambda lb match tuple la lb
+        case tuple nil       _              lb
+        case tuple _         nil            nil
+        case tuple cons x xs cons y ys      cons 
+            f x y 
+            zip_with_leftover_right f xs ys
         
 --  Keep elements of a list that return true
 --  for the given function
@@ -183,7 +207,7 @@ define partition as the
     fn fn a bool fn list a tuple list a list a
     lambda f lambda l match l
         case nil              tuple nil nil
-        case cons x xs        match the tuple list a list a partition f xs 
+        case cons x xs        match partition f xs 
             case tuple ts fs      match f x
                 case true             tuple cons x ts fs
                 case false            tuple ts        cons x fs

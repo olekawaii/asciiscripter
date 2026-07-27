@@ -655,7 +655,7 @@ pub fn build_tokens_from_art(
                 match (c1_char, c2_char) {
                     (_, ' ') => return Err(make_error(ParseError::InvalidColor, c2.mark)),
                     (_, '|') => {
-                        frame_buffer.push_back(build_token("space", &c1.mark));
+                        frame_buffer.push_back(build_token("cell_space", &c1.mark));
                     }
                     (c1_char, '$') => {
                         let s = String::from(c1_char.to_ascii_lowercase());
@@ -664,7 +664,7 @@ pub fn build_tokens_from_art(
                     (c1_char, c2_char) => {
                         frame_buffer.push_back(Marked::<Token> {
                             mark: mark.clone(),
-                            value: Token::Word("char".to_string()),
+                            value: Token::Word("cell".to_string()),
                         });
                         let character = match c1_char {
                             '!' => "exclamation_mark",   'P' => "capital_p",

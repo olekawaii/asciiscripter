@@ -1,4 +1,4 @@
-include prelude char video
+include prelude char video graphical_options
 
 --  frame type layout
 --               
@@ -33,14 +33,14 @@ type horizontal contains
     horizontal list grid_cell list grid_cell
 
 type grid_cell contains
-    full_grid_cell character
+    full_grid_cell cell
     empty_grid_cell
-    filter_grid_cell fn character character
-    
---  insert x y c inserts the character c at the 
+    filter_grid_cell fn cell cell
+
+--  insert x y c inserts the cell c at the 
 --  coordinate x y
 
-define insert as the fn int fn int fn character fn frame frame 
+define insert as the fn int fn int fn cell fn frame frame 
     lambda x lambda y lambda chr
         lambda frame col_neg col_pos match y 
             case neg index    frame
@@ -126,8 +126,8 @@ define flip_over_y as the fn frame frame map_columns over_y_hor
 
 define dye as the fn color fn frame frame lambda color map_frame 
     lambda c match c 
-        case space             space
-        case char ch _         char ch color
+        case cell_space        cell_space
+        case cell ch _         cell ch color
 
 --  The following are helper functions you 
 --  probably don't need 
@@ -135,7 +135,7 @@ define dye as the fn color fn frame frame lambda color map_frame
 define empty_horizontal as the horizontal 
     horizontal nil nil
 
-define insert_horizontal as the fn int fn character fn horizontal horizontal
+define insert_horizontal as the fn int fn cell fn horizontal horizontal
     lambda index lambda chr lambda horizontal n p
         match index 
             case neg index         horizontal insert_row index chr n p
@@ -143,7 +143,7 @@ define insert_horizontal as the fn int fn character fn horizontal horizontal
             case zero              horizontal n insert_row one chr p
 
 define insert_row as the 
-    fn nat fn character fn list grid_cell list grid_cell 
+    fn nat fn cell fn list grid_cell list grid_cell 
     lambda index lambda chr lambda r match r 
         case cons x xs         match index
             case one               cons full_grid_cell chr xs
@@ -151,7 +151,7 @@ define insert_row as the
         case nil               insert_row index chr cons empty_grid_cell nil
 
 define insert_column as the 
-    fn int fn nat fn character fn list horizontal list horizontal 
+    fn int fn nat fn cell fn list horizontal list horizontal 
     lambda x lambda y lambda chr lambda col match col
         case cons head tail    match y
             case succ i            cons head insert_column x i chr tail
@@ -219,22 +219,22 @@ define over_y_hor as the fn horizontal horizontal
             cons empty_grid_cell map_row flip_over_y_char n
 
 define map_over_grid_cell as the
-    fn fn character character fn grid_cell grid_cell
+    fn fn cell cell fn grid_cell grid_cell
     lambda f lambda x match x 
         case full_grid_cell a       full_grid_cell f a
         case _                      x
 
 define map_horizontal as the
-    fn fn character character fn horizontal horizontal
+    fn fn cell cell fn horizontal horizontal
     lambda f lambda horizontal ra rb horizontal
         map_row f ra
         map_row f rb
 
-define map_frame as the fn fn character character fn frame frame 
+define map_frame as the fn fn cell cell fn frame frame 
     lambda f lambda x map_columns map_horizontal f x
 
 define map_row as the 
-    fn fn character character fn list grid_cell list grid_cell 
+    fn fn cell cell fn list grid_cell list grid_cell 
     lambda f lambda x match x
         case nil                    nil
         case cons head tail         cons

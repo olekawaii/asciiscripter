@@ -14,10 +14,10 @@ type nat contains
 
 define sum_nat as the fn nat fn nat nat 
     lambda x match x
+        case one        succ
         case succ a     compose 
             succ 
             sum_nat a
-        case one        succ
 
 define product_nat as the fn nat fn nat nat 
     lambda x lambda y match x
@@ -52,7 +52,7 @@ define greater as the fn nat fn nat bool
 --  nats
 
 define gcd as the fn nat fn nat nat 
-    lambda x lambda y gcd_helper i ii x y
+    gcd_helper i ii
 
 define gcd_helper as the fn nat fn nat fn nat fn nat nat 
     lambda output lambda try lambda x lambda y match 

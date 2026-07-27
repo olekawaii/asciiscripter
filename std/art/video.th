@@ -13,20 +13,18 @@ define pad_right_inf as the fn list frame list frame
 
 define pad_left as the 
     fn nat fn list frame list frame
-    lambda n lambda l cat
-        replicate nat_to_whole n new_frame
-        l
+    lambda n cat replicate nat_to_whole n new_frame
 
---  layers two videos together without preserving
---  loopingness. the output video will have the
---  length of the larger video
+--  Layers two videos together. The output video 
+--  will have the length of the larger one
 
 define layer as the 
     fn list frame fn list frame list frame 
     lambda a lambda b 
         match tuple a b
-            case either tuple nil xs tuple xs nil    xs
-            case tuple cons x xs cons y ys           cons
+            case tuple nil       xs              xs
+            case tuple xs        nil             xs
+            case tuple cons x xs cons y ys       cons
                 layer_frames x y
                 layer xs ys
 
@@ -36,7 +34,7 @@ define entirely as the
     fn fn frame frame fn list frame list frame 
     map_list
 
---  make the video x loop by adding a cropped
+--  Make the video x loop by adding a cropped
 --  reversed x to the end of it, making the  
 --  transition smooth.                       
 
@@ -93,7 +91,3 @@ define for as the
 
 define first_frame as the fn list frame frame 
     lambda cons x _    x    -- fails on nil
-
--- helper function for the art macro
-
-define identity_cell as the fn cell cell identity

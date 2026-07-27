@@ -16,12 +16,12 @@ type non_empty contains
 --  `list a` while head and last return an `a`
 
 forall a 
-define head as the fn non_empty a a lambda prepended x _   x
+define head as the fn non_empty a a lambda prepended x _    x
 
 forall a 
 define tail as the 
     fn non_empty a list a 
-    lambda prepended _ xs   xs
+    lambda prepended _ xs    xs
 
 forall a 
 define last as the 
@@ -54,7 +54,7 @@ define list_to_non_empty as the
 forall a 
 define assert_non_empty as the 
     fn list a non_empty a 
-    lambda cons x xs  prepended x xs    -- fails on nil
+    lambda cons x xs    prepended x xs    -- fails on nil
 
 --  Turn a non_empty back into a regular 
 --  list
@@ -62,15 +62,14 @@ define assert_non_empty as the
 forall a 
 define non_empty_to_list as the 
     fn non_empty a list a 
-    lambda prepended h t cons h t
+    lambda prepended h t    cons h t
 
 --  Like foldr but doesn't use a default value.
 
 forall a 
 define foldr_i as the 
     fn fn a fn a a fn non_empty a a 
-    lambda f lambda prepended x xs 
-        match list_to_non_empty xs 
-            case none        x
-            case some xs     f x foldr_i f xs
+    lambda f lambda prepended x xs match list_to_non_empty xs 
+        case none        x
+        case some xs     f x foldr_i f xs
 

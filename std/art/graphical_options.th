@@ -9,17 +9,21 @@ type final_video contains
         graphical_options
         list list list cell
 
+define make_final_video as the 
+    fn graphical_options fn video final_video
+    lambda g lambda unsafe_video _ _ v    unsafe_final_video g v
+
 type offset contains 
-    offset int int                -- offset in the x and y
+    offset int int              -- offset in the x and y
 
 type frame_size contains 
-    frame_size nat nat            -- size in width and height
+    frame_size nat nat          -- size in width and height
 
 type video contains
     unsafe_video
-        frame_size                -- size of all the frames
-        nat                       -- video length
-        list list list cell       -- a list of grids of cells
+        frame_size              -- size of all the frames
+        nat                     -- video length
+        list list list cell     -- a list of grids of cells
 
 type grid_location contains
     grid_location nat nat
@@ -34,11 +38,11 @@ type grid_location contains
 
 type shader_input contains
     shader_input
-        video             -- entire video
-        nat               -- current frame index
-        grid_location     -- location within current frame
-        list list cell    -- current frame    to avoid video traversal 
-        cell              -- current cell     to avoid video traversal 
+        video                   -- entire video
+        nat                     -- current frame index
+        grid_location           -- location within current frame
+        list list cell          -- current frame    to avoid video traversal
+        cell                    -- current cell     to avoid video traversal
 
 define apply_shader as the 
     fn fn shader_input cell fn video video
@@ -46,10 +50,6 @@ define apply_shader as the
 
 type shader contains
     shader fn video fn nat fn grid_location cell
-
-define make_final_video as the 
-    fn graphical_options fn video final_video
-    lambda g lambda unsafe_video _ _ v    unsafe_final_video g v
 
 type graphical_options contains
     graphical_options
@@ -62,9 +62,22 @@ define default_graphical_options as the graphical_options
         default_colorscheme
 
 type font contains
-    unifont   -- 8x16
-    dos_v     -- 8x16
-    vga       -- 9x14
+    unifont                     -- 8x16
+    dos_v                       -- 8x16
+    vga                         -- 9x14
+
+type colorscheme contains
+    catppuccin_mocha
+    everforest_dark_hard
+    flexoki_dark
+    gruvbox_material_dark_hard
+    kanagawa_dragon
+    kanagawa_lotus
+    mellow
+    nord
+    rose_pine_moon
+    solarized_dark
+    tokyonight_moon
 
 define default_font as the font unifont
 
@@ -76,67 +89,31 @@ define new_video as the
         replicate nat_to_whole l 
             replicate nat_to_whole y
                 replicate nat_to_whole x
-                    space_cell
+                    cell_space
 
 type new_frame contains
     unsafe_frame
-        frame_size                -- grid size
-        offset                    -- grid's offset
-        list list fn cell cell    -- 2d grid of cell effects
+        frame_size              -- grid size
+        offset                  -- grid's offset
+        list list grid_cell     -- 2d grid of cell effects
 
 define new_new_frame as the new_frame unsafe_frame
     frame_size one one
     offset zero zero
-    cons 
-        cons 
-            identity 
-            nil 
-        nil
+    cons cons empty_grid_cell nil nil
 
-type cell contains
-    cell 
-        visible_character     -- visible ascii character
-        color                 -- foreground color
-
---  black and white are inverted for light themes
-
-type colorscheme contains
-    rose_pine_moon
-    gruvbox_material_dark_hard
-    flexoki_dark
-
-define is_space_cell as the 
-    fn cell bool 
-    lambda x match x
-        case cell space_char  _      true
-        case _                       false
-
-define space_cell as the cell cell space_char white
-
-define apply_old_frames_to_video as the
+define apply_old_frames_to_video as the 
     fn list frame fn video video
-    lambda o lambda unsafe_video s l v    
-        unsafe_video s l zip_with
-            apply_old_frame
-            pad_right_inf o
-            v
-
-define apply_old_frame as the 
-    fn frame fn list list cell list list cell
-    lambda frame _ c lambda l
-        zip_with
-            lambda o lambda n zip_with
-                lambda o lambda n match o
-                    case empty_grid_cell    n
-                    case full_grid_cell c   match c
-                        case space      cell space_char black
-                        case char g c   cell g c
-                o
-                n
-            the list list grid_cell cat
-                map_list
-                    lambda horizontal _ r   
-                        cat r cycle lift_list empty_grid_cell
+    lambda o lambda unsafe_video s l n
+        unsafe_video s l zip_with_leftover_right
+            lambda frame _ c  zip_with_leftover_right
+                zip_with_leftover_right
+                    lambda o lambda n match o
+                        case empty_grid_cell          n
+                        case full_grid_cell c         c
+                        case filter_grid_cell f       f n
+                the list list grid_cell map_list
+                    lambda horizontal _ r  r
                     c
-                cycle lift_list cycle lift_list empty_grid_cell
-            l
+            o
+            n
