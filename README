@@ -1,4 +1,4 @@
-Read this file the way it was intended: 
+Read this file the way it was intended:
 https://codeberg.org/olekawaii/thorn/raw/branch/main/README
 
 --------------------------   INTRODUCTION   ----------------------------
@@ -51,7 +51,7 @@ The source code looks nice because
 
 The paranthesis are not needed because
   * If you know the types of everything, function arguments can be
-    grouped with prefix Polix notation. 3 * (1 + 2) -> * 3 + 1 2
+    grouped with prefix Polish notation. 3 * (1 + 2) -> * 3 + 1 2
   * Indentation acts like paranthesis. This allows you to pass lambdas
     and match expressions directly as function arguments. It can also
     help with type inference.
@@ -133,7 +133,9 @@ either PATTERN PATTERN         * match either pattern (|)
 This code defines a function that applies a function to an integer.
 The main body, if with paranthesis, would be (apply (add one) three).
 
-    define apply as the fn fn int int fn int int ...
+    define apply as the
+        fn fn int int fn int int
+        undefined
 
     define main as the int apply add one three
 
@@ -195,12 +197,12 @@ points. Ignore the undefined types/functions.
         point float float
 
     define distance as the fn point fn point float
-        lambda first_point lambda second_point
-            match first_point
-                case point xa ya            match second_point
-                    case point xb yb            sqrt sum
-                        squared diff xb xa
-                        squared diff yb ya
+        lambda pa lambda pb match tuple pa pb
+            case
+                tuple point xa ya point xb yb     -- destructuring pa,pb
+                sqrt sum
+                    squared diff xb xa
+                    squared diff yb ya
 
 This is very verbose because we're patternmatching on all the points to
 get their x and y values. However, because the point type only contains
@@ -208,7 +210,7 @@ one variant, we can actually patternmatch directly in the lambda
 expression like so
 
     define distance as the fn point fn point float
-        lambda point xa ya lambda point xb yb    sqrt sum
+        lambda point xa ya lambda point xb yb  sqrt sum
             squared diff xb xa
             squared diff yb ya
 
@@ -262,7 +264,7 @@ are some examples. I'll use the thorn repl to define and test them.
 >>>
 >>> forall a b type tuple contains tuple a b
 >>>
->>> define are_equal as the 
+>>> define are_equal as the
 >>>     fn nat fn nat bool
 >>>     lambda x lambda y match tuple x y
 >>>         case tuple one    one              true
@@ -362,14 +364,50 @@ decides its color. Here's the table of supported art syntax
        | CHAR | 6     | Cyan                                    |
        | CHAR | 7     | White                                   |
        | CHAR | VAR   | Uses VAR as the color                   |
-       |      | |     | Space character                         |
+       |      | |     | Space cell                              |
        |      | .     | Transparent                             |
-       | VAR  | $     | uses VAR as the character               |
+       | VAR  | $     | uses VAR as the cell  (ascii + color)   |
        | VAR  | #     | layers the frame VAR on top             |
-       | VAR  | ^     | applies fn VAR to the character below   |
+       | VAR  | ^     | applies fn VAR to the cell below        |
        +------+-------+-----------------------------------------+
        where    VAR  is a single-letter variable name
                 CHAR is a visible ASCII character
+
+For complex videos with many colors, it's better to pass a single
+palette than all the colors individually. You can do that with a
+custom palette type.
+
+    include video
+
+    define main as the list frame dragon_roar default_dragon_p
+
+    type dragon_p contains
+        dragon_p
+            color    -- skin
+            color    -- bone
+            color    -- eye
+            color    -- wing
+
+    define default_dragon_p as the dragon_p
+        dragon_p cyan white yellow green
+
+    define dragon_roar as the
+        fn dragon_p list frame
+        lambda dragon_p s b e _  entirely shift south art xiii vii
+            .            b.............            b............
+             ),__        .bbss........ ),__        .bbss........
+              ( o`---~~^;..s|essssssss  ( o`---~~^;..s|essssssss
+             /   -^V^V^V .s|||sbbbbbb. /    /V'V'V .s||||sbbbbb.
+            /  `-----.-' s||sssssssss./  \  \,A,A  s||s||sbbbb..
+              /          ||s..........  / `----.-' ||s.ssssssss.
+                         .............             .............
+            .            b............
+             ),__        .bbss........
+              ( o`---~~^;..s|essssssss
+             /    /V'V'V .s||||sbbbbb.
+            /    (       s||||s.......
+               \  \,A,A  |||s||sbbbb..
+                `----.-' ....ssssssss.
 
 You can see how the core types are implemented in std/ . There are many
 useful functions in video.th, list.th, and frame.th . To find the
@@ -379,25 +417,25 @@ definition of a function, just run
 
 -----------------------------   OUTPUT   -------------------------------
 
-When evaluating a program, the output is the fully-evaluated main 
-function, a tree of data constructors, a string of words when printed 
-out. In fact, if you copy-paste the output into the main function, you 
-will get the same output. To turn this output into something you 
+When evaluating a program, the output is the fully-evaluated main
+function, a tree of data constructors, a string of words when printed
+out. In fact, if you copy-paste the output into the main function, you
+will get the same output. To turn this output into something you
 actually want, you have to interpret it with an external program.
 
 thorn tries to adhere to the UNIX philosophy. All programs do one thing
 and their outputs are intended to be inputs for other programs
 
-    $ thorn --eval 'the list frame chess_pieces' | thorn-to-sh | sh
-                                  _:_
-          n,_      o    o  o  c  __!__     o      n,_
-__ _ __  /.  \    / \    \v|v/   \_ _/    / \    /.  \  __ _ __
-[ U U ] (_/)  \  (  /)   <...>   <...>   (  /)  (_/)  \ [ U U ]
- |  -|    /  _/  <...>    )_(     )_(    <...>    /  _/  |  -|
- |___|   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   |___|
-(_____) (_____) (_____) (_____) (_____) (_____) (_____) (_____)
-   _       _       _       _       _       _       _       _
- (  `)   (  `)   (  `)   (  `)   (  `)   (  `)   (  `)   (  `)
- <...>   <...>   <...>   <...>   <...>   <...>   <...>   <...>
- _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_
-(_____) (_____) (_____) (_____) (_____) (_____) (_____) (_____)
+    $ thorn --eval 'the list frame chess_set' | thorn-to-sh | sh
+                                      _:_
+              n,_      o    o  o  c  __!__     o      n,_
+    __ _ __  /.  \    / \    \v|v/   \_ _/    / \    /.  \  __ _ __
+    [ U U ] (_/)  \  (  /)   <...>   <...>   (  /)  (_/)  \ [ U U ]
+     |  -|    /  _/  <...>    )_(     )_(    <...>    /  _/  |  -|
+     |___|   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   |___|
+    (_____) (_____) (_____) (_____) (_____) (_____) (_____) (_____)
+       _       _       _       _       _       _       _       _
+     (  `)   (  `)   (  `)   (  `)   (  `)   (  `)   (  `)   (  `)
+     <...>   <...>   <...>   <...>   <...>   <...>   <...>   <...>
+     _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_   _/ \_
+    (_____) (_____) (_____) (_____) (_____) (_____) (_____) (_____)
