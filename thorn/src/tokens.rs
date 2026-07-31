@@ -590,30 +590,6 @@ pub fn build_tokens_from_art(
                 if matches!((c1_char, c2_char), (_, '.') | (_, '|')) {
                     match c1_char {
                         ' ' => (),
-                        'Z' | 'Y' | 'X' => {
-                            video_commands.push_back(build_token("entirely", &mark));
-                            build_shift_by(
-                                if matches!(c1_char, 'Y' | 'Z') {
-                                    if x_shift {
-                                        return Err(make_error(ParseError::ConflictingAllignment, c1.mark))
-                                    }
-                                    x_shift = true;
-                                    -(x as i32)
-                                } else { 
-                                    0 
-                                }, 
-                                if matches!(c1_char, 'X' | 'Z') {
-                                    if y_shift {
-                                        return Err(make_error(ParseError::ConflictingAllignment, c1.mark))
-                                    }
-                                    y_shift = true;
-                                    -(y as i32)
-                                } else {
-                                    0
-                                },
-                                &mut video_commands, &mark
-                            );
-                        }
                         _ => return Err(make_error(ParseError::TranspOnChar, c2.mark)),
                     }
                 }
@@ -643,14 +619,19 @@ pub fn build_tokens_from_art(
                     frame_commands.push_back(build_token(&s, &c1.mark));
                     continue;
                 }
-
-                if c2_char == '^' {
+                if c2_char == '?' {
                     frame_buffer.push_back(build_token("filter_grid_cell", &mark));
                     let s = String::from(c1_char.to_ascii_lowercase());
                     frame_buffer.push_back(build_token(&s, &c1.mark));
                     continue;
                 }
-
+                if c2_char == '<' {
+                    frame_buffer.push_back(build_token("filter_grid_cell", &mark));
+                    frame_buffer.push_back(build_token("recolor_character", &mark));
+                    let s = String::from(c1_char.to_ascii_lowercase());
+                    frame_buffer.push_back(build_token(&s, &c1.mark));
+                    continue;
+                }
                 frame_buffer.push_back(build_token("full_grid_cell", &mark));
                 match (c1_char, c2_char) {
                     (_, ' ') => return Err(make_error(ParseError::InvalidColor, c2.mark)),

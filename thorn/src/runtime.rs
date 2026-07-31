@@ -25,21 +25,6 @@ use std::{
 
 use crate::parse::Type;
 
-// struct Rentime {
-//     Vec<Instruction>
-// }
-// 
-// enum Instruction {
-//     Lambda(Pattern, u32),
-//     Ptr(u32),
-//     Application(u32, u32),
-//     DataConstructor(usize),
-//     LocalVar(usize),
-//     Match(u32, Vec<(Pattern, u32)>),
-//     BlackHole,
-//     Undefined,
-// }
-
 // pretty bad
 
 #[derive(Debug, Clone)]

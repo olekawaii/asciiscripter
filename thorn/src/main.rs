@@ -511,12 +511,30 @@ fn parse_cli_arguments() -> std::io::Result<Arguments> {
             }
             "--help" | "-h" => {
                 eprintln!(
-"thorn [options] [directory]
+
+"Interpreter of the thorn language
+
+usage:
+    thorn [options] [directory]
 
 options:
     --eval EXPR    evaluate EXPR instead of main
     --help         show this help message
     --repl         start the interactive repl
+
+thorn tries to find the project's root directory containing
+a main.th file. The search starts at the given directory
+(working directory if none is provided) and walks up the 
+filetree until it finds it.
+
+Include statements (include video) recursively look for a 
+video.th file in any of the project's sudirectories.
+
+The output is the fully evaluated main function. For ASCII
+art animations, it is typically piped into thorn-to-sh or
+thorn-to-gif. To play a shell script animation:
+
+    $ thorn . | thorn-to-sh | sh
 ");
                 std::process::exit(1);
 
