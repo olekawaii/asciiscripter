@@ -142,12 +142,12 @@ The main body, if with paranthesis, would be (apply (add one) three).
 What if we wanted to pass a lambda instead of the (add one)? We can't
 do (apply (lambda x add one x) three) because there are no paranthesis.
 Instead, we need to do
-
-    define main is the int apply
-        lambda x add one x
-        three
-
-Indentation acts like paranthesis.
+                                                        __       . .
+    define main is the int apply       ___       (     (oo)  _   | |   _
+        lambda x add one x            | oo|   _ OO\ _  -()-  >)  .-.  (<
+        three                        \|___|/  \/___ /   __     \/___\/
+                                      '---'   ( ___ )  j[]L    ( -o- )
+Indentation acts like paranthesis.     ! !     V   V    JL      `v v
 
 ------------------------   ALGEBRAIC TYPES   ---------------------------
 
@@ -221,15 +221,15 @@ be found in the syntax overview section.
 ---------------------------   RECURSION   ------------------------------
 
 There is no mutation and therefore there are no loops. The only way to
-loop is to recurse or use a function that recurses.
-
-    define main as the nat sum
-        three                          +----------------------+
-        succ one                       | one              = 1 |
-                                       | succ one         = 2 |
-    type nat contains                  | succ (succ one)  = 3 |
-        one                            | and so on            |
-        succ nat                       +----------------------+
+loop is to recurse or use a function that recurses.         ,,
+                                                          <')
+    define main as the nat sum                             ( \
+        three                               +--------------YY------+
+        succ one                            | 1 = one        |\    |
+                                            | 2 = succ one         |
+    type nat contains                       | 3 = succ (succ one)  |
+        one                                 | ...                  |
+        succ nat                            +----------------------+
 
     define three as the nat succ succ one
 
@@ -252,16 +252,16 @@ The whole language is lazily evaluated. Expressions are only evaluated
 when patternmatched on and evaluation starts at the main function. Here
 are some examples. I'll use the thorn repl to define and test them.
 
->>> type bool contains
->>>     true                                        .----.----.----.
->>>     false                                       ['   |'   |'   ]
->>>                                               .--.   :    :   .--.
->>> type nat contains                             |' |---.----.---|' |
->>>     one                                       |  |___|____|___|  |
->>>     succ nat                                  :__|            :__|
->>>
->>> define infinity as the nat succ infinity
->>>
+>>> type bool contains                               _
+>>>     true                                   .="= / \ ="=.
+>>>     false                                 /\\  //  \  / \
+>>>                                          /\\\ ///  \\ // \
+>>> type nat contains                        \\\   //|\\   ///
+>>>     one                                         . .
+>>>     succ nat                                    \ /
+>>>                                                 \ /   \
+>>> define infinity as the nat succ infinity        \ /    \________
+>>>                                                 ( )    /\    /\
 >>> forall a b type tuple contains tuple a b
 >>>
 >>> define are_equal as the
@@ -332,13 +332,13 @@ colors black-white and `|`/`.` distinguish between spaces and
 transparency. The `vi iv` after the art keyword are the width and height
 of each frame in roman numerals.
 
-Note that the indentation rules are different for art blocks. if the
-indentation of the line with 'art' is zero, so is the art's
-indentation.  Otherwise it's the line's indentation + 4.  Yes, the
-indentation length is hardcoded to 4. This improves error messages.
+Note that the indentation rules are different for art blocks. If the
+indentation of the line with 'art' is zero, so is the art's indentation.
+Otherwise it's the line's indentation + 4. Yes, the indentation length
+is hardcoded to 4. This improves error messages.
 
-There is special syntax for including local/global variables in the
-art. To use a color variable you just replace the color number with the
+There is special syntax for using local/global variables in the art. To
+use a color variable, you just replace the color number with the
 variable name like so (colors defined in std/art/color.th)
 
     define dragon_tail as the
@@ -355,7 +355,7 @@ decides its color. Here's the table of supported art syntax
        +------+-------+-----------------------------------------+
        | left | right |                 effect                  |
        +------+-------+-----------------------------------------+
-       | CHAR | 0     | Grey                                    |
+       | CHAR | 0     | black (same as background)              |
        | CHAR | 1     | Red                                     |
        | CHAR | 2     | Green                                   |
        | CHAR | 3     | Yellow                                  |
@@ -368,7 +368,8 @@ decides its color. Here's the table of supported art syntax
        |      | .     | Transparent                             |
        | VAR  | $     | uses VAR as the cell  (ascii + color)   |
        | VAR  | #     | layers the frame VAR on top             |
-       | VAR  | ^     | applies fn VAR to the cell below        |
+       | VAR  | ?     | applies fn VAR to the cell below        |
+       | VAR  | <     | recolor cell bolew to color VAR         |
        +------+-------+-----------------------------------------+
        where    VAR  is a single-letter variable name
                 CHAR is a visible ASCII character
