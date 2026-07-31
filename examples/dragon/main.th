@@ -1,6 +1,10 @@
 include video graphical_options
 
-define main as the list frame dragon
+define main as the final_video make_final_video
+    default_graphical_options
+    apply_old_frames_to_video
+        dragon
+        new_video frame_size lxxx xxiv xii
 
 define center_head as the list frame loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
@@ -15,7 +19,7 @@ define center_head as the list frame loop art xii ix
 
 define dragon as the list frame take nat_to_whole xii layer 
     layer 
-        cycle entirely by xxiv shift east swinging_tail 
+        cycle entirely by xxiv shift east dragon_tail 
         cycle entirely shift_by pos xxi pos vii center_head 
     cycle entirely shift_by pos xxvii pos iv layer
         right_half 
@@ -64,9 +68,9 @@ define right_half as the list frame layer
                 entirely by xv shift east fire
         cycle append new_frame entirely 
             shift_by pos x pos i 
-            wing
+            dragon_wing
     layer 
-        cycle slow ii entirely shift_by pos iv neg i foot
+        cycle slow ii entirely shift_by pos iv neg i dragon_foot
         cycle for ii rotate for ii extend art x vii
                  /  / .....6||6.     /  / .....6||6.
             _..-   /  6666|||6.._..-   (  6666|||6..
@@ -76,18 +80,18 @@ define right_half as the list frame layer
                    /  |||||||6..       /  |||||||6..
             _.-'      6666......_.-'      6666......
 
-define wing as art xi v
+define dragon_wing as art xi v
  /\        .22........           ...........           ...........
 /. \       22|2.......  /T\.     ..2222.....           ...........
   `\\      ||222...... / | \`.   .2|2|222...           ...........
      `     .....2...../ ^|_.\ `. 2|22222|22._          2..........
            ...........       ``"\.......2222__ _       22.2.......
 
-define foot as art v ii
+define dragon_foot as art v ii
 ) /  6|6..\ (  6|6..
-|_nm 6666. )_nm.6666
+[_nm 6666. [_nm.6666
 
-define swinging_tail as art vi iv
+define dragon_tail as art vi iv
  \   ).6|||6(   / 6|||6.
   ) / ..6|6. \ (  .6|6..
  ( /  .6|6..  \ ) ..6|6.
