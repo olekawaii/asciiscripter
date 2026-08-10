@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-const UNDERLINE_CHAR: &'static str = "^";
+const UNDERLINE_CHAR: &str = "^";
 
 use std::{
     sync::{Arc, Mutex},
@@ -69,19 +69,15 @@ impl Default for Mark {
 }
 
 pub fn show_mark(mark: Mark, message: &'static str) -> String {
-    //dbg!(&mark);
     let mut number = (mark.line + 1).to_string();
     number.push(' ');
     let indentation = number.chars().count();
     let mut file_name = get_file_name(mark.file);
     let file_contents = read_to_string(&file_name).unwrap();
     let mut file_name_chars = file_name.chars();
-    match file_name_chars.next().unwrap() {
-        '.' => { 
-            file_name_chars.next(); 
-            file_name = file_name_chars.collect();
-        }
-        _ => ()
+    if file_name_chars.next().unwrap() == '.' {
+        file_name_chars.next(); 
+        file_name = file_name_chars.collect();
     }
     let mut lines = file_contents.lines().enumerate();
     let line_before = if mark.line == 0 { 
@@ -132,11 +128,11 @@ pub fn make_error(error: impl ErrorType + 'static, mark: Mark) -> Error {
     }
 }
 
-pub fn add_note<T>(val: &mut Result<T>, note: &str) {
-    if let Err(err) = val {
-        err.note = Some(String::from(note));
-    }
-}
+// pub fn add_note<T>(val: &mut Result<T>, note: &str) {
+//     if let Err(err) = val {
+//         err.note = Some(String::from(note));
+//     }
+// }
 
 pub trait ErrorType: std::fmt::Display + std::fmt::Debug {
     fn gist(&self) -> &'static str;
@@ -154,9 +150,8 @@ impl Eq for Error {
 }
 
 impl PartialOrd for Error {
-    fn partial_cmp(&self, other: &Error) -> Option<std::cmp::Ordering> {
-        (&self.mark.file, self.mark.line, self.mark.character).partial_cmp(
-        &(&other.mark.file, other.mark.line, other.mark.character))
+    fn partial_cmp(&self, other: &Error) -> Option<std::cmp::Ordering> { 
+        Some(self.cmp(other)) 
     }
 }
 

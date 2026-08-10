@@ -72,7 +72,7 @@ impl std::fmt::Display for ParseError {
                 f,
                 "expected number of lines to be divisible hy {height}, but it has {got} lines",
             ),
-            Self::CantHaveIndents => write!(f, 
+            Self::CantHaveIndents => write!(f,
 "this block has indented branches. They are not
 allowed in this context. If you want them, move
 this block into its own branch"),
@@ -239,15 +239,16 @@ pub struct Block {
     pub line_end_mark:             Mark,
 }
 
+#[allow(unused)]
 pub fn debug_print_block(bt: BlockTraversal, indentation: u32) {
     eprint!("{}", " ".repeat(4 * indentation as usize));
-    for (i, _) in bt.block.line_tokens.iter().skip(bt.word as usize) {
+    for (i, _) in bt.block.line_tokens.iter().skip(bt.word) {
         match i {
             OwnedToken::Keyword(k) => eprint!("{k} "),
             OwnedToken::Word(w)    => eprint!("{w} "),
         }
     }
-    eprint!("\n");
+    eprintln!();
     bt.block.indented_blocks_beneath.iter().for_each(
         |x| debug_print_block(BlockTraversal::new(x), indentation + 1)
     );
@@ -287,7 +288,7 @@ impl<'a> BlockTraversal<'a> {
     }
 
     pub fn reached_end_of_block(self) -> bool {
-        self.reached_end_of_line() && self.block.indented_blocks_beneath.len() == 0
+        self.reached_end_of_line() && self.block.indented_blocks_beneath.is_empty()
     }
 
     pub fn expect_end_option(bt: Option<Self>) -> Result<()> {
@@ -300,10 +301,7 @@ impl<'a> BlockTraversal<'a> {
     pub fn expect_no_indents(bt: Option<Self>, mark: &'a Mark) -> Result<Self> {
         match bt {
             Some(x) => Ok(x),
-            None    => return Err(make_error(
-                ParseError::CantHaveIndents,
-                mark.clone(),
-            ))
+            None    => Err(make_error(ParseError::CantHaveIndents, mark.clone()))
         }
     }
 
@@ -314,7 +312,7 @@ impl<'a> BlockTraversal<'a> {
             Err(_)                                  => return Ok(())
         };
         Err(make_error(
-            ParseError::TrailingCharacters, 
+            ParseError::TrailingCharacters,
             token_mark.clone()
         ))
     }
@@ -326,11 +324,9 @@ impl<'a> BlockTraversal<'a> {
                 self.block.line_end_mark.clone()
             ))
         }
-        else {
-            let (token, mark) = &self.block.line_tokens[self.word];
-            self.word += 1;
-            Ok((&token, mark, self))
-        }
+        let (token, mark) = &self.block.line_tokens[self.word];
+        self.word += 1;
+        Ok((token, mark, self))
     }
 
     pub fn next_token_in_line_fallthrough(self) -> Result<(&'a OwnedToken, &'a Mark, Self)> {
@@ -346,7 +342,7 @@ impl<'a> BlockTraversal<'a> {
     pub fn next(self) -> Result<NextOutput<'a>> {
         if self.reached_end_of_block() {
             return Err(make_error(
-                ParseError::UnexpectedEnd, 
+                ParseError::UnexpectedEnd,
                 self.block.line_end_mark.clone()
             ))
         }
@@ -356,7 +352,7 @@ impl<'a> BlockTraversal<'a> {
         }
     }
 
-    pub fn expect_keyword(self, keyword: Keyword) -> Result<(&'a Mark, Self)> { 
+    pub fn expect_keyword(self, keyword: Keyword) -> Result<(&'a Mark, Self)> {
         let (token, mark, bt) = self.next_token_in_line_fallthrough()?;
         if *token != OwnedToken::Keyword(keyword) {
             return Err(make_error(
@@ -367,9 +363,9 @@ impl<'a> BlockTraversal<'a> {
         Ok((mark, bt))
     }
 
-    pub fn expect_word(self) -> Result<(&'a str, &'a Mark, Self)> { 
+    pub fn expect_word(self) -> Result<(&'a str, &'a Mark, Self)> {
         let (token, mark, bt) = self.next_token_in_line_fallthrough()?;
-        if let OwnedToken::Word(w) = token { Ok((w, mark, bt)) } 
+        if let OwnedToken::Word(w) = token { Ok((w, mark, bt)) }
         else { Err(make_error(ParseError::UnexpectedKeyword, mark.clone())) }
     }
 }
@@ -400,7 +396,7 @@ impl std::fmt::Display for Keyword {
     }
 }
 
-pub fn tokenize_block<'a>(input: Vec<(usize, &str)>, file: u32, indentation_level: u32) -> Result<Block> {
+pub fn tokenize_block(input: Vec<(usize, &str)>, file: u32, indentation_level: u32) -> Result<Block> {
     let mut bodies: Vec<Block> = Vec::new();
     let mut lines = input.into_iter();
     let (line_number, first_line) = lines.next().unwrap();
@@ -458,16 +454,16 @@ pub fn tokenize_block<'a>(input: Vec<(usize, &str)>, file: u32, indentation_leve
         })
     }
     let mut line_buffer = Vec::new();
-    while let Some((line_number, line)) = lines.next() {
+    for (line_number, line) in lines {
         let indentation = indentation_length(line) / INDENTATION;
-        if indentation as u32 == indentation_level + 1 && line_buffer.len() != 0 {
+        if indentation as u32 == indentation_level + 1 && !line_buffer.is_empty() {
             let block = tokenize_block(line_buffer, file, indentation_level + 1)?;
             bodies.push(block);
             line_buffer = Vec::new();
         }
         line_buffer.push((line_number, line));
     }
-    if line_buffer.len() != 0 {
+    if !line_buffer.is_empty() {
         let block = tokenize_block(line_buffer, file, indentation_level + 1)?;
         bodies.push(block);
     }
@@ -478,11 +474,11 @@ pub fn tokenize_block<'a>(input: Vec<(usize, &str)>, file: u32, indentation_leve
     })
 }
 
-// the Option<(u32, u32, Mark)> are the width and 
+// the Option<(u32, u32, Mark)> are the width and
 // height of `art` if it exists in the line
 
-fn tokenize_line(line: &str, line_number: u32, file: u32) 
-    -> Result<(Vec<(OwnedToken, Mark)>, Mark, Option<(u32, u32, Mark)>)> 
+fn tokenize_line(line: &str, line_number: u32, file: u32)
+    -> Result<(Vec<(OwnedToken, Mark)>, Mark, Option<(u32, u32, Mark)>)>
 {
     let mut ret: Vec<(OwnedToken, Mark)> = Vec::new();
     let mut art_ret = None;
@@ -517,7 +513,7 @@ fn tokenize_line(line: &str, line_number: u32, file: u32)
                     token_mark,
                 ))};
                 let Some(x) = parse_roman_numeral(x) else { return Err(make_error(
-                    ParseError::ExpectedRoman, 
+                    ParseError::ExpectedRoman,
                     Mark { character, length, ..token_mark }
                 ))};
                 let Some((character, y, length)) = words.next() else { return Err(make_error(
@@ -708,7 +704,7 @@ pub fn build_tokens_from_art(
                             'L' => "capital_l",          '{' => "left_curly_brace",
                             'M' => "capital_m",          '|' => "vertical_line",
                             'N' => "capital_n",          '}' => "right_curly_brace",
-                            'O' => "capital_o",          '~' => "tilde",        
+                            'O' => "capital_o",          '~' => "tilde",
                             ' ' => {
                                 return Err(Error {
                                     error_type: Box::new(ParseError::ColorOnSpace),

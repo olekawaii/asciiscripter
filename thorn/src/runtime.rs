@@ -18,7 +18,7 @@ use crate::error::{ Error, ErrorType, Mark, Marked, make_error };
 use std::{
     io::{ Write, BufWriter },
     process::{Command, Stdio},
-    sync::Arc,
+    rc::Rc,
     cell::RefCell,
 };
 
@@ -26,7 +26,7 @@ use crate::parse::Type;
 
 // pretty bad
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Expression {
     Tree {
         root:        Box<Expression>,
@@ -34,21 +34,22 @@ pub enum Expression {
     },
     Match {
         matched_on:  Box<Expression>,
-        branches:    Box<[(Arc<Marked<Pattern>>, Expression)]>,
+        branches:    Box<[(Rc<Marked<Pattern>>, Expression)]>,
     },
     Lambda {
-        pattern:     Arc<Marked<Pattern>>,
+        pattern:     Rc<Marked<Pattern>>,
         body:        Box<Expression>,
     },
     Thunk {
-        value:       Arc<RefCell<Expression>>,
-        mark:        Option<Arc<Mark>>,  // mark in case the value is a bottom
+        value:       Rc<RefCell<Expression>>,
+        mark:        Option<Rc<Mark>>,  // mark in case the value is a bottom
     },
     Undefined(Box<Mark>),
     LocalVarPlaceholder(u32),
     DataConstructor(u32),
-    // used for Expression::default(). If encountered, 
+    // used for Expression::default(). If encountered,
     // it's a compiler bug somewhere
+    #[default]
     CompilerBug
 }
 
@@ -62,28 +63,27 @@ fn debug_expression_helper(expr: &Expression, level: usize, names: &Vec<String>)
     let mut out = "    ".repeat(level);
     match expr {
         Expression::Tree {root, arguments} => {
-            debug_expression_helper(&*root, level, names);
+            debug_expression_helper(root, level, names);
             for i in arguments.iter() {
                 debug_expression_helper(i, level + 1, names);
             }
-            return
         }
         Expression::Lambda { pattern, body } => {
             out.push_str("lambda");
             eprintln!("{}", &out);
             debug_pattern(&pattern.value, level + 1, names);
-            debug_expression_helper(&*body, level + 1, names);
+            debug_expression_helper(body, level + 1, names);
         }
         Expression::Match { matched_on, branches } => {
             out.push_str("match");
             eprintln!("{}", &out);
-            debug_expression_helper(&*matched_on, level + 1, names);
+            debug_expression_helper(matched_on, level + 1, names);
             out = "    ".repeat(level + 1);
             out.push_str("case");
             for (pattern, expr) in branches {
                 eprintln!("{}", &out);
                 debug_pattern(&pattern.value, level + 2, names);
-                debug_expression_helper(&*expr, level + 2, names);
+                debug_expression_helper(expr, level + 2, names);
             }
         }
         Expression::Thunk { .. } => {
@@ -108,12 +108,6 @@ fn debug_expression_helper(expr: &Expression, level: usize, names: &Vec<String>)
             eprintln!("f");
             panic!();
         }
-    }
-}
-
-impl Default for Expression {
-    fn default() -> Self {
-        Self::CompilerBug
     }
 }
 
@@ -143,12 +137,12 @@ impl std::fmt::Display for RuntimeError {
         match self {
             Self::EvaluatedUndefined => write!(f, "evaluated an undefined expression"),
             Self::UnmatchedPattern(expr, names) => write!(
-                f, 
+                f,
                 "a value did not match the patterns\nthe value was \x1b[97m{}\x1b[0m",
                 debug_print(expr, names)
             ),
             Self::EvaluatedBottom => write!(
-                f, 
+                f,
                 "attempted to evaluate a bottom expression.\n\
                     this expression will never return a value"
             )
@@ -160,7 +154,7 @@ impl std::fmt::Display for RuntimeError {
 fn debug_print(expr: &Expression, names: &Vec<String>) -> String {
     match expr {
         Expression::Tree { root, arguments } => {
-            let mut s = format!("{}", debug_print(root, names));
+            let mut s = debug_print(root, names);
             arguments.iter().for_each(|x| {
                 let a = debug_print(x, names);
                 s.push_str(&a);
@@ -214,14 +208,14 @@ fn debug_pattern(pattern: &Pattern, level: usize, names: &Vec<String>) {
             let s = n.to_string();
             out.push_str(&s);
             eprintln!("{}", out);
-            debug_pattern(&*v, level + 1, names);
+            debug_pattern(v, level + 1, names);
         }
     }
 }
 
 fn matches_expression(
-    pattern: &Pattern, 
-    matched: &mut Expression, 
+    pattern: &Pattern,
+    matched: &mut Expression,
     names: &Vec<String>
 ) -> bool {
     match pattern {
@@ -253,8 +247,8 @@ fn matches_expression(
 }
 
 fn match_on_expression(
-    pattern: &Pattern, 
-    matched: Expression, 
+    pattern: &Pattern,
+    matched: Expression,
     names: &Vec<String>
 ) -> Vec<(u32, Expression)> {
     let mut output = Vec::new();
@@ -273,7 +267,7 @@ fn match_on_expression_helper(
         Pattern::Bound(id, pat) => {
             let thunk = build_thunk(matched);
             output.push((*id,thunk.clone()));
-            match_on_expression_helper(output, &**pat, thunk, names);
+            match_on_expression_helper(output, pat, thunk, names);
         }
         Pattern::Captured(id) => {
             output.push((*id, build_thunk(matched)));
@@ -284,7 +278,7 @@ fn match_on_expression_helper(
                 Expression::Tree { root, arguments, .. } => {
                     let Expression::DataConstructor(id) = *root else { unreachable!() };
                     if id == *data_constructor {
-                        for (pattern, arg) in patterns.iter().zip(arguments.into_iter()) {
+                        for (pattern, arg) in patterns.iter().zip(arguments) {
                             match_on_expression_helper(output, pattern, arg, names)
                         }
                     }
@@ -294,8 +288,7 @@ fn match_on_expression_helper(
             }
         }
         Pattern::Either(x) => {
-            let pat: &Pattern;
-            pat = x.iter().find(|x| matches_expression(x, &mut matched, names)).unwrap();
+            let pat = x.iter().find(|x| matches_expression(x, &mut matched, names)).unwrap();
             match_on_expression_helper(output, pat, matched, names);
         }
     }
@@ -304,7 +297,7 @@ fn match_on_expression_helper(
 impl Expression {
     #[inline]
     fn is_simplified(&self) -> bool {
-        matches!(self, Expression::Tree {root, ..} 
+        matches!(self, Expression::Tree {root, ..}
             if matches!(&**root, Expression::DataConstructor(_))) ||
         matches!(self, Expression::Lambda { .. } | Expression::DataConstructor(_))
     }
@@ -315,7 +308,7 @@ impl Expression {
         'uwu: while !is_simplified {
             // debug_expression(&self, names);
             match std::mem::take(self) {
-                Expression::Thunk {value: exp, mark} => match Arc::try_unwrap(exp) {
+                Expression::Thunk {value: exp, mark} => match Rc::try_unwrap(exp) {
                     Ok(x) => *self = x.into_inner(),
                     Err(x) => {
                         let Ok(mut inner) = (*x).try_borrow_mut() else {
@@ -336,7 +329,7 @@ impl Expression {
                         match self {
                             Expression::Tree { arguments, .. } => {
                                 let mut new_args = Vec::with_capacity(arguments.len() + args.len() + 1);
-                                new_args.extend(std::mem::take(arguments).into_iter());
+                                new_args.extend(std::mem::take(arguments));
                                 new_args.push(i);
                                 new_args.extend(args);
                                 *arguments = new_args.into();
@@ -375,7 +368,7 @@ impl Expression {
                 }
                 Expression::Match { mut matched_on, branches } => {
                     let mut blame = None;
-                    'aaa: loop {   // goto
+                    'error: {   // goto
                         for (pat, mut new_expression) in branches.into_iter() {
                             if blame.is_none() {
                                 blame = Some(pat.mark.clone());
@@ -384,7 +377,7 @@ impl Expression {
                                 let map = match_on_expression(&pat.value, *matched_on, names);
                                 new_expression.substitute(&map);
                                 *self = new_expression;
-                                break 'aaa;
+                                break 'error;
                             }
                         }
                         let error = Error {
@@ -417,15 +410,14 @@ impl Expression {
 
     // Substitute every instance of a LocalVarPlaceholder with a Thunk. To be used with
     // patternmatching (match_on_expression) output
-      
+
     pub fn substitute(&mut self, map: &Vec<(u32, Expression)>) {
         match self {
             Expression::Lambda { body, .. } => body.substitute(map),
             Expression::LocalVarPlaceholder(id) => {
-                map
-                    .iter()
-                    .find(|(k, _)| k == id)
-                    .map(|(_, v)| *self = v.clone());
+                if let Some((_, v)) = map.iter().find(|(k, _)| k == id) {
+                    *self = v.clone();
+                }
             }
             Expression::Tree { root, arguments, .. } => {
                 root.substitute(map);
@@ -444,11 +436,11 @@ impl Expression {
         }
     }
 
-    // The print function is a combination of evaluate_strictly and 
-    // convert_to_file. It exists to eat much less memory while evaluating large 
+    // The print function is a combination of evaluate_strictly and
+    // convert_to_file. It exists to eat much less memory while evaluating large
     // structures. It's also able to print some infinitely large structures
     // without eating memory at all.
-    
+
     pub fn print(self, names: &Vec<String>, tp: &Type) {
         let mut more = Command::new("more")
             .arg("-n")
@@ -469,19 +461,22 @@ impl Expression {
                 }
                 Expression::DataConstructor(id) => {
                     let word = &names[id as usize];
-                    if let Err(_) = write!(writer, "{word} ") { 
+                    if write!(writer, "{word} ").is_err() {
+                        more.wait().unwrap();
                         return
                     };
                 }
                 Expression::Lambda { .. } => {
-                    if let Err(_) = write!(writer, "<lambda> ") {
+                    if write!(writer, "<lambda> ").is_err() {
+                        more.wait().unwrap();
                         return
                     };
                 }
                 _ => unreachable!(),
             }
         }
-        if let Err(_) = write!(writer, "\n") {
+        if writeln!(writer).is_err() {
+            more.wait().unwrap();
             return
         }
         drop(writer);
@@ -494,7 +489,7 @@ fn build_thunk(mut input: Expression) -> Expression {
     match &mut input {
         Expression::Tree { .. } | Expression::Match { .. } | Expression::Lambda { .. } =>
             Expression::Thunk {
-                value: Arc::new(RefCell::new(input)),
+                value: Rc::new(RefCell::new(input)),
                 mark: None,
             },
         _ => input
@@ -506,7 +501,7 @@ fn optimize_branches(input: &mut Expression) {
         Expression::Tree { arguments, .. } => {
             arguments.iter_mut().for_each(optimize_expression);
         }
-        Expression::Lambda { pattern, body } if matches!(pattern.value, Pattern::Dropped) => 
+        Expression::Lambda { pattern, body } if matches!(pattern.value, Pattern::Dropped) =>
             optimize_expression(body),
         _ => (),
     }
@@ -517,19 +512,19 @@ pub fn optimize_expression(input: &mut Expression) {
         Expression::Tree { root: _, arguments} => {
             arguments.iter_mut().for_each(optimize_expression);
             *input = Expression::Thunk {
-                value: Arc::new(RefCell::new(std::mem::take(input))),
+                value: Rc::new(RefCell::new(std::mem::take(input))),
                 mark: None,
             }
         }
         Expression::Match { .. } => {
-            // no point in optimizing anything since the simplified output will 
+            // no point in optimizing anything since the simplified output will
             // be optimized later
             *input = Expression::Thunk {
-                value: Arc::new(RefCell::new(std::mem::take(input))),
+                value: Rc::new(RefCell::new(std::mem::take(input))),
                 mark: None,
             }
         },
-        Expression::Lambda { pattern, body } if matches!(pattern.value, Pattern::Dropped) => 
+        Expression::Lambda { pattern, body } if matches!(pattern.value, Pattern::Dropped) =>
             optimize_expression(body),
         Expression::Undefined { .. } => (),
         _ => (),

@@ -8,13 +8,13 @@ import System.Environment (getArgs)
 import Control.Applicative (liftA2)
 import Control.Monad ((<=<), (>=>), guard, unless, when)
 import Control.Arrow ((<<<), (>>>), (***), (&&&), (+++), (|||))
-import qualified Data.Map.Strict as Map 
+import qualified Data.Map.Strict as Map
 import Data.Bifunctor (first, second, bimap)
 import Data.Either (fromRight, fromLeft)
 import Data.Maybe (isJust, fromJust, listToMaybe, isNothing, fromMaybe)
 import Data.Tuple (swap)
 import Data.List (find, nub, transpose, sortOn, intercalate, singleton)
-import Text.Read (readMaybe) 
+import Text.Read (readMaybe)
 
 getVideo :: IO (Int, Int, [[[Character]]])
 getVideo = getContents >>= pure . parse . words
@@ -25,32 +25,32 @@ parse ("the" : "frame" : xs) = changeFormat . pure . convertNewFrame . fst . par
 parse ("the" : "final_video" : xs) = parseNewNewFinalVideo $ xs
 
 parseNewNewFinalVideo :: [String] -> (Int, Int, [[[Character]]])
-parseNewNewFinalVideo ("unsafe_final_video" : "graphical_options" : font : theme : xs) = 
+parseNewNewFinalVideo ("unsafe_final_video" : "graphical_options" : font : theme : xs) =
     let out = parseNewNewVideo xs in out
 
 parseNewNewVideo :: [String] -> (Int, Int, [[[Character]]])
-parseNewNewVideo s = let (out, _) = parseListGrid s in 
+parseNewNewVideo s = let (out, _) = parseListGrid s in
     changeFormat $ map numberLines out
     where
       numberChars :: [Character] -> [(Int, Character)]
       numberChars x = zip [1 ..] x
 
       numberLines :: [[Character]] -> [((Int, Int), Character)]
-      numberLines xs = 
+      numberLines xs =
           concat
           $ map (\(n, xs) -> map ((\(n2, c) -> ((n2, n), c))) (numberChars xs))
           $ zip [1 ..] xs
 
 parseListGrid :: [String] -> ([[[Character]]], [String])
 parseListGrid ("nil" : xs) = ([], xs)
-parseListGrid ("cons": xs) = 
+parseListGrid ("cons": xs) =
     let (out, leftover) = parseGrid xs in
         first (out :) (parseListGrid leftover)
 parseListGrid (x: _) = error x
 
 parseGrid :: [String] -> ([[Character]], [String])
 parseGrid ("nil" : xs) = ([], xs)
-parseGrid ("cons": xs) = 
+parseGrid ("cons": xs) =
     let (out, leftover) = parseNewRow xs in
         first (out :) (parseGrid leftover)
 
@@ -88,7 +88,7 @@ changeFormat x = let (x_min, x_max, y_min, y_max) = dimensions x in
       where
         lookupChar want = fromMaybe Space $ lookup want a
   in
-  (x_max - x_min + 1, y_max - y_min + 1, map convertFrame x) 
+  (x_max - x_min + 1, y_max - y_min + 1, map convertFrame x)
 
 cons = (:)
 
@@ -107,7 +107,7 @@ data Character = Space | Character Char Color deriving Eq
 isSpace Space = False
 isSpace _     = True
 
-data Color = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White 
+data Color = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
   deriving (Show, Eq)
 
 type Frame = (Column, Column)
@@ -127,12 +127,12 @@ parseGridCell ("full_grid_cell": xs) = parseChar xs
 
 parseRow :: [String] -> ([Character], [String])
 parseRow ("nil" : xs) = ([], xs)
-parseRow ("cons" : xs) = let (char, other) = parseGridCell xs in 
+parseRow ("cons" : xs) = let (char, other) = parseGridCell xs in
     first (char :) (parseRow other)
 
 parseHorizontal :: [String] -> (Horizontal, [String])
-parseHorizontal ("horizontal" : xs) = 
-    let 
+parseHorizontal ("horizontal" : xs) =
+    let
         (a, other)  = parseRow xs
         (b, other2) = parseRow other
     in
@@ -140,12 +140,12 @@ parseHorizontal ("horizontal" : xs) =
 
 parseColumn :: [String] -> (Column, [String])
 parseColumn ("nil" : xs) = ([], xs)
-parseColumn ("cons" : xs) = let (hor, other) = parseHorizontal xs in 
+parseColumn ("cons" : xs) = let (hor, other) = parseHorizontal xs in
     first (hor :) (parseColumn other)
 
 parseNewFrame :: [String] -> (Frame, [String])
-parseNewFrame ("frame" : xs) = 
-    let 
+parseNewFrame ("frame" : xs) =
+    let
         (a, other)  = parseColumn xs
         (b, other2) = parseColumn other
     in
@@ -153,7 +153,7 @@ parseNewFrame ("frame" : xs) =
 
 parseNewVideo :: [String] -> (Video, [String])
 parseNewVideo ("nil" : xs) = ([], xs)
-parseNewVideo ("cons" : xs) = let (frame, other) = parseNewFrame xs in 
+parseNewVideo ("cons" : xs) = let (frame, other) = parseNewFrame xs in
     first (frame :) (parseNewVideo other)
 parseNewVideo _ = error "\x1b[91mshould be of type video starting with either single or prepend\x1b[0m"
 
@@ -162,21 +162,21 @@ convertNewFrame :: Frame -> Map Coordinate Character
 convertNewFrame (a, b) =
     filter (\(a, b) -> case b of
         Space -> False
-        _ -> True) $ 
-    (concatMap 
-      (\(y, (left, right)) -> map (\(a, b) -> ((a, y), b)) (zip [0, -1 ..] left <> zip [1..] right)) $ 
+        _ -> True) $
+    (concatMap
+      (\(y, (left, right)) -> map (\(a, b) -> ((a, y), b)) (zip [0, -1 ..] left <> zip [1..] right)) $
       zip [-1, -2 ..] a) ++
-    (concatMap 
-      (\(y, (left, right)) -> map (\(a, b) -> ((a, y), b)) (zip [0, -1 ..] left <> zip [1..] right)) $ 
+    (concatMap
+      (\(y, (left, right)) -> map (\(a, b) -> ((a, y), b)) (zip [0, -1 ..] left <> zip [1..] right)) $
       zip [0..] b)
 
 
 
 parseChar :: [String] -> (Character, [String])
 parseChar ("cell_space": xs) = (Space, xs)
-parseChar ("cell": char : color : xs) = 
-  let 
-    c = case char of 
+parseChar ("cell": char : color : xs) =
+  let
+    c = case char of
        "space_char" -> ' '
        "exclamation_mark" -> '!'
        "quotation_mark" -> '"'
@@ -273,8 +273,8 @@ parseChar ("cell": char : color : xs) =
        "right_curly_brace" -> '}'
        "tilde" -> '~'
        x -> error x
-   in 
-   let 
+   in
+   let
      col = case color of
         "black" -> Black
         "red" -> Red

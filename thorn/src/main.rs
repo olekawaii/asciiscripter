@@ -23,18 +23,16 @@ mod tokens;
 use std::env;
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
-use std::sync::Arc;
+use std::rc::Rc;
 use std::cell::RefCell;
-
-use rustyline;
 
 use crate::tokens::{
     tokenize_block,
     BlockTraversal,
 };
 use crate::parse::{
-    Id, 
-    GlobalVarData, 
+    Id,
+    GlobalVarData,
     BlockKind,
     CompilationError,
     NameAndGenerics,
@@ -44,14 +42,14 @@ use crate::parse::{
 };
 use crate::runtime::Expression;
 use crate::error::{
-    Error, 
-    DEBUG_INFO, 
-    Mark, 
+    Error,
+    DEBUG_INFO,
+    Mark,
     get_file_name,
     make_error,
 };
 
-const MAIN_EXPR: &'static str = "/tmp/thorn-input-expr";
+const MAIN_EXPR: &str = "/tmp/thorn-input-expr";
 
 fn main() -> std::io::Result<()> {
     let _ = std::fs::write(MAIN_EXPR, "main");     // by default evaluate main
@@ -82,7 +80,7 @@ fn main() -> std::io::Result<()> {
                     Id::Constructor(n) => n,
                 };
                 let main_expr = expressions[*id].clone();
-                main_expr.print(&mut var_names, var_type);
+                main_expr.print(&var_names, var_type);
             }
             else {
                 let x;
@@ -131,7 +129,7 @@ fn prompt_to_edit_function(mark: &Mark) -> bool {
     match input.as_str() {
         "y" | "Y" | "yes" | "" => (),
         _ => return false
-            
+
     }
     let location = format!("+call cursor({},{})", mark.line +1, mark.character +1);
     let file_name = get_file_name(mark.file);
@@ -155,7 +153,7 @@ fn repl() -> std::io::Result<()> {
             match parse::get_everything() {
                 Err(ref err@Error { ref mark, .. }) => {
                     eprintln!("{err}");
-                    if !prompt_to_edit_function(&mark) {
+                    if !prompt_to_edit_function(mark) {
                         println!("giving up");
                         break
                     }
@@ -177,7 +175,7 @@ fn repl() -> std::io::Result<()> {
         let temp_file_path = format!("/tmp/thorn-repl-{}.th", repl_temp_index);
         let temp_file_index = {
             let mut ptr = DEBUG_INFO.lock().unwrap();
-            ptr.files.push(String::from(temp_file_path.clone()));
+            ptr.files.push(temp_file_path.clone());
             ptr.files.len() - 1
         };
 
@@ -185,43 +183,42 @@ fn repl() -> std::io::Result<()> {
         let mut indent: u8 = 0;
         let mut line: String;
         let mut words: Vec<&str>;
-        let first_word: String;
         line = read_line(">>> ", indent, "");
-        if line == "" {
+        if line.is_empty() {
             continue
         }
         words = line.split_whitespace().collect();
-        first_word = words[0].to_string();
+        let first_word = words[0].to_string();
         let locked_to_one = words.contains(&"contains");
-        if 
-            words[0] == "let"    || 
-            words[0] == "type"   || 
-            words[0] == "the"    || 
+        if
+            words[0] == "let"    ||
+            words[0] == "type"   ||
+            words[0] == "the"    ||
             words[0] == "forall"
         {
             text.push_str(&line);
             loop {
                 words = line.split_whitespace().collect();
-                let include_case: &str = if 
-                    words.contains(&"match") && 
+                let include_case: &str = if
+                    words.contains(&"match") &&
                     words[words.len() - 1] != "match"
                 {
                     "case "
                 } else {
                     ""
                 };
-                indent = (tokens::indentation_length(&line) / 4) as u8;
+                indent = tokens::indentation_length(&line) / 4;
                 indent += 1;
-                if 
-                    words.contains(&"forall") && 
-                    !words.contains(&"type") && 
-                    !words.contains(&"let") 
+                if
+                    words.contains(&"forall") &&
+                    !words.contains(&"type") &&
+                    !words.contains(&"let")
                 {
                     indent = 0
                 }
-                if 
-                     words.contains(&"case") && 
-                    !words.contains(&"match") &&  
+                if
+                     words.contains(&"case") &&
+                    !words.contains(&"match") &&
                      words[words.len() - 1] != "the" &&
                      words.len() != 1
                 {
@@ -233,8 +230,8 @@ fn repl() -> std::io::Result<()> {
                 line = read_line(">>> ", indent, include_case);
                 text.push('\n');
                 text.push_str(&line);
-                if line == "" { 
-                    break 
+                if line.is_empty() {
+                    break
                 }
             }
             let _ = std::fs::write(&temp_file_path, &text);
@@ -249,7 +246,7 @@ fn repl() -> std::io::Result<()> {
                         ) {
                             Err(ref err@Error { ref mark, .. }) => {
                                 eprintln!("\x1b[1A{err}");
-                                if !prompt_to_edit_function(&mark) {
+                                if !prompt_to_edit_function(mark) {
                                     println!("giving up");
                                     break
                                 }
@@ -266,7 +263,7 @@ fn repl() -> std::io::Result<()> {
                         ) {
                             Err(ref err@Error { ref mark, .. }) => {
                                 eprintln!("\x1b[1A\x1b[0J{err}");
-                                if !prompt_to_edit_function(&mark) {
+                                if !prompt_to_edit_function(mark) {
                                     println!("giving up");
                                     break
                                 }
@@ -286,7 +283,7 @@ fn repl() -> std::io::Result<()> {
 }
 
 fn new_evaluate_block(
-    temp_file_name: u32, 
+    temp_file_name: u32,
     dummy: &mut HashMap<String, GlobalVarData>,
     var_names: &mut Vec<String>,
     expressions: &mut Vec<Expression>,
@@ -307,11 +304,11 @@ fn new_evaluate_block(
     let (expr, leftover) = new_parse_expression(
         expressions,
         &available_files,
-        &tp, 
-        bt, 
-        &temp_local_vars, 
-        0, 
-        &dummy, 
+        &tp,
+        bt,
+        &temp_local_vars,
+        0,
+        dummy,
         &new_vec,
     )?;
     BlockTraversal::expect_end_option(leftover)?;
@@ -324,7 +321,7 @@ fn new_evaluate_block(
 
 
 fn compile_block(
-    temp_file_name: u32, 
+    temp_file_name: u32,
     dummy: &mut HashMap<String, GlobalVarData>,
     var_names: &mut Vec<String>,
     expressions: &mut Vec<Expression>,
@@ -340,15 +337,15 @@ fn compile_block(
         BlockKind::Variable => {
             if let Some(x) = dummy.get(&name) {
                 return Err(make_error(
-                    CompilationError::MultipleDeclarations(x.mark.file), 
+                    CompilationError::MultipleDeclarations(x.mark.file),
                     mark
                 ))
             }
             let index = var_names.len();
             var_names.push(String::new());
             expressions.push(Expression::Thunk {
-                value: Arc::new(RefCell::new(Expression::default())),
-                mark: Some(Arc::new(mark.clone()))
+                value: Rc::new(RefCell::new(Expression::default())),
+                mark: Some(Rc::new(mark.clone()))
             });
             let (var_type, bt) = parse_the(bt, &generics)?;
             dummy.insert(name.clone(), GlobalVarData {
@@ -357,20 +354,20 @@ fn compile_block(
                 id: Id::Variable(index),
                 generics,
             });
-            let Some(GlobalVarData { var_type, generics, .. }) = dummy.get(&name) 
+            let Some(GlobalVarData { var_type, generics, .. }) = dummy.get(&name)
             else { unreachable!() };
             let possible: [u32;100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
             let available_files = HashSet::from(possible);
-            let (expression, _bt) = match 
+            let (expression, _bt) = match
                 new_parse_expression(
                     expressions,
                     &available_files,
-                    &var_type, 
+                    var_type,
                     bt,
                     &temp_local_vars,
                     0,
-                    &dummy,
-                    &generics,
+                    dummy,
+                    generics,
                 ).and_then(|(e, bt)| BlockTraversal::expect_end_option(bt).and(Ok((e, bt))))
             {
                 Ok(x) => x,
@@ -382,8 +379,8 @@ fn compile_block(
                 }
             };
             {
-                let Expression::Thunk { value: ref x, .. } = expressions[index] else { 
-                    unreachable!() 
+                let Expression::Thunk { value: ref x, .. } = expressions[index] else {
+                    unreachable!()
                 };
                 let Ok(mut inner) = (*x).try_borrow_mut() else { unreachable!() };
                 *inner = expression;
@@ -395,13 +392,13 @@ fn compile_block(
                 let ptr = ptr.as_mut().unwrap();
                 if ptr.contains_key(&name) {
                     return Err(make_error(
-                        CompilationError::MultipleDeclarations(mark.file), 
+                        CompilationError::MultipleDeclarations(mark.file),
                         mark
                     ))
                 }
                 let data = GlobalTypeData {
-                    mark: mark.clone(), 
-                    id: ptr.len(), 
+                    mark: mark.clone(),
+                    id: ptr.len(),
                     kind: parse::kind_from_generics(generics.len() as u32),
                     generics,
                 };
@@ -409,15 +406,15 @@ fn compile_block(
                 data
             };
             let GlobalTypeData {mark: _, id: index, generics, kind: _ } = &data;
-            match parse::new_parse_data( bt, *index as u32, &generics) {
+            match parse::new_parse_data( bt, *index as u32, generics) {
                 Ok(branches) => {
                     for (name, tp, mark) in branches.into_iter() {
                         dummy.insert(name.clone(), GlobalVarData {
-                            mark: mark.clone(), 
-                            id: Id::Constructor(expressions.len()), 
+                            mark: mark.clone(),
+                            id: Id::Constructor(expressions.len()),
                             generics: generics.clone(),
                             var_type: tp,
-                        }); 
+                        });
                         expressions.push(Expression::DataConstructor(expressions.len() as u32));
                         var_names.push(name);
                     }
@@ -428,14 +425,14 @@ fn compile_block(
                     ptr.remove(&name);
                     return Err(e);
                 }
-            } 
+            }
         }
     }
     Ok(())
 }
 
 // The root of the project is the directory with
-// the main.th file. If main.th is not in the 
+// the main.th file. If main.th is not in the
 // working directory, we ascend up the parent
 // directories until we find it or reach root.
 
@@ -505,11 +502,11 @@ options:
     --repl         start the interactive repl
 
 thorn tries to find the project's root directory containing
-a main.th file. The search starts at the given directory
-(working directory if none is provided) and walks up the 
+a main.th file. The seRch starts at the given directory
+(working directory if none is provided) and walks up the
 filetree until it finds it.
 
-Include statements (include video) recursively look for a 
+Include statements (include video) recursively look for a
 video.th file in any of the project's sudirectories.
 
 The output is the fully evaluated main function. For ASCII
