@@ -1,14 +1,12 @@
 include prelude tuple non_empty
 
-forall a 
-type list contains
+forall a type list contains
     nil
     cons a list a
 
 --  Functor
 
-forall a b 
-define map_list as the 
+forall a b let map_list be the 
     fn fn a b fn list a list b 
     lambda f lambda l match l
         case nil               nil
@@ -16,11 +14,9 @@ define map_list as the
 
 --  Applicative
 
-forall a 
-define lift_list as the fn a list a lambda x cons x nil
+forall a let lift_list be the fn a list a lambda x cons x nil
 
-forall a b 
-define apply_list as the 
+forall a b let apply_list be the 
     fn list fn a b fn list a list b 
     lambda f lambda x flatten_list map_list
         flip 
@@ -30,8 +26,7 @@ define apply_list as the
 
 --  Monad
 
-forall a b 
-define bind_list as the 
+forall a b let bind_list be the 
     fn list a fn fn a list b list b 
     lambda x lambda f flatten_list map_list f x
 
@@ -40,8 +35,7 @@ define bind_list as the
 --  function, it folds the list into a single
 --  value
 
-forall a b 
-define foldr as the 
+forall a b let foldr be the 
     fn fn a fn b b fn b fn list a b 
     lambda f lambda d lambda l match l
         case nil              d
@@ -49,22 +43,19 @@ define foldr as the
 
 --  Concatinate two lists into a single list
 
-forall a 
-define cat as the 
+forall a let cat be the 
     fn list a fn list a list a 
     lambda x lambda y foldr cons y x
 
 --  flatten a list of lists into a single list
 
-forall a 
-define flatten_list as the 
+forall a let flatten_list be the 
     fn list list a list a 
     foldr cat nil
 
 --  Find the length of a list
 
-forall a 
-define list_length as the 
+forall a let list_length be the 
     fn list a whole 
     compose pred 
         foldr 
@@ -75,8 +66,7 @@ define list_length as the
 --  Takes the first n elements of a list. May
 --  return less than n
 
-forall a 
-define take as the 
+forall a let take be the 
     fn whole fn list a list a 
     lambda pred n lambda l match n
         case one             nil
@@ -86,8 +76,7 @@ define take as the
 
 --  Drops the first n elements of a list
 
-forall a 
-define drop as the 
+forall a let drop be the 
     fn whole fn list a list a 
     lambda n lambda l match tuple n l
         case tuple pred succ x cons _ t     drop pred x t
@@ -96,15 +85,13 @@ define drop as the
 --  Zip two lists into a single list of tuples.
 --  The output has the length of the smaller list
 
-forall a b 
-define zip as the 
+forall a b let zip be the 
     fn list a fn list b list tuple a b 
     lambda x lambda y match tuple x y
         case tuple cons ha ta cons hb tb    cons tuple ha hb zip ta tb
         case _                              nil
 
-forall a b c 
-define zip_with as the 
+forall a b c let zip_with be the 
     fn fn a fn b c fn list a fn list b list c
     lambda f lambda la lambda lb map_list
         uncurry f 
@@ -113,8 +100,7 @@ define zip_with as the
 --  Like zip_with but doesn't cut off the rest 
 --  of the larger video
 
-forall a
-define zip_with_leftover as the 
+forall a let zip_with_leftover be the 
     fn fn a fn a a fn list a fn list a list a
     lambda f lambda la lambda lb match tuple la lb
         case tuple nil       _              lb
@@ -132,8 +118,7 @@ define zip_with_leftover as the
 --      e
 --  ]
 
-forall a b
-define zip_with_leftover_right as the 
+forall a b let zip_with_leftover_right be the 
     fn fn b fn a a fn list b fn list a list a
     lambda f lambda la lambda lb match tuple la lb
         case tuple nil       _              lb
@@ -145,8 +130,7 @@ define zip_with_leftover_right as the
 --  Keep elements of a list that return true
 --  for the given function
 
-forall a 
-define filter as the 
+forall a let filter be the 
     fn fn a bool fn list a list a 
     lambda f lambda l match l 
         case nil          nil
@@ -157,8 +141,7 @@ define filter as the
 --  Find the first element that returns true for
 --  the given function
 
-forall a 
-define find as the 
+forall a let find be the 
     fn fn a bool fn list a option a 
     lambda f lambda l map_option 
         the fn non_empty a a head
@@ -167,22 +150,19 @@ define find as the
 --  Concatinate a list with itself to make an 
 --  infinite list
 
-forall a 
-define cycle as the 
+forall a let cycle be the 
     fn list a list a 
     lambda x cat x cycle x
 
 --  Make a list containing n elements of a value
 
-forall a 
-define replicate as the 
+forall a let replicate be the 
     fn whole fn a list a 
     lambda n lambda x take n cycle lift_list x
 
 --  Reverse a list
 
-forall a 
-define reverse as the 
+forall a let reverse be the 
     fn list a list a 
     lambda x match x
         case nil           nil
@@ -192,8 +172,7 @@ define reverse as the
 --  that this is quite slow compared to cons, 
 --  taking O(n) time
 
-forall a 
-define append as the 
+forall a let append be the 
     fn a fn list a list a 
     lambda x lambda xs cat xs lift_list x
 
@@ -202,8 +181,7 @@ define append as the
 --  first argument of the tuple are those that 
 --  returned true
 
-forall a 
-define partition as the 
+forall a let partition be the 
     fn fn a bool fn list a tuple list a list a
     lambda f lambda l match l
         case nil              tuple nil nil

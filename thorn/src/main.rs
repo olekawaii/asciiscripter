@@ -22,26 +22,25 @@ mod tokens;
 
 use std::env;
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::{Stdin, Write};
 use std::process::Command;
 use std::sync::Arc;
 use std::cell::RefCell;
 
 use rustyline;
 
+use crate::tokens::{
+    tokenize_block,
+    BlockTraversal,
+};
 use crate::parse::{
     Id, 
     GlobalVarData, 
-    tokenize_file,
     BlockKind,
-    parse_expression,
     CompilationError,
-    parse_type,
     NameAndGenerics,
-    extract_name_and_generics,
-    Type,
-    GlobalTypeData
+    GlobalTypeData,
+    parse_the,
+    new_parse_expression
 };
 use crate::runtime::Expression;
 use crate::error::{
@@ -51,12 +50,11 @@ use crate::error::{
     get_file_name,
     make_error,
 };
-use crate::tokens::Keyword;
 
 const MAIN_EXPR: &'static str = "/tmp/thorn-input-expr";
 
 fn main() -> std::io::Result<()> {
-    std::fs::write(MAIN_EXPR, "main");     // by default evaluate main
+    let _ = std::fs::write(MAIN_EXPR, "main");     // by default evaluate main
     {
         let mut ptr = parse::TYPES.lock().unwrap();
         *ptr = Some(HashMap::new());
@@ -93,7 +91,7 @@ fn main() -> std::io::Result<()> {
                     ptr.files.push(String::from(MAIN_EXPR));
                     x = ptr.files.len() - 1;
                 }
-                if let Err(e) = evaluate_block(
+                if let Err(e) = new_evaluate_block(
                     x as u32,
                     &mut dummy,
                     &mut var_names,
@@ -137,7 +135,7 @@ fn prompt_to_edit_function(mark: &Mark) -> bool {
     }
     let location = format!("+call cursor({},{})", mark.line +1, mark.character +1);
     let file_name = get_file_name(mark.file);
-    let mut more = Command::new("vim")
+    let _more = Command::new("vim")
         .arg(&location)
         .arg(&file_name)
         .spawn()
@@ -147,8 +145,6 @@ fn prompt_to_edit_function(mark: &Mark) -> bool {
 }
 
 fn repl() -> std::io::Result<()> {
-    let temp_file_path = "/tmp/thorn-repl.th";
-    let mut temp_file = File::create(temp_file_path)?;
     let mut dummy: HashMap<String, GlobalVarData> = HashMap::new();
     let mut names: Vec<String> = Vec::new();
     let mut expressions: Vec<Expression> = Vec::new();
@@ -175,31 +171,34 @@ fn repl() -> std::io::Result<()> {
     } else {
         println!("not in a project");
     }
-    let temp_file_index = {
-        let mut ptr = DEBUG_INFO.lock().unwrap();
-        ptr.files.push(String::from(temp_file_path));
-        ptr.files.len() - 1
-    };
+    let mut repl_temp_index = 0;
     loop {
+        repl_temp_index += 1;
+        let temp_file_path = format!("/tmp/thorn-repl-{}.th", repl_temp_index);
+        let temp_file_index = {
+            let mut ptr = DEBUG_INFO.lock().unwrap();
+            ptr.files.push(String::from(temp_file_path.clone()));
+            ptr.files.len() - 1
+        };
+
         let mut text: String = String::new();
         let mut indent: u8 = 0;
-        let mut locked_to_one = false;
         let mut line: String;
         let mut words: Vec<&str>;
-        let mut first_word: String;
+        let first_word: String;
         line = read_line(">>> ", indent, "");
         if line == "" {
             continue
         }
         words = line.split_whitespace().collect();
         first_word = words[0].to_string();
-        locked_to_one = words.contains(&"contains");
-        if (
-            words[0] == "define" || 
+        let locked_to_one = words.contains(&"contains");
+        if 
+            words[0] == "let"    || 
             words[0] == "type"   || 
             words[0] == "the"    || 
             words[0] == "forall"
-        ) {
+        {
             text.push_str(&line);
             loop {
                 words = line.split_whitespace().collect();
@@ -216,7 +215,7 @@ fn repl() -> std::io::Result<()> {
                 if 
                     words.contains(&"forall") && 
                     !words.contains(&"type") && 
-                    !words.contains(&"define") 
+                    !words.contains(&"let") 
                 {
                     indent = 0
                 }
@@ -238,10 +237,10 @@ fn repl() -> std::io::Result<()> {
                     break 
                 }
             }
-            std::fs::write(temp_file_path, &text);
+            let _ = std::fs::write(&temp_file_path, &text);
             loop {
                 match first_word.as_str() {
-                    "define" | "forall" | "type" => {
+                    "let" | "forall" | "type" => {
                         match compile_block(
                             temp_file_index as u32,
                             &mut dummy,
@@ -259,7 +258,7 @@ fn repl() -> std::io::Result<()> {
                         }
                     }
                     "the" => {
-                        match evaluate_block(
+                        match new_evaluate_block(
                             temp_file_index as u32,
                             &mut dummy,
                             &mut names,
@@ -286,33 +285,36 @@ fn repl() -> std::io::Result<()> {
     }
 }
 
-fn evaluate_block(
+fn new_evaluate_block(
     temp_file_name: u32, 
     dummy: &mut HashMap<String, GlobalVarData>,
     var_names: &mut Vec<String>,
     expressions: &mut Vec<Expression>,
 ) -> error::Result<()> {
+    let new_vec = Vec::new();
     let temp_local_vars = HashMap::new();
     let file_name = get_file_name(temp_file_name);
     let text = std::fs::read_to_string(file_name).unwrap();
-    let mut block = tokenize_file(text, temp_file_name)?.into_iter().next().unwrap();
-    block.remove_leading_newlines();
-    block.expect_keyword(Keyword::The)?;
-    let new_vec = Vec::new();
-    let tp: Type = parse_type(&mut block, &new_vec)?;
+    let lines: Vec<(usize, &str)> = text.lines().enumerate().collect();
+    let block = tokenize_block(lines, temp_file_name, 0)?;
+    let bt = BlockTraversal::new(&block);
+    let (tp, bt) = parse_the(
+        bt,
+        &new_vec
+    )?;
     let possible: [u32;100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
     let available_files = HashSet::from(possible);
-    let new_vec = Vec::new();
-    let expr = parse_expression(
+    let (expr, leftover) = new_parse_expression(
         expressions,
         &available_files,
-        tp.clone(), 
-        &mut block, 
+        &tp, 
+        bt, 
         &temp_local_vars, 
         0, 
         &dummy, 
         &new_vec,
     )?;
+    BlockTraversal::expect_end_option(leftover)?;
     //print!("\x1b[1A\x1b[0J\x1b[90m\n");
     //std::io::stdout().flush();
     expr.print(var_names, &tp);
@@ -330,123 +332,103 @@ fn compile_block(
     let temp_local_vars = HashMap::new();
     let file_name = get_file_name(temp_file_name);
     let text = std::fs::read_to_string(file_name).unwrap();
-    let mut block = tokenize_file(text, temp_file_name)?.into_iter().next().unwrap();
-    match extract_name_and_generics(&mut block)? {
-        NameAndGenerics { name, mark, generics, kind } => {
-            block.add_context(&name.clone().into());
-            match kind {
-                BlockKind::Variable => {
-                    if let Some(x) = dummy.get(&name) {
-                        return Err(make_error(
-                            CompilationError::MultipleDeclarations(x.mark.file), 
-                            mark
-                        ))
-                    }
-                    let index = var_names.len();
-                    var_names.push(String::new());
-                    expressions.push(Expression::Thunk {
-                        value: Arc::new(RefCell::new(Expression::default())),
-                        mark: Some(Arc::new(mark.clone()))
-                    });
-                    match block.expect_keyword(Keyword::The) {
-                        Ok(_) => {
-                            let var_type = parse_type(&mut block, &generics)?;
-                            dummy.insert(name.clone(), GlobalVarData {
-                                var_type,
-                                mark,
-                                id: Id::Variable(index),
-                                generics,
-                            });
-                        }
-                        Err(Error { mark, .. }) => {
-                            return Err(make_error(
-                                CompilationError::TypeAnnotationNeeded, 
-                                mark
-                            ))
-                        }
-                    }
-                    let Some(GlobalVarData {mark, var_type, id, generics}) = dummy.get(&name) 
-                    else { unreachable!() };
-                    let possible: [u32;100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
-                    let available_files = HashSet::from(possible);
-                    let expression: Expression = match 
-                        parse_expression(
-                            expressions,
-                            &available_files,
-                            var_type.clone(), 
-                            &mut block,
-                            &temp_local_vars,
-                            0,
-                            &dummy,
-                            &generics,
-                        ).and_then(|x| block
-                            .expect_end()
-                            .and_then(|_| Ok(x)) 
-                        )
-                    {
-                        Ok(expr) => expr,
-                        Err(e) => {
-                            expressions.pop();
-                            var_names.pop();
-                            dummy.remove(&name);
-                            return Err(e);
-                        }
-                    };
-                    {
-                        let Expression::Thunk { value: ref x, .. } = expressions[index] else { 
-                            unreachable!() 
-                        };
-                        let Ok(mut inner) = (*x).try_borrow_mut() else { unreachable!() };
-                        *inner = expression;
-                    }
-                }
-                BlockKind::Type => {
-                    let data: GlobalTypeData = {
-                        let mut ptr = parse::TYPES.lock().unwrap();
-                        let mut ptr = ptr.as_mut().unwrap();
-                        if ptr.contains_key(&name) {
-                            return Err(make_error(
-                                CompilationError::MultipleDeclarations(mark.file), 
-                                mark
-                            ))
-                        }
-                        let data = GlobalTypeData {
-                            mark: mark.clone(), 
-                            id: ptr.len(), 
-                            kind: parse::kind_from_generics(generics.len() as u32),
-                            generics,
-                        };
-                        ptr.insert(name.clone(), data.clone());
-                        data
-                    };
-                    if let GlobalTypeData {mark: _, id: index, generics, kind: _ } = &data {
-                        match parse::parse_data(
-                            block,
-                            *index as u32, 
-                            &generics
-                        ) {
-                            Ok(branches) => {
-                                for (name, tp, mark) in branches.into_iter() {
-                                    dummy.insert(name.clone(), GlobalVarData {
-                                        mark: mark.clone(), 
-                                        id: Id::Constructor(expressions.len()), 
-                                        generics: generics.clone(),
-                                        var_type: tp,
-                                    }); 
-                                    expressions.push(Expression::DataConstructor(expressions.len() as u32));
-                                    var_names.push(name);
-                                }
-                            }
-                            Err(e) => {
-                                let mut ptr = parse::TYPES.lock().unwrap();
-                                let mut ptr = ptr.as_mut().unwrap();
-                                ptr.remove(&name);
-                                return Err(e);
-                            }
-                        }
-                    } 
-                }
+    let block = parse::new_tokenize_file(text, temp_file_name)?.into_iter().next().unwrap();
+    let bt = BlockTraversal::new(&block);
+    let (NameAndGenerics {name, mark, generics, kind}, bt) = parse::new_extract_name_and_generics(bt)?;
+    // block.add_context(&name.clone().into());
+    match kind {
+        BlockKind::Variable => {
+            if let Some(x) = dummy.get(&name) {
+                return Err(make_error(
+                    CompilationError::MultipleDeclarations(x.mark.file), 
+                    mark
+                ))
             }
+            let index = var_names.len();
+            var_names.push(String::new());
+            expressions.push(Expression::Thunk {
+                value: Arc::new(RefCell::new(Expression::default())),
+                mark: Some(Arc::new(mark.clone()))
+            });
+            let (var_type, bt) = parse_the(bt, &generics)?;
+            dummy.insert(name.clone(), GlobalVarData {
+                var_type,
+                mark,
+                id: Id::Variable(index),
+                generics,
+            });
+            let Some(GlobalVarData { var_type, generics, .. }) = dummy.get(&name) 
+            else { unreachable!() };
+            let possible: [u32;100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
+            let available_files = HashSet::from(possible);
+            let (expression, _bt) = match 
+                new_parse_expression(
+                    expressions,
+                    &available_files,
+                    &var_type, 
+                    bt,
+                    &temp_local_vars,
+                    0,
+                    &dummy,
+                    &generics,
+                ).and_then(|(e, bt)| BlockTraversal::expect_end_option(bt).and(Ok((e, bt))))
+            {
+                Ok(x) => x,
+                Err(e) => {
+                    expressions.pop();
+                    var_names.pop();
+                    dummy.remove(&name);
+                    return Err(e);
+                }
+            };
+            {
+                let Expression::Thunk { value: ref x, .. } = expressions[index] else { 
+                    unreachable!() 
+                };
+                let Ok(mut inner) = (*x).try_borrow_mut() else { unreachable!() };
+                *inner = expression;
+            }
+        }
+        BlockKind::Type => {
+            let data: GlobalTypeData = {
+                let mut ptr = parse::TYPES.lock().unwrap();
+                let ptr = ptr.as_mut().unwrap();
+                if ptr.contains_key(&name) {
+                    return Err(make_error(
+                        CompilationError::MultipleDeclarations(mark.file), 
+                        mark
+                    ))
+                }
+                let data = GlobalTypeData {
+                    mark: mark.clone(), 
+                    id: ptr.len(), 
+                    kind: parse::kind_from_generics(generics.len() as u32),
+                    generics,
+                };
+                ptr.insert(name.clone(), data.clone());
+                data
+            };
+            let GlobalTypeData {mark: _, id: index, generics, kind: _ } = &data;
+            match parse::new_parse_data( bt, *index as u32, &generics) {
+                Ok(branches) => {
+                    for (name, tp, mark) in branches.into_iter() {
+                        dummy.insert(name.clone(), GlobalVarData {
+                            mark: mark.clone(), 
+                            id: Id::Constructor(expressions.len()), 
+                            generics: generics.clone(),
+                            var_type: tp,
+                        }); 
+                        expressions.push(Expression::DataConstructor(expressions.len() as u32));
+                        var_names.push(name);
+                    }
+                }
+                Err(e) => {
+                    let mut ptr = parse::TYPES.lock().unwrap();
+                    let ptr = ptr.as_mut().unwrap();
+                    ptr.remove(&name);
+                    return Err(e);
+                }
+            } 
         }
     }
     Ok(())
@@ -503,10 +485,10 @@ fn parse_cli_arguments() -> std::io::Result<Arguments> {
                         buffer.push_str(&line.unwrap());
                         buffer.push('\n');
                     }
-                    std::fs::write(MAIN_EXPR, &buffer);
+                    let _ = std::fs::write(MAIN_EXPR, &buffer);
                 }
                 else {
-                    std::fs::write(MAIN_EXPR, &arg);
+                    let _ = std::fs::write(MAIN_EXPR, &arg);
                 }
             }
             "--help" | "-h" => {

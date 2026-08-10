@@ -2,8 +2,7 @@ include list option
 
 --  A list that contains at least one element
 
-forall a 
-type non_empty contains
+forall a type non_empty contains
     prepended a list a
 
 --             head    tail
@@ -15,24 +14,20 @@ type non_empty contains
 --  Note that init and tail have a return type of
 --  `list a` while head and last return an `a`
 
-forall a 
-define head as the fn non_empty a a lambda prepended x _    x
+forall a let head be the fn non_empty a a lambda prepended x _    x
 
-forall a 
-define tail as the 
+forall a let tail be the 
     fn non_empty a list a 
     lambda prepended _ xs    xs
 
-forall a 
-define last as the 
+forall a let last be the 
     fn non_empty a a 
     lambda prepended head tail match tail
         case nil            head
         case cons x xs      last 
             prepended x xs
 
-forall a 
-define init as the 
+forall a let init be the 
     fn non_empty a list a 
     lambda prepended head tail match tail
         case nil            nil
@@ -41,8 +36,7 @@ define init as the
 --  Turn a list into an option non_empty,
 --  returning a none if the list was empty
 
-forall a 
-define list_to_non_empty as the 
+forall a let list_to_non_empty be the 
     fn list a option non_empty a 
     lambda l match l 
         case nil            none
@@ -51,23 +45,20 @@ define list_to_non_empty as the
 --  A partial list_to_non_empty function that
 --  panics if the list was empty
 
-forall a 
-define assert_non_empty as the 
+forall a let assert_non_empty be the 
     fn list a non_empty a 
     lambda cons x xs    prepended x xs    -- fails on nil
 
 --  Turn a non_empty back into a regular 
 --  list
 
-forall a 
-define non_empty_to_list as the 
+forall a let non_empty_to_list be the 
     fn non_empty a list a 
     lambda prepended h t    cons h t
 
 --  Like foldr but doesn't use a default value.
 
-forall a 
-define foldr_i as the 
+forall a let foldr_i be the 
     fn fn a fn a a fn non_empty a a 
     lambda f lambda prepended x xs match list_to_non_empty xs 
         case none        x

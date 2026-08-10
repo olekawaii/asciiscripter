@@ -9,7 +9,7 @@ type final_video contains
         graphical_options
         list list list cell
 
-define make_final_video as the 
+let make_final_video be the 
     fn graphical_options fn video final_video
     lambda g lambda unsafe_video _ _ v    unsafe_final_video g v
 
@@ -44,7 +44,7 @@ type shader_input contains
         list list cell          -- current frame    to avoid video traversal
         cell                    -- current cell     to avoid video traversal
 
-define apply_shader as the 
+let apply_shader be the 
     fn fn shader_input cell fn video video
     undefined    -- TODO
 
@@ -56,7 +56,7 @@ type graphical_options contains
         font
         colorscheme
 
-define default_graphical_options as the graphical_options 
+let default_graphical_options be the graphical_options 
     graphical_options
         default_font
         default_colorscheme
@@ -79,11 +79,11 @@ type colorscheme contains
     solarized_dark
     tokyonight_moon
 
-define default_font as the font unifont
+let default_font be the font unifont
 
-define default_colorscheme as the colorscheme gruvbox_material_dark_hard
+let default_colorscheme be the colorscheme gruvbox_material_dark_hard
 
-define new_video as the
+let new_video be the
     fn frame_size fn nat video
     lambda bind s frame_size x y lambda l unsafe_video s l
         replicate nat_to_whole l 
@@ -97,12 +97,12 @@ type new_frame contains
         offset                  -- grid's offset
         list list grid_cell     -- 2d grid of cell effects
 
-define new_new_frame as the new_frame unsafe_frame
+let new_new_frame be the new_frame unsafe_frame
     frame_size one one
     offset zero zero
     cons cons empty_grid_cell nil nil
 
-define apply_old_frames_to_video as the 
+let apply_old_frames_to_video be the 
     fn list frame fn video video
     lambda o lambda unsafe_video s l n
         unsafe_video s l zip_with_leftover_right

@@ -40,7 +40,7 @@ type grid_cell contains
 --  insert x y c inserts the cell c at the 
 --  coordinate x y
 
-define insert as the fn int fn int fn cell fn frame frame 
+let insert be the fn int fn int fn cell fn frame frame 
     lambda x lambda y lambda chr
         lambda frame col_neg col_pos match y 
             case neg index    frame
@@ -54,14 +54,14 @@ define insert as the fn int fn int fn cell fn frame frame
                 insert_column x one chr col_pos
 
 --  Repeatedly apply a function to a frame n 
---  times. Same as repeat
+--  times. Same be repeat
 
-define by as the fn nat fn fn frame frame fn frame frame repeat
+let by be the fn nat fn fn frame frame fn frame frame repeat
 
 --  shift_by x y shifts the frame by the x and y 
 --  values
 
-define shift_by as the fn int fn int fn frame frame 
+let shift_by be the fn int fn int fn frame frame 
     lambda x lambda y lambda f match 
         the fn frame frame match x
             case pos a     by a shift east
@@ -76,12 +76,12 @@ define shift_by as the fn int fn int fn frame frame
 
 --  layer_frames a b layers a on top of b
 
-define layer_frames as the fn frame fn frame frame 
+let layer_frames be the fn frame fn frame frame 
     lambda frame na pa lambda frame nb pb   frame
         layer_columns na nb
         layer_columns pa pb
 
-define new_frame as the frame frame nil nil
+let new_frame be the frame frame nil nil
 
 type direction contains
     north
@@ -92,7 +92,7 @@ type direction contains
 --  shift d shifts the coordinates of the frame 
 --  in the direction d
 
-define shift as the fn direction fn frame frame 
+let shift be the fn direction fn frame frame 
     lambda dir lambda bind f frame col_neg col_pos match dir
         case north                match col_neg
             case cons hor col_succ    frame
@@ -119,12 +119,12 @@ define shift as the fn direction fn frame frame
 --
 --  because , flips to . but not vise versa
 
-define flip_over_y as the fn frame frame map_columns over_y_hor
+let flip_over_y be the fn frame frame map_columns over_y_hor
 
 --  Recolor all the cells in a frame to a
 --  color
 
-define dye as the fn color fn frame frame lambda color map_frame 
+let dye be the fn color fn frame frame lambda color map_frame 
     lambda c match c 
         case cell_space        cell_space
         case cell ch _         cell ch color
@@ -132,17 +132,17 @@ define dye as the fn color fn frame frame lambda color map_frame
 --  The following are helper functions you 
 --  probably don't need 
 
-define empty_horizontal as the horizontal 
+let empty_horizontal be the horizontal 
     horizontal nil nil
 
-define insert_horizontal as the fn int fn cell fn horizontal horizontal
+let insert_horizontal be the fn int fn cell fn horizontal horizontal
     lambda index lambda chr lambda horizontal n p
         match index 
             case neg index         horizontal insert_row index chr n p
             case pos index         horizontal n insert_row succ index chr p
             case zero              horizontal n insert_row one chr p
 
-define insert_row as the 
+let insert_row be the 
     fn nat fn cell fn list grid_cell list grid_cell 
     lambda index lambda chr lambda r match r 
         case cons x xs         match index
@@ -150,7 +150,7 @@ define insert_row as the
             case succ i            cons x insert_row i chr xs
         case nil               insert_row index chr cons empty_grid_cell nil
 
-define insert_column as the 
+let insert_column be the 
     fn int fn nat fn cell fn list horizontal list horizontal 
     lambda x lambda y lambda chr lambda col match col
         case cons head tail    match y
@@ -162,7 +162,7 @@ type horizontal_direction contains
     right
     left
 
-define shift_horizontal as the
+let shift_horizontal be the
     fn horizontal_direction fn horizontal horizontal
     lambda dir lambda horizontal r_l r_r match dir 
         case right    match r_l 
@@ -172,13 +172,13 @@ define shift_horizontal as the
             case cons head tail     horizontal cons head r_l tail
             case nil                horizontal cons empty_grid_cell r_l nil
 
-define map_columns as the fn fn horizontal horizontal fn frame frame 
+let map_columns be the fn fn horizontal horizontal fn frame frame 
     lambda f lambda frame cn cp
         frame
             map_list f cn
             map_list f cp
 
-define layer_columns as the 
+let layer_columns be the 
     fn list horizontal fn list horizontal list horizontal 
     lambda ca lambda cb match tuple ca cb
         case 
@@ -188,13 +188,13 @@ define layer_columns as the
                 layer_columns tail_a tail_b
         case either tuple nil a tuple a nil     a
 
-define layer_horizontal as the fn horizontal fn horizontal horizontal 
+let layer_horizontal be the fn horizontal fn horizontal horizontal 
     lambda horizontal aa ba lambda horizontal ab bb
         horizontal
             layer_rows aa ab
             layer_rows ba bb
 
-define layer_rows as the 
+let layer_rows be the 
     fn list grid_cell fn list grid_cell list grid_cell
     lambda x lambda b match tuple x b
         case tuple cons aa ba cons ab bb        cons
@@ -209,7 +209,7 @@ define layer_rows as the
             layer_rows ba bb
         case either tuple nil a tuple a nil     a
 
-define over_y_hor as the fn horizontal horizontal 
+let over_y_hor be the fn horizontal horizontal 
     lambda horizontal n p match p
         case cons x xs              horizontal 
             map_row flip_over_y_char xs
@@ -218,22 +218,22 @@ define over_y_hor as the fn horizontal horizontal
         case nil                    horizontal nil
             cons empty_grid_cell map_row flip_over_y_char n
 
-define map_over_grid_cell as the
+let map_over_grid_cell be the
     fn fn cell cell fn grid_cell grid_cell
     lambda f lambda x match x 
         case full_grid_cell a       full_grid_cell f a
         case _                      x
 
-define map_horizontal as the
+let map_horizontal be the
     fn fn cell cell fn horizontal horizontal
     lambda f lambda horizontal ra rb horizontal
         map_row f ra
         map_row f rb
 
-define map_frame as the fn fn cell cell fn frame frame 
+let map_frame be the fn fn cell cell fn frame frame 
     lambda f lambda x map_columns map_horizontal f x
 
-define map_row as the 
+let map_row be the 
     fn fn cell cell fn list grid_cell list grid_cell 
     lambda f lambda x match x
         case nil                    nil

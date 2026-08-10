@@ -171,7 +171,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "\x1b[91m{} ERROR \x1b[0m\x1b[0m {}\n\x1b[90m{}{}\x1b[0m",
+            "\x1b[91m{} ERROR \x1b[0m\x1b[0m {}\n\x1b[90m{}{}\x1b[0m\n",
             self.error_type.phase(),
             show_mark(self.mark.clone(), self.error_type.gist()),
             self.error_type,
@@ -189,11 +189,3 @@ pub struct Marked<T> {
     pub value: T,
     pub mark: Mark,
 }
-
-impl<T> Marked<T> {
-    #[inline]
-    pub fn destructure(self) -> (T, Mark) {
-        (self.value, self.mark)
-    }
-}
-

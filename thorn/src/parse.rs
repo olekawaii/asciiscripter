@@ -22,6 +22,7 @@ use std::fs::read_to_string;
 use std::sync::Mutex;
 use std::sync::Arc;
 use std::cell::RefCell;
+use std::borrow::Cow; // TODO use for passing in type parse_expression
 
 use crate::error::{make_error, Result, Error, ErrorType, Mark, Marked, DEBUG_INFO, get_file_name};
 use crate::runtime::{Expression, Pattern};
@@ -39,10 +40,10 @@ pub enum CompilationError {
     ExpectedMoreArguments,
     NotInScope(String, Option<u32>),
     TypeMismatch(Type, Option<Type>),
-    BadTypeInference(Type, Type),
+    // BadTypeInference(Type, Type),
     BadFile(String),
     MultipleDeclarations(u32),
-    TypeAnnotationNeeded,
+    // TypeAnnotationNeeded,
     RedundentPattern
 }
 
@@ -50,8 +51,8 @@ impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
             Self::CannotInferType         => "can't infer type",
-            Self::TypeAnnotationNeeded    => "type annotation needed",
-            Self::BadTypeInference(_, _)  => "of unexpected type",
+            // Self::TypeAnnotationNeeded    => "type annotation needed",
+            // Self::BadTypeInference(_, _)  => "of unexpected type",
             Self::NotUsed                 => "local variable never used",
             Self::EitherMismatch          => "mismatch between branches",
             Self::MultipleDeclarations(_) => "multiple declarations",
@@ -73,13 +74,13 @@ impl ErrorType for CompilationError {
 impl std::fmt::Display for CompilationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadTypeInference(expected, got) => write!(
-                f, 
-                "expected a value of type \x1b[97m{}\x1b[90m\nbut the given type is \x1b[97m{}\x1b[90m",
-                expected.show(),
-                got.show()
-            ),
-            Self::TypeAnnotationNeeded => write!(f, "consider adding a type annotation with the \x1b[97mthe\x1b[90m keyword"),
+            // Self::BadTypeInference(expected, got) => write!(
+            //     f, 
+            //     "expected a value of type \x1b[97m{}\x1b[90m\nbut the given type is \x1b[97m{}\x1b[90m",
+            //     expected.show(),
+            //     got.show()
+            // ),
+            // Self::TypeAnnotationNeeded => write!(f, "consider adding a type annotation with the \x1b[97mthe\x1b[90m keyword"),
             Self::EitherMismatch => write!(f, "the two patterns in the \x1b[97meither\x1b[90m pattern must have 
 the same variables and of the same type"),
             Self::MultipleDeclarations(s) => write!(f, "name already used in \x1b[97m{s}\x1b[90m"),
@@ -176,9 +177,9 @@ pub fn get_everything<'a>() -> Result<(Vec<Expression>, Vec<String>, Globals)> {
         let mut ptr = DEBUG_INFO.lock().unwrap();
         ptr.files = files.clone();
     }
-    let (vars, vars_dummy) = uwu(&files)?;
+    let (vars, vars_dummy) = new_uwu(&files)?;
     let mut map = Vec::with_capacity(vars_dummy.len());
-    for i in 0..vars_dummy.len() {
+    for _ in 0..vars_dummy.len() {
         map.push(String::new());
     }
     for (name, GlobalVarData {id, ..}) in vars_dummy.iter() {
@@ -220,21 +221,19 @@ impl Dependencies {
     }
 }
 
-fn get_includes<'a>(
-    blocks: &mut Vec<Tokens>, 
+fn new_get_includes<'a>(
+    blocks: &mut Vec<Block>, 
     file_names: &HashMap<String, (&'a str, u32)>
 ) -> Result<HashSet<u32>> {
-    let elem = &mut blocks[0];
-    elem.remove_leading_newlines();
+    let elem = BlockTraversal::new(&blocks[0]);
     let mut output = HashSet::new();
-    if matches!(elem.peek().unwrap().value, Token::Keyword(Keyword::Include)) {
-        let _ = elem.next();
-        while let Ok(Marked {value: x, mark}) = elem.next_word() {
-            if let Some((_, key)) = file_names.get(&x) {
-                output.insert(*key);
-            } else {
-                return Err(make_error(CompilationError::BadFile(x), mark))
-            }
+    if let Ok((_include_mark, mut bt)) = elem.expect_keyword(Keyword::Include) {
+        while let Ok((x, mark, bt_)) = bt.expect_word() {
+            bt = bt_;
+            let Some((_, key)) = file_names.get(x) else {
+                return Err(make_error(CompilationError::BadFile(x.to_string()), mark.clone()))
+            };
+            output.insert(*key);
         }
         blocks.remove(0);
     }
@@ -262,7 +261,7 @@ pub fn kind_from_generics(count: u32) -> Kind {
     }
 }
 
-fn uwu<'a>(files: &Vec<String>) -> Result<(Vec<Expression>, Globals)> {
+fn new_uwu<'a>(files: &Vec<String>) -> Result<(Vec<Expression>, Globals)> {
     let mut file_names: HashMap<String, (&str, u32)> = HashMap::new();
     let mut count: u32 = 0;
     for i in files.iter() {
@@ -276,8 +275,8 @@ fn uwu<'a>(files: &Vec<String>) -> Result<(Vec<Expression>, Globals)> {
     // we need types before we can parse data constructors and 
     // variable types so we'll do those later
       
-    let mut type_bodies: Vec<Tokens> = Vec::new();
-    let mut var_bodies: Vec<Tokens> = Vec::new();
+    let mut type_bodies: Vec<BlockTraversal> = Vec::new();
+    let mut var_bodies: Vec<BlockTraversal> = Vec::new();
 
     let mut type_table: HashMap<String, GlobalTypeData> = HashMap::new();
     type_table.insert(String::from("fn"), GlobalTypeData {
@@ -288,48 +287,45 @@ fn uwu<'a>(files: &Vec<String>) -> Result<(Vec<Expression>, Globals)> {
     });
     let mut var_table: HashMap<String, (Mark, usize, Generics)> = HashMap::new();
 
-    let mut file_tokens: Vec<(&str, Vec<Tokens>)> = Vec::new();
+    let mut file_tokens: Vec<(&str, Vec<Block>)> = Vec::new();
     let mut dependencies: Dependencies = Dependencies { files: HashMap::new() };
 
     for (index, file_name) in files.iter().enumerate() {
         let contents = read_to_string(file_name).unwrap();
-        let mut blocks = tokenize_file(contents, index as u32)?;
-        let deps = get_includes(&mut blocks, &file_names)?;
+        let mut blocks = new_tokenize_file(contents, index as u32)?;
+        let deps = new_get_includes(&mut blocks, &file_names)?;
         dependencies.files.insert(index as u32, deps);
         file_tokens.push((file_name, blocks));
     }
 
-    for (_file_name, blocks) in file_tokens.into_iter() {
-        for mut block in blocks.into_iter() {
-            match extract_name_and_generics(&mut block)? {
-                NameAndGenerics { name, mark, generics, kind } => {
-                    block.add_context(&name.clone().into());
-                    match kind {
-                        BlockKind::Variable => {
-                            if let Some(x) = var_table.insert(name, (mark.clone(), var_bodies.len(), generics)) {
-                                return Err(make_error(
-                                    CompilationError::MultipleDeclarations(x.0.file), 
-                                    mark
-                                ))
-                            }
-                            var_bodies.push(block);
-                        }
-                        BlockKind::Type => {
-                            if let Some(x) = type_table.get(&name) {
-                                return Err(make_error(
-                                    CompilationError::MultipleDeclarations(x.mark.file), 
-                                    mark
-                                ))
-                            }
-                            type_table.insert(name, GlobalTypeData {
-                                mark: mark.clone(), 
-                                id: type_table.len(), 
-                                kind: kind_from_generics(generics.len() as u32),
-                                generics,
-                            });
-                            type_bodies.push(block);
-                        }
+    for (_file_name, blocks) in file_tokens.iter() {
+        for block in blocks.iter() {
+            let bt = BlockTraversal::new(block);
+            let (NameAndGenerics {name, mark, generics, kind}, bt) = new_extract_name_and_generics(bt)?;
+            match kind {
+                BlockKind::Variable => {
+                    if let Some(x) = var_table.insert(name, (mark.clone(), var_bodies.len(), generics)) {
+                        return Err(make_error(
+                            CompilationError::MultipleDeclarations(x.0.file), 
+                            mark
+                        ))
                     }
+                    var_bodies.push(bt);
+                }
+                BlockKind::Type => {
+                    if let Some(x) = type_table.get(&name) {
+                        return Err(make_error(
+                            CompilationError::MultipleDeclarations(x.mark.file), 
+                            mark
+                        ))
+                    }
+                    type_table.insert(name, GlobalTypeData {
+                        mark: mark.clone(), 
+                        id: type_table.len(), 
+                        kind: kind_from_generics(generics.len() as u32),
+                        generics,
+                    });
+                    type_bodies.push(bt);
                 }
             }
         }
@@ -343,26 +339,20 @@ fn uwu<'a>(files: &Vec<String>) -> Result<(Vec<Expression>, Globals)> {
     // Step 2: parse the types of constructors and variables
 
     for (name, (mark, index, generics)) in var_table.into_iter() {
-        match var_bodies[index].expect_keyword(Keyword::The) {
-            Ok(_) => {
-                let var_type = parse_type(&mut var_bodies[index], &generics)?;
-                final_var_table.insert(name, GlobalVarData {
-                    var_type,
-                    mark,
-                    id: Id::Variable(index),
-                    generics,
-                });
-            }
-            Err(Error { mark, .. }) => {
-                return Err(make_error(CompilationError::TypeAnnotationNeeded, mark))
-            }
-        }
+        let (var_type, bt) = parse_the(var_bodies[index], &generics)?;
+        final_var_table.insert(name, GlobalVarData {
+            var_type,
+            mark,
+            id: Id::Variable(index),
+            generics,
+        });
+        var_bodies[index] = bt;
     }
 
     for (_name, GlobalTypeData {mark: _, id: index, generics, kind: _ }) in type_table.into_iter() {
         if index != 0 {
-            let branches = parse_data(
-                std::mem::take(&mut type_bodies[index - 1]), 
+            let branches = new_parse_data(
+                type_bodies[index - 1], 
                 index as u32, 
                 &generics
             )?;
@@ -382,13 +372,11 @@ fn uwu<'a>(files: &Vec<String>) -> Result<(Vec<Expression>, Globals)> {
         }
     }
 
-    std::mem::drop(type_bodies);
-
     let mut expressions: Vec<Expression> = Vec::with_capacity(final_var_table.len());
-    for i in 0..final_var_table.len() {
+    for _ in 0..final_var_table.len() {
         expressions.push(Expression::default());
     }
-    for (var_name, GlobalVarData {mark, var_type, id, generics}) in final_var_table.iter() {
+    for (_, GlobalVarData {mark, id, ..}) in final_var_table.iter() {
         match id {
             Id::Constructor(n) => expressions[*n] = Expression::DataConstructor(*n as u32),
             Id::Variable(n) => expressions[*n] = Expression::Thunk {
@@ -400,20 +388,20 @@ fn uwu<'a>(files: &Vec<String>) -> Result<(Vec<Expression>, Globals)> {
     
     // step 3: parse the expressions
     let temp_local_vars = HashMap::new();
-    for (var_name, GlobalVarData {mark, var_type, id, generics}) in final_var_table.iter() {
+    for (_, GlobalVarData {mark, var_type, id, generics}) in final_var_table.iter() {
         let available_files = dependencies.available_files(mark.file);
         let Id::Variable(index) = id else { continue };
-        let expression = parse_expression(
+        let (expression, bt) = new_parse_expression(
             &mut expressions,
             &available_files,
-            var_type.clone(), 
-            &mut var_bodies[*index],
+            var_type, 
+            var_bodies[*index],
             &temp_local_vars,
             0,
             &final_var_table,
             &generics,
         )?;
-        var_bodies[*index].expect_end()?;
+        BlockTraversal::expect_end_option(bt)?;
         {
             let Expression::Thunk { value: ref x, .. } = expressions[*index] else { unreachable!() };
             let Ok(mut inner) = (*x).try_borrow_mut() else { unreachable!() };
@@ -423,36 +411,27 @@ fn uwu<'a>(files: &Vec<String>) -> Result<(Vec<Expression>, Globals)> {
     Ok((expressions, final_var_table))
 }
 
-fn parse_pattern(
-    mut number_of_local: u32,
-    expected_type: &Type,
-    tokens: &mut Tokens,
-    global_vars: &Globals,
-) -> Result<(Pattern, Mark, LocalVars, u32)> {
+fn new_parse_pattern<'a>(
+    mut number_of_local:  u32,
+    expected_type:        &Type,
+    bt:                   BlockTraversal<'a>,
+    global_vars:          &Globals,
+) -> Result<(Pattern, Mark, LocalVars, u32, Option<BlockTraversal<'a>>)> {
     let mut output = HashMap::new();
-    let mut mark = tokens.peek()?.mark.clone();
-    mark.character = 0;
-    let pattern = parse_pattern_helper(
-        &mut number_of_local,
-        expected_type,
-        &mut output,
-        tokens,
-        global_vars,
-    )?;
-    Ok((pattern, mark, output, number_of_local))
+    let mark = bt.next_token_in_line()?.1.clone();
+    let (pattern, bt) = new_parse_pattern_helper(&mut number_of_local, expected_type, &mut output, bt, global_vars)?;
+    Ok((pattern, mark, output, number_of_local, bt))
 }
 
 // asserts that the two maps are equal and makes their ids equivelent
 
-fn assert_maps_equal(fst: &mut LocalVars, snd: &mut LocalVars) -> Result<()> {
-    let (larger, smaller) = if fst.len() > snd.len() {
-        (fst, snd)
-    } else {
-        (snd, fst)
+fn assert_maps_equal(either_mark: &Mark, fst: &LocalVars, snd: &LocalVars) -> Result<()> {
+    if fst.len() != snd.len() {
+        return Err(make_error(CompilationError::EitherMismatch, either_mark.clone()));
     };
-    for (name, (id, tp, mark)) in larger.iter_mut() {
-        if let Some(x) = smaller.get_mut(name) && x.1 == *tp {
-            x.0 = *id;
+    for (name, (_, tp, mark)) in fst.iter() {
+        if let Some(x) = snd.get(name) && x.1 == *tp {
+            // x.0 = *id;
         } else {
             return Err(make_error(CompilationError::EitherMismatch, mark.clone()));
         }
@@ -460,89 +439,103 @@ fn assert_maps_equal(fst: &mut LocalVars, snd: &mut LocalVars) -> Result<()> {
     return Ok(())
 }
 
-fn parse_pattern_helper(
+fn new_parse_pattern_helper<'a>(
     number_of_local: &mut u32,
     expected_type: &Type,
     output: &mut LocalVars,
-    tokens: &mut Tokens,
+    bt: BlockTraversal<'a>,
     global_vars: &Globals,
-) -> Result<Pattern> {
-    if let Ok(_) = tokens.expect_keyword(Keyword::Bind) {
-        let (name, mark) = tokens.next_word()?.destructure();
-        if !name.starts_with('_') {
+) -> Result<(Pattern, Option<BlockTraversal<'a>>)> {
+    let (token, root_mark, bt) = bt.next_token_in_line()?;
+    match token {
+        OwnedToken::Keyword(Keyword::Bind) => {
+            let (name, mark, bt) = bt.expect_word()?;
+            assert!(!name.starts_with('_')); // TODO
             *number_of_local += 1;
-            output.insert(name, (*number_of_local, expected_type.clone(), mark));
-            Ok(Pattern::Bound(*number_of_local, Box::new(parse_pattern_helper(
-                number_of_local,
-                expected_type,
-                output,
-                tokens,
-                global_vars,
-            )?)))
-        } else {
-            Ok(Pattern::Dropped)
+            let number_of_local_copy = *number_of_local;
+            output.insert(name.to_string(), (*number_of_local, expected_type.clone(), mark.clone()));
+            let (pat, bt) = new_parse_pattern_helper(number_of_local, expected_type, output, bt, global_vars)?;
+            Ok((Pattern::Bound(number_of_local_copy, Box::new(pat)), bt))
         }
-    } else if let Ok(_) = tokens.expect_keyword(Keyword::Either) {
-        let mut first_num = *number_of_local;
-        let mut second_num = *number_of_local;
-        let mut first_vars = HashMap::new();
-        let mut second_vars = HashMap::new();
-        let first: Pattern = parse_pattern_helper(
-            &mut first_num, 
-            expected_type, 
-            &mut first_vars, 
-            tokens, 
-            global_vars,
-        )?;
-        let second: Pattern = parse_pattern_helper(
-            &mut second_num, 
-            expected_type, 
-            &mut second_vars,   
-            tokens, 
-            global_vars,
-        )?;
-        assert_maps_equal(&mut first_vars, &mut second_vars)?;
-        output.extend(first_vars);
-        *number_of_local = first_num;
-        Ok(Pattern::Either(Box::new((first, second))))
-    } else {
-        let (name, mark) = tokens.next_word()?.destructure();
-        if name.starts_with('_') {
-            return Ok(Pattern::Dropped);
-        }
-        if 
-            let Some(GlobalVarData {
-                id: Id::Constructor(index), 
-                var_type: tp, 
-                generics: _new_generics, 
-                ..
-            }) = global_vars.get(&name) &&
-            let Type::Type {type_constructor: tc1, ..} = tp.final_type() && 
-            let Type::Type {type_constructor: tc2, ..} = expected_type &&
-            *tc1 == *tc2
-        {
-            let mut patterns = Vec::new();
-            //for t in tp.clone().arg_types() {
-            for t in 
-                get_type_from_constructor(
-                    tp.clone(), 
-                    expected_type.clone(),
-                    &mark
-                )?.arg_types() 
-            {
-                patterns.push(parse_pattern_helper(
-                    number_of_local,
-                    &t,
-                    output,
-                    tokens,
-                    global_vars,
-                )?)
+        OwnedToken::Keyword(Keyword::Either) => {
+            let mut ret_bt: Option<BlockTraversal> = Some(bt);
+            let mut patterns: Vec<(Pattern, LocalVars)> = Vec::new();
+            if let NextOutput::IndentedBlocks(branches) = bt.next()? {
+                ret_bt = None;
+                assert!(branches.len() >= 2);
+                for branch in branches.into_iter() {
+                    let mut num = *number_of_local;
+                    let mut vars = HashMap::new();
+                    let (pat, bt) = new_parse_pattern_helper(&mut num, expected_type, &mut vars, branch, global_vars)?;
+                    BlockTraversal::expect_end_option(bt)?;
+                    patterns.push((pat, vars));
+                }
+            } else {
+                let mut temp_bt = bt;
+                for i in 0..2 {
+                    let mut num = *number_of_local;
+                    let mut vars = HashMap::new();
+                    let (pat, bt) = new_parse_pattern_helper(&mut num, expected_type, &mut vars, temp_bt, global_vars)?;
+                    ret_bt = bt;
+                    patterns.push((pat, vars));
+                    if i == 1 { break } 
+                    else {
+                        let mark = temp_bt.next_token_in_line()?.1;
+                        temp_bt  = BlockTraversal::expect_no_indents(bt, mark)?;
+                    }
+                }
             }
-            Ok(Pattern::DataConstructor(*index as u32, patterns))
-        } else {
-            *number_of_local += 1;
-            output.insert(name, (*number_of_local, expected_type.clone(), mark));
-            Ok(Pattern::Captured(*number_of_local))
+            for i in 1..patterns.len() {
+                assert_maps_equal(&root_mark, &patterns[0].1, &patterns[i].1)?;
+            }
+            *number_of_local = patterns[0].1.len() as u32; // TODO bugged
+            output.extend(patterns[0].1.clone());
+            Ok((Pattern::Either(patterns.into_iter().map(|x| x.0).collect()), ret_bt))
+        }
+        OwnedToken::Keyword(_) => Err(make_error(ParseError::UnexpectedKeyword, root_mark.clone())),
+        OwnedToken::Word(name) if name.starts_with('_') => Ok((Pattern::Dropped, Some(bt))),
+        OwnedToken::Word(name) => {
+            if 
+                let Some(GlobalVarData { id: Id::Constructor(index), var_type: tp, generics: _new_generics, ..  }) = global_vars.get(name) &&
+                let Type::Type {type_constructor: tc1, ..} = tp.final_type() &&
+                let Type::Type {type_constructor: tc2, ..} = expected_type &&
+                *tc1 == *tc2
+            {
+                let mut patterns = Vec::new();
+                let ts = get_type_from_constructor(tp.clone(), expected_type.clone(), &root_mark)?.arg_types();
+                let ret_bt;
+                match bt.next()? {
+                    NextOutput::Token(_, mark, _) => {
+                        let mut temp_bt = Some(bt);
+                        for t in ts {
+                            let (pat, bt) = new_parse_pattern_helper(
+                                number_of_local, 
+                                &t, 
+                                output, 
+                                BlockTraversal::expect_no_indents(temp_bt, mark)?, 
+                                global_vars
+                            )?;
+                            temp_bt = bt;
+                            patterns.push(pat);
+                        }
+                        ret_bt = temp_bt;
+                    }
+                    NextOutput::IndentedBlocks(v) => {
+                        ret_bt = None;
+                        assert_eq!(v.len(), ts.len());
+                        for (t, branch) in ts.iter().zip(v.iter()) {
+                            let (pat, bt) = new_parse_pattern_helper(number_of_local, &t, output, *branch, global_vars)?;
+                            BlockTraversal::expect_end_option(bt)?;
+                            patterns.push(pat);
+                        }
+                    }
+                }
+                Ok((Pattern::DataConstructor(*index as u32, patterns), ret_bt))
+            } else {
+                *number_of_local += 1;
+                output.insert(name.to_string(), (*number_of_local, expected_type.clone(), root_mark.clone()));
+                Ok((Pattern::Captured(*number_of_local), Some(bt)))
+            }
         }
     }
 }
@@ -576,23 +569,6 @@ fn is_used(expression: &Expression, id: u32) -> bool {
     }
 }
 
-fn parse_generic_call(
-    tokens: &mut Tokens, 
-    generics: &Generics,
-    outer_generics: &Generics,
-    mut tp: Type,
-) -> Result<Type> {
-    let mut to_replace: Vec<(usize, Type)> = Vec::new();
-    for (_, i) in generics.iter() {
-        let t = parse_type(tokens, outer_generics)?;
-        to_replace.push((*i, t))
-    }
-    if !to_replace.is_empty() {
-        replace_types(&mut tp, &to_replace);
-    }
-    Ok(tp)
-}
-
 fn replace_types(t: &mut Type, to_replace: &Vec<(usize, Type)>) {
     match t {
         Type::Generic(a) => {
@@ -610,8 +586,8 @@ fn replace_types(t: &mut Type, to_replace: &Vec<(usize, Type)>) {
     }
 }
 
-pub fn tokenize_file(input: String, file_index: u32) -> Result<Vec<Tokens>> {
-    let mut output: Vec<Tokens> = Vec::new();
+pub fn new_tokenize_file(input: String, file_index: u32) -> Result<Vec<Block>> {
+    let mut output: Vec<Block> = Vec::new();
     let mut current_block: Vec<(usize, &str)> = Vec::new();
     let file_lines: Vec<String> = input.lines().map(|x| x.trim_end().to_string()).collect();
     let mut file_lines = file_lines.iter().map(|x| x.as_str()).enumerate();
@@ -623,11 +599,8 @@ pub fn tokenize_file(input: String, file_index: u32) -> Result<Vec<Tokens>> {
         'good_lines: loop {
             match file_lines.next() {
                 None | Some((_, "")) => {
-                    output.push(tokenize(
-                        current_block,
-                        file_index,
-                        false,
-                    )?);
+                    let block = tokenize_block(current_block.clone(), file_index, 0)?;
+                    output.push(block);
                     current_block = Vec::new();
                     break 'good_lines;
                 }
@@ -739,9 +712,9 @@ fn substitute_back_in(t: &mut Type, map: &HashMap<usize, Option<Type>>) {
 // and the tokens and returns its type, and 
 // possibly the number of arguments
 
-fn figure_out_type (
+fn new_figure_out_type<'a>(
     expected_type:        Option<&Type>,
-    tokens:               &Tokens,
+    bt:                   BlockTraversal<'a>,
     name:                 &str,
     mark:                 &Mark, 
     global_vars:          &Globals,
@@ -754,7 +727,7 @@ fn figure_out_type (
         output = tp.clone();
         contains_unknown_generics = false;
     }
-    else if let Some(GlobalVarData { var_type, generics, .. }) = global_vars.get(name) { 
+    else if let Some(GlobalVarData { var_type, .. }) = global_vars.get(name) { 
         output = var_type.clone();
         contains_unknown_generics = has_generics(&var_type);
     } else {
@@ -763,9 +736,8 @@ fn figure_out_type (
             mark.clone()
         ));
     } ;
-    let mut tokens = tokens.clone();
     if !contains_unknown_generics {
-        let arg_count = if tokens.expect_end().is_ok() { Some(0) } else { None };
+        let arg_count = if bt.expect_end().is_ok() { Some(0) } else { None };
         // the arg counter is only useful when we don't
         // know the block's type. If we do, we can skip
         // the rest and avoid the token clone
@@ -783,16 +755,14 @@ fn figure_out_type (
             merge_types(b, a, &mut unknown_generics);
         }
         if unknown_generics.values().all(|x| x.is_some()) {
-            let arg_count = if tokens.expect_end().is_ok() { Some(0) } else { None };
+            let arg_count = if bt.expect_end().is_ok() { Some(0) } else { None };
 
             substitute_back_in(&mut output, &unknown_generics);
             return Ok((output, arg_count))
         }
     }
     let t_args = output.clone().arg_types();
-    let number_t_args = t_args.len();
     let mut t_args = t_args.into_iter();
-    let mut tokens: Tokens = tokens.clone();
     let mut number_args_used = Some(0);
     let mut counter = {
         match expected_type {
@@ -800,21 +770,19 @@ fn figure_out_type (
             Some(x) =>  (output.clone().arg_types().len() - x.clone().arg_types().len()) as i32,
         }
     };
+    let mut bt = bt;
     loop {
-        if  
-            matches!(tokens.peek(), Ok(Marked::<Token> {value: Token::NewLine(_), ..})) || 
-            tokens.expect_end().is_ok() 
-        {
+        if bt.reached_end_of_line() {
             counter = -1; // everything else is fair game
             break
         }
         match counter {
-            -1 => (),
+            -1 => (), // why?
             0 => {
                 number_args_used = None;
                 break;
             }
-            x => counter -= 1,
+            _ => counter -= 1,
         }
         let t = match t_args.next() {
             Some(x) => x,
@@ -823,28 +791,29 @@ fn figure_out_type (
             }
         };
         number_args_used = number_args_used.map(|x| x + 1);
-        let (value, var_mark) = tokens.next().unwrap().destructure();
+        let (value, var_mark, bt_) = bt.next_token_in_line().unwrap();
+        bt = bt_;
         let var_name = match value {
-            Token::Word(word) => word,
+            OwnedToken::Word(word) => word,
             _ => {
                 return Err(make_error(CompilationError::CannotInferType, var_mark.clone()))
             }
         };
         let has_unknown_generics: bool;
-        let got_t = match local_vars.get(&var_name) {
+        let got_t = match local_vars.get(var_name) {
             Some((_, t, _)) => {
                 has_unknown_generics = false;
                 t.clone()
             }
-            None => match global_vars.get(&var_name) {
-                Some(GlobalVarData { var_type, generics: g, ..}) => {
+            None => match global_vars.get(var_name) {
+                Some(GlobalVarData { var_type, ..}) => {
                     has_unknown_generics = has_generics(var_type);
                     var_type.clone()
                 }
                 None => {
                     return Err(make_error(
                         CompilationError::NotInScope(var_name.clone(), None),
-                        var_mark
+                        var_mark.clone()
                     ));
                 }
             }
@@ -869,7 +838,6 @@ fn figure_out_type (
                     substitute_back_in(&mut output, &unknown_generics);
                     return Ok((output, None))
                 }
-                number_args_used = None;
                 return Err(make_error(CompilationError::CannotInferType, mark.clone()))
             }
             continue
@@ -889,28 +857,28 @@ fn figure_out_type (
         merge_types(&t, &got_t, &mut unknown_generics);
     }
     let mut total_number_args = number_args_used;
-    if let Ok(Marked::<Token> { value: Token::NewLine(indent), .. }) = tokens.next() {
-        let branches = tokens.get_with_indentation(indent);
+    if let Ok(NextOutput::IndentedBlocks(branches)) = bt.next() && counter == -1 {
         total_number_args = number_args_used.map(|x| x + branches.len() as u32);
         let zipped = t_args.zip(branches.into_iter());
-        for (tp, mut tokens) in zipped {
+        for (tp, bt) in zipped {
             number_args_used = number_args_used.map(|x| x + 1);
             if !has_generics(&tp) { 
                 continue 
             }
-            let got_t = match tokens.next().unwrap().value {
-                Token::Keyword(Keyword::The) => parse_type(&mut tokens, generics)?,
-                Token::Word(w) => {
-                    match figure_out_type(
+            let (token, mark, leftover) = bt.next_token_in_line().unwrap(); // safe
+            let got_t = match token {
+                OwnedToken::Keyword(Keyword::The) => new_parse_type(leftover, generics)?.0,
+                OwnedToken::Word(w) => {
+                    match new_figure_out_type(
                         None, 
-                        &mut tokens, 
+                        leftover, 
                         &w, 
                         mark, 
                         global_vars, 
                         local_vars,
                         generics
                     ) {
-                        Ok((mut var_t, Some(arg_count))) => {
+                        Ok((var_t, Some(arg_count))) => {
                             cut_off_n(&var_t, arg_count).clone()
                         }
                         _ => {
@@ -930,8 +898,7 @@ fn figure_out_type (
         let Some(n) = number_args_used && 
         n == total_number_args.unwrap()
     {
-        let mut temp_t = output.clone();
-        let temp_t: &Type = cut_off_n(&temp_t, n);
+        let temp_t: &Type = cut_off_n(&output, n);
         merge_types(temp_t, &t, &mut unknown_generics);
     }
     if unknown_generics.values().any(|x| x.is_none()) {
@@ -964,336 +931,321 @@ fn merge_types(unknown: &Type, new: &Type, output: &mut HashMap<usize, Option<Ty
     }
 }
 
-fn find_all_generics(t: &Type, out: &mut Vec<usize>) {
-    match t {
-        Type::Generic(x) => {
-            if !out.contains(x) {
-                out.push(*x);
-            }
-        }
-        Type::Type { arguments: args, .. } => {
-            args.iter().for_each(|x| find_all_generics(x, out));
-        }
-        Type::Function(a, b) => {
-            find_all_generics(a, out);
-            find_all_generics(b, out);
-        }
-    }
-}
-
-pub fn parse_expression(
+pub fn new_parse_expression<'a>(
     expressions:           &mut Vec<Expression>,
     file_dependencies:     &HashSet<u32>,
-    expected_type:         Type,
-    tokens:                &mut Tokens,
+    expected_type:         &Type,
+    bt:                    BlockTraversal<'a>,
     local_vars:            &LocalVars,
     local_vars_count:      u32,
     global_vars:           &Globals,
     generics:              &Generics,
-) -> Result<Expression> {
-    let (token, keyword_mark) = tokens.next_non_newline()?.destructure();
+) -> Result<(Expression, Option<BlockTraversal<'a>>)> {
+    let (token, mark, next_bt) = bt.next_token_in_line_fallthrough()?;
     match token {
-        Token::NewLine(_) => unreachable!(),
-        Token::Keyword(k) => match k {
-            Keyword::The => {
-                let tp: Type = parse_type(tokens, generics)?;
-                if tp != expected_type {
-                    return Err(make_error(
-                        CompilationError::BadTypeInference(expected_type, tp), 
-                        keyword_mark
-                    ))
-                }
-                parse_expression(
-                    expressions,
-                    file_dependencies,
-                    expected_type, 
-                    tokens, 
-                    local_vars, 
-                    local_vars_count, 
-                    global_vars, 
-                    generics,
-                )
-            }
-            Keyword::Undefined => Ok(Expression::Undefined(Box::new(keyword_mark))),
-            Keyword::Lambda => {
-                match expected_type {
-                    Type::Type { .. } | Type::Generic(_) => Err(make_error(
-                        CompilationError::TypeMismatch(expected_type, None), 
-                        keyword_mark
-                    )),
-                    Type::Function(a, b) => {
-                        let (pattern, _mark, local_vars_new, local_vars_count) = parse_pattern(
-                            local_vars_count, 
-                            &a, 
-                            tokens, 
-                            global_vars,
-                        )?;
-                        //validate_patterns(vec![(pattern.clone(), mark)], constructors, global_vars, keyword_mark)?;
-                        let mut new_locals: LocalVars;
-                        let mut local_vars: &LocalVars = local_vars;
-                        if local_vars_new.len() != 0 {
-                            new_locals = local_vars.clone();
-                            local_vars_new
-                                .clone()
-                                .into_iter()
-                                .for_each(|(k, v)| { new_locals.insert(k, v); });
-                            local_vars = &new_locals;
-                        }
-                        let body = parse_expression(
-                            expressions,
-                            file_dependencies,
-                            *b, 
-                            tokens, 
-                            local_vars, 
-                            local_vars_count, 
-                            global_vars, 
-                            generics,
-                        )?;
-                        tokens.expect_end()?;
-                        for (_, (id, _tp, mark)) in local_vars_new.into_iter() {
-                            if !is_used(&body, id) {
-                                return Err(make_error(CompilationError::NotUsed, mark))
-                            }
-                        }
-                        Ok(Expression::Lambda {
-                            pattern: Arc::new(Marked::<Pattern> {
-                                value: pattern,
-                                mark: keyword_mark
-                            }),
-                            body: Box::new(body),
-                        })
-                    }
-                }
-            }
-            Keyword::Match => {
-                let indentation: u8 = tokens
-                    .tokens
-                    .iter()
-                    .find(|x| matches!(x.value, Token::NewLine(_)))
-                    .map(|x| {
-                        let Token::NewLine(n) = x.value else { unreachable!() };
-                        n
-                    })
-                    .unwrap();
-                let mut branch_tokens = std::mem::take(tokens).get_with_indentation(indentation);
-                let mut matched_on_tokens = std::mem::take(&mut branch_tokens[0]);
-                let (value, mark) = matched_on_tokens.peek()?.clone().destructure();
-                let tp = match value {
-                    Token::Keyword(Keyword::The) => {
-                        let _ = matched_on_tokens.next(); // safe
-                        parse_type(&mut matched_on_tokens, generics)?
-                    }
-                    Token::Word(first_name) => {
-                        let mut temp_tokens = matched_on_tokens.clone();
-                        temp_tokens.next();
-                        let root_type = if let Some((_, b, _)) = local_vars.get(&first_name) { b.clone() } 
-                        else {
-                            let GlobalVarData { var_type: b, generics: inner_generics, .. } = lookup_global_vars(
-                                &first_name,
-                                &mark,
-                                file_dependencies,
-                                global_vars,
-                            )?;
-                            let (t, _) = figure_out_type(
-                                None,
-                                &temp_tokens,
-                                &first_name,
-                                &mark, 
-                                &global_vars,
-                                &local_vars,
-                                generics
-                            )?;
-                            t
-                            // parse_generic_call(&mut matched_on_tokens, inner_generics, generics, b.clone())?
-                        };
-                        root_type.final_type().clone()
-                    }
-                    Token::Keyword(_) => {
-                        return Err(make_error(ParseError::UnexpectedKeyword, mark))
-                    }
-                    Token::NewLine(_) => unreachable!(),
-                };
-                let matched_on = parse_expression(
-                    expressions,
-                    file_dependencies,
-                    tp.clone(), 
-                    &mut matched_on_tokens, 
-                    local_vars, 
-                    local_vars_count, 
-                    global_vars, 
-                    generics,
-                )?;
-                matched_on_tokens.expect_end()?;
-                // let (token, _mark) = tokens.next()?.destructure();
-                let mut branches: Vec<(Arc<Marked<Pattern>>, Expression)> = Vec::with_capacity(branch_tokens.len());
-                let mut patterns = Vec::new();
-                let mut encountered_wildcard = false;
-                for branch in branch_tokens.iter_mut().skip(1) {
-                    let case_mark = branch.expect_keyword(Keyword::Case)?;
-                    let (pattern, mark, local_vars_new, local_vars_count) = parse_pattern(
-                        local_vars_count, 
-                        &tp, 
-                        branch, 
-                        global_vars,
-                    )?;
-                    if encountered_wildcard {
-                        return Err(make_error(CompilationError::RedundentPattern, case_mark))
-                    }
-                    if matches!(pattern, Pattern::Dropped | Pattern::Captured(_)) {
-                        encountered_wildcard = true;
-                    }
-                    let mut local_vars = local_vars;
-                    let mut new_locals: LocalVars;
-                    if local_vars_new.len() != 0 {
-                        new_locals = local_vars.clone();
-                        local_vars_new
-                            .clone()
-                            .into_iter()
-                            .for_each(|(k, v)| { new_locals.insert(k, v); });
-                        local_vars = &new_locals;
-                    }
-                    let body = parse_expression(
-                        expressions,
-                        file_dependencies,
-                        expected_type.clone(),
-                        branch, 
-                        local_vars,
-                        local_vars_count, 
-                        global_vars, 
-                        generics,
-                    )?;
-                    branch.expect_end()?;
-                    for (_, (id, _tp, mark)) in local_vars_new.into_iter() {
-                        if !is_used(&body, id) {
-                            return Err(make_error(CompilationError::NotUsed, mark))
-                        }
-                    }
-                    patterns.push((pattern.clone(), mark));
-                    branches.push((
-                        Arc::new(Marked::<Pattern> {
-                            value: pattern,
-                            mark: keyword_mark.clone()
-                        }), 
-                        body
-                    ))
-                }
-                //validate_patterns(patterns, constructors, global_vars, keyword_mark)?;
-                Ok(Expression::Match {
-                    matched_on: Box::new(matched_on),
-                    branches: branches.into(),
-                })
-            }
-            _ => {
-                Err(make_error(ParseError::UnexpectedKeyword, keyword_mark))
-            }
+        OwnedToken::Keyword(Keyword::The) => {
+            let (tp, bt) = parse_the(bt, generics)?;
+            new_parse_expression(
+                expressions,
+                file_dependencies,
+                &tp, 
+                bt, 
+                local_vars, 
+                local_vars_count, 
+                global_vars, 
+                generics,
+            )
         }
-        Token::Word(name) => {
-            // peek if the next token is a newline
-            let (root_id, root_type) = if let Some((a, b, _)) = local_vars.get(&name) {
-                (Expression::LocalVarPlaceholder(*a), b.clone())
-            } else {
-                let GlobalVarData { id: a, var_type: b, generics: g, .. } = lookup_global_vars(
-                    &name,
-                    &keyword_mark,
-                    file_dependencies,
-                    global_vars,
-                )?;
-                match a {
-                    Id::Constructor(a) => (
-                        Expression::DataConstructor(*a as u32),
-                        // TODO make sure the type constructor is correct
-                        get_type_from_constructor(
-                            b.clone(), 
-                            expected_type.clone(), 
-                            &keyword_mark
-                        )?
-                    ),
-                    Id::Variable(a) =>  {
-                        let (t, _) = figure_out_type(
-                            Some(&expected_type),
-                            &tokens,
-                            &name,
-                            &keyword_mark, 
+        OwnedToken::Keyword(Keyword::Undefined) => {
+            BlockTraversal::expect_end(next_bt)?;
+            Ok((Expression::Undefined(Box::new(mark.clone())), None))
+        }
+        OwnedToken::Keyword(Keyword::Lambda) => {
+            let Type::Function(a, b) = expected_type else {
+                return Err(make_error(
+                    CompilationError::TypeMismatch(expected_type.clone(), None), 
+                    mark.clone()
+                ))
+            };
+            let (pattern, _pattern_mark, expr) = parse_lambda_case(
+                expressions, 
+                file_dependencies, 
+                &a,
+                &b,
+                bt, 
+                local_vars, 
+                local_vars_count, 
+                global_vars,
+                generics
+            )?;
+            Ok((
+                Expression::Lambda {
+                    pattern: Arc::new(Marked::<Pattern> {
+                        value: pattern,
+                        mark: mark.clone()
+                    }),
+                    body: Box::new(expr),
+                },
+                None
+            ))
+        }
+        OwnedToken::Keyword(Keyword::Match) => {
+            let matched_on_block;
+            let (mut matched_on_bt, branches_bt) = match next_bt.next()? {
+                NextOutput::Token { .. } => {
+                    let line = next_bt.block.line_tokens
+                        .clone()
+                        .into_iter()
+                        .skip(next_bt.word)
+                        .collect();
+                    matched_on_block = Block {
+                        line_tokens: line,
+                        line_end_mark: next_bt.block.line_end_mark.clone(),
+                        indented_blocks_beneath: Vec::new(),
+                    };
+                    (BlockTraversal::new(&matched_on_block), next_bt.get_indented_blocks())
+                }
+                NextOutput::IndentedBlocks(v) => {
+                    (v[0], v.into_iter().skip(1).collect())
+                }
+            };
+            let tp: Type = {
+                let (value, mark, bt) = matched_on_bt.next_token_in_line()?;
+                match value {
+                    OwnedToken::Keyword(Keyword::The) => {
+                        let (tp, body_bt) = parse_the(matched_on_bt, generics)?;
+                        matched_on_bt = body_bt;
+                        tp
+                    }
+                    OwnedToken::Word(first_name) => {
+                        let (root_type, _) = new_figure_out_type(
+                            None,
+                            bt,
+                            &first_name,
+                            &mark, 
                             &global_vars,
                             &local_vars,
                             generics
                         )?;
-                        (expressions[*a as usize].clone(), t)
+                        root_type.final_type().clone()
+                    }
+                    OwnedToken::Keyword(_) => {
+                        return Err(make_error(ParseError::UnexpectedKeyword, mark.clone()))
                     }
                 }
             };
+            let (matched_on_expr, leftover_bt) = new_parse_expression(
+                expressions,
+                file_dependencies,
+                &tp, 
+                matched_on_bt, 
+                local_vars, 
+                local_vars_count, 
+                global_vars, 
+                generics,
+            )?;
+            BlockTraversal::expect_end_option(leftover_bt)?;
+            let mut branches: Vec<(Arc<Marked<Pattern>>, Expression)> = Vec::with_capacity(branches_bt.len());
+            let mut encountered_wildcard = false;
+            for branch_bt in branches_bt {
+                let (case_mark, _) = branch_bt.expect_keyword(Keyword::Case)?;
+                if encountered_wildcard {
+                    return Err(make_error(CompilationError::RedundentPattern, case_mark.clone()))
+                }
+                let (pattern, pattern_mark, expr) = parse_lambda_case(
+                    expressions, 
+                    file_dependencies, 
+                    &tp,
+                    expected_type,
+                    branch_bt, 
+                    local_vars, 
+                    local_vars_count, 
+                    global_vars,
+                    generics
+                )?;
+                if matches!(pattern, Pattern::Dropped | Pattern::Captured(_)) {
+                    encountered_wildcard = true;
+                }
+                branches.push((
+                    Arc::new(Marked::<Pattern> {
+                        value: pattern,
+                        mark: pattern_mark.clone(),
+                    }),
+                    expr
+                ));
+            }
+            Ok((
+                Expression::Match {
+                    matched_on: Box::new(matched_on_expr),
+                    branches: branches.into(),
+                },
+                None
+            ))
+        }
+        OwnedToken::Word(name) => {
+            // peek if the next token is a newline
+            let (root_id, root_type) = if let Some((a, b, _)) = local_vars.get(name) {
+                (Expression::LocalVarPlaceholder(*a), b.clone())
+            } else {
+                let GlobalVarData { id: a, .. } = lookup_global_vars(
+                    &name,
+                    &mark,
+                    file_dependencies,
+                    global_vars,
+                )?;
+                let (Id::Variable(a) | Id::Constructor(a)) = a;
+                let (t, _) = new_figure_out_type(
+                    Some(&expected_type),
+                    next_bt,
+                    &name,
+                    &mark, 
+                    &global_vars,
+                    &local_vars,
+                    generics
+                )?;
+                (expressions[*a as usize].clone(), t)
+            };
             if !root_type.is_possible(&expected_type) {
                 return Err(make_error(
-                    CompilationError::TypeMismatch( expected_type, Some(root_type.clone())), 
-                    keyword_mark
+                    CompilationError::TypeMismatch( expected_type.clone(), Some(root_type.clone())), 
+                    mark.clone()
                 ))
             }
             let mut output_args = Vec::new();
             let mut current_type = root_type.to_owned();
-            while current_type != expected_type {
-                match tokens.peek()?.value {
-                    Token::NewLine(indentation) => {
-                        let mut arg_groups = std::mem::take(tokens).get_with_indentation(indentation).into_iter();
-                        while current_type != expected_type {
-                            let Some(mut current_tokens) = arg_groups.next() else {
-                                return Err(make_error(CompilationError::ExpectedMoreArguments, keyword_mark))
+            let mut ret_bt = Some(next_bt);
+            while current_type != *expected_type {
+                let bt = BlockTraversal::expect_no_indents(ret_bt, mark)?;
+                match bt.next()? {
+                    NextOutput::IndentedBlocks(v) => {
+                        let mut arg_groups = v.into_iter();
+                        while current_type != *expected_type {
+                            let Some(current_bt) = arg_groups.next() else {
+                                return Err(make_error(CompilationError::ExpectedMoreArguments, mark.clone()))
                             };
                             let (next_type, leftover) = match current_type {
                                 Type::Function(a, b) => (*a, *b),
                                 Type::Type { .. } | Type::Generic(_) => unreachable!(),
                             };
                             current_type = leftover;
-                            let next_arg = parse_expression(
+                            let (next_arg, bt) = new_parse_expression(
                                 expressions,
                                 file_dependencies,
-                                next_type,
-                                &mut current_tokens,
+                                &next_type,
+                                current_bt,
                                 local_vars,
                                 local_vars_count,
                                 global_vars,
                                 generics,
                             )?;
-                            current_tokens.expect_end()?;
+                            BlockTraversal::expect_end_option(bt)?;
                             output_args.push(next_arg);
                         }
-                        if let Some(mut trailing_line) = arg_groups.next() {
+                        if let Some(trailing_line) = arg_groups.next() {
                             trailing_line.expect_end()?;
                         }
+                        ret_bt = None;
                         break
                     }
-                    _ => {
+                    NextOutput::Token { .. } => {
                         let (next_type, leftover) = match current_type {
                             Type::Function(a, b) => (*a, *b),
                             Type::Type { .. } | Type::Generic(_) => unreachable!(),
                         };
                         current_type = leftover;
-                        let next_arg = parse_expression(
+                        let (next_arg, new_bt) = new_parse_expression(
                             expressions,
                             file_dependencies,
-                            next_type,
-                            tokens,
+                            &next_type,
+                            bt,
                             local_vars,
                             local_vars_count,
                             global_vars,
                             generics,
                         )?;
                         output_args.push(next_arg);
+                        ret_bt = new_bt
                     }
                 }
             }
-
             Ok(
                 if output_args.is_empty() {
-                    root_id
+                    (root_id, ret_bt)
                 } else {
-                    Expression::Tree {
+                    (Expression::Tree {
                         root: Box::new(root_id),
                         arguments: output_args.into(),
-                    }
+                    }, ret_bt)
                 }
             )
         }
+        _ => {
+            debug_print_block(bt, 0);
+            todo!();
+        }
     }
+}
+
+// lambda and case have the same syntax
+
+pub fn parse_lambda_case<'a>(
+    expressions:           &mut Vec<Expression>,
+    file_dependencies:     &HashSet<u32>,
+    pattern_type:          &Type,
+    block_type:            &Type,
+    bt:                    BlockTraversal<'a>,
+    local_vars:            &LocalVars,
+    local_vars_count:      u32,
+    global_vars:           &Globals,
+    generics:              &Generics,
+) -> Result<(Pattern, &'a Mark, Expression)> {
+    let (lambda_mark, bt) = bt.expect_keyword(Keyword::Lambda).or(bt.expect_keyword(Keyword::Case))?;
+    let (pattern, local_vars_new, local_vars_count_new, body_bt) = match bt.next()? {
+        NextOutput::IndentedBlocks(v) => {
+            assert!(v.len() == 2);
+            let (pattern, _mark, local_vars_new, local_vars_count_new, leftover_bt) = 
+                new_parse_pattern(local_vars_count, pattern_type, v[0], global_vars)?;
+            BlockTraversal::expect_end_option(leftover_bt)?;
+            (pattern, local_vars_new, local_vars_count_new, v[1])
+        }
+        NextOutput::Token { .. } => {
+            let (pattern, _mark, local_vars_new, local_vars_count_new, body_bt) = 
+                new_parse_pattern(local_vars_count, pattern_type, bt, global_vars)?;
+            (
+                pattern, 
+                local_vars_new, 
+                local_vars_count_new, 
+                BlockTraversal::expect_no_indents(body_bt, &lambda_mark)?
+            )
+        }
+    };
+    let mut local_vars: &LocalVars = local_vars;
+    let mut new_locals;
+    if local_vars_new.len() != 0 {
+        new_locals = local_vars.clone();
+        local_vars_new
+            .clone()
+            .into_iter()
+            .for_each(|(k, v)| { new_locals.insert(k, v); });
+        local_vars = &new_locals;
+    }
+    let (body, bt) = new_parse_expression(
+        expressions,
+        file_dependencies,
+        block_type, 
+        body_bt, 
+        local_vars, 
+        local_vars_count_new, 
+        global_vars, 
+        generics,
+    )?;
+    BlockTraversal::expect_end_option(bt)?;
+    for (_, (id, _tp, mark)) in local_vars_new.into_iter() {
+        if !is_used(&body, id) {
+            return Err(make_error(CompilationError::NotUsed, mark))
+        }
+    }
+    Ok((pattern, lambda_mark, body))
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -1309,94 +1261,147 @@ pub struct NameAndGenerics {
     pub kind: BlockKind
 }
 
-pub fn extract_name_and_generics(tokens: &mut Tokens) -> Result<NameAndGenerics> {
+pub fn new_extract_name_and_generics<'a>(bt: BlockTraversal<'a>) -> Result<(NameAndGenerics, BlockTraversal<'a>)> {
     let mut generics: Generics = Vec::new();
-    let (name, mark, kind) = extract_name_and_genericsl_helper(tokens, &mut generics)?;
-    fn extract_name_and_genericsl_helper(
-        tokens: &mut Tokens, 
+    let (name, mark, kind, bt) = extract_name_and_genericsl_helper(bt, &mut generics)?;
+    fn extract_name_and_genericsl_helper<'a>(
+        bt: BlockTraversal<'a>, 
         generics: &mut Generics
-    ) -> Result<(String, Mark, BlockKind)> {
-        let (keyword, mark1) = tokens.next_keyword()?.destructure();
-        match keyword {
-            Keyword::ForAll => {
-                while !matches!(tokens.peek().unwrap().value, Token::Keyword(_)) {
-                    let (name, _name_mark) = tokens.next_word()?.destructure();
+    ) -> Result<(String, Mark, BlockKind, BlockTraversal<'a>)> {
+        let (token, mark1, mut bt) = bt.next_token_in_line_fallthrough()?;
+        match token {
+            OwnedToken::Keyword(Keyword::ForAll) => {
+                while let Ok((name, _name_mark, bt_)) = bt.expect_word() {
+                    bt = bt_;
                     let index = generics.len() + 1;
-                    generics.push((name, index));
-                    tokens.remove_leading_newlines();
+                    generics.push((name.to_string(), index));
                 }
-                extract_name_and_genericsl_helper(tokens, generics)
+                extract_name_and_genericsl_helper(bt, generics)
             }
-            Keyword::Define => {
-                let (name, name_mark) = tokens.next_word()?.destructure();
-                tokens.expect_keyword(Keyword::As)?;
-                Ok((name, name_mark, BlockKind::Variable))
+            OwnedToken::Keyword(Keyword::Let) => {
+                let (name, name_mark, bt) = bt.expect_word()?;
+                let (_be_mark, bt) = bt.expect_keyword(Keyword::Be)?;
+                Ok((name.to_string(), name_mark.clone(), BlockKind::Variable, bt))
             }
-            Keyword::Type => {
-                let (name, name_mark) = tokens.next_word()?.destructure();
-                tokens.expect_keyword(Keyword::Contains)?;
-                Ok((name, name_mark, BlockKind::Type))
+            OwnedToken::Keyword(Keyword::Type) => {
+                let (name, name_mark, bt) = bt.expect_word()?;
+                let (_be_mark, bt) = bt.expect_keyword(Keyword::Contains)?;
+                Ok((name.to_string(), name_mark.clone(), BlockKind::Type, bt))
             }
             _ => Err(Error {
-                mark: mark1,
+                mark: mark1.clone(),
                 error_type: Box::new(ParseError::UnexpectedKeyword),
                 note: Some(String::from("\x1b[90mexpected one of \x1b[97mdefine forall type\x1b[90m")),
             }),
         }
     }
-    Ok(NameAndGenerics { name, mark, generics, kind })
+    Ok((NameAndGenerics { name: name.to_string(), mark: mark.clone(), generics, kind }, bt))
 }
 
-pub fn parse_type(tokens: &mut Tokens, generics: &Vec<(String, usize)>) -> Result<Type> {
-    parse_type_helper(tokens, generics, Kind::Type)
+pub fn parse_the<'a>(bt: BlockTraversal<'a>, generics: &Vec<(String, usize)>) -> Result<(Type, BlockTraversal<'a>)> {
+    let (the_mark, bt) = bt.expect_keyword(Keyword::The)?;
+    let (tp, body) = match bt.next()? {
+        NextOutput::IndentedBlocks(v) => {
+            assert_eq!(v.len(), 2);
+            let (tp, leftover) = new_parse_type(v[0], generics)?;
+            BlockTraversal::expect_end_option(leftover).unwrap();
+            (tp, v[1])
+        }
+        NextOutput::Token { .. } => {
+            let (tp, leftover) = new_parse_type(bt, generics)?;
+            (tp, BlockTraversal::expect_no_indents(leftover, the_mark)?)
+        }
+    };
+    Ok((tp, body))
 }
 
-fn parse_type_helper(
-    tokens: &mut Tokens, 
+pub fn new_parse_type<'a> (bt: BlockTraversal<'a>, generics: &Vec<(String, usize)>) 
+    -> Result<(Type, Option<BlockTraversal<'a>>)> 
+{
+    new_parse_type_helper(bt, generics, Kind::Type)
+}
+
+fn new_parse_type_helper<'a>(
+    bt:       BlockTraversal<'a>,
     generics: &Vec<(String, usize)>, 
     mut _kind: Kind // TODO
-) -> Result<Type> {
-    let (word, mark) = tokens.next_word()?.destructure();
-    match word.as_str() {
-        "fn" => {
-            let arg1 = parse_type(tokens, generics)?;
-            let arg2 = parse_type(tokens, generics)?;
-            Ok(Type::Function(Box::new(arg1), Box::new(arg2)))
+) -> Result<(Type, Option<BlockTraversal<'a>>)> {
+    let (word, mark, leftover_bt) = bt.expect_word()?;
+    let is_fn = word == "fn";
+    let mut kind = Kind::Fn(
+        Kind::Type.into(), 
+        Kind::Fn(Kind::Type.into(), Kind::Type.into()).into()
+    );
+    let mut index = None;
+    if !is_fn {
+        if let Some(t) = get_from_generics(word, generics) {
+            return Ok((t, Some(leftover_bt)))
         }
-        _ => {
-            // broken
-            if let Some(t) = get_from_generics(&word, generics) {
-                return Ok(t)
-            }
-
-            let index;
-            {
-                let ptr = TYPES.lock().unwrap();
-                index = ptr.as_ref().unwrap().get(&word).ok_or(Error {
-                    mark,
-                    error_type: Box::new(CompilationError::TypeNotInScope(word)),
-                    note: None,
-                })?.clone();
-            }
-
-            let mut arguments = Vec::new();
-            let mut kind = index.kind.clone();
-            loop {
-                match kind {
-                    Kind::Fn(_, x) => {
-                        arguments.push(parse_type_helper(tokens, generics, Kind::Type)?);
-                        kind = *x;
+        {
+            let ptr = TYPES.lock().unwrap();
+            index = Some(ptr.as_ref().unwrap().get(word).ok_or(Error {
+                mark: mark.clone(),
+                error_type: Box::new(CompilationError::TypeNotInScope(word.to_string())),
+                note: None,
+            })?.clone());
+        }
+        kind = index.as_ref().unwrap().kind.clone();
+    }
+    let mut arguments = Vec::new();
+    let mut bt = leftover_bt;
+    let mut ret_bt = Some(bt);
+    loop {
+        match kind {
+            Kind::Fn(_, x) => {
+                kind = *x;
+                match bt.next()? {
+                    NextOutput::Token(_, mark, _) => {
+                        let (tp, bt_) = new_parse_type_helper(bt, generics, Kind::Type)?;
+                        arguments.push(tp);
+                        match BlockTraversal::expect_no_indents(bt_, mark) {
+                            Err(e) => {
+                                if !matches!(kind, Kind::Type) {
+                                    return Err(e)
+                                } else {
+                                    ret_bt = None;
+                                    break;
+                                }
+                            }
+                            Ok(bt_) => {
+                                ret_bt = Some(bt_);
+                                bt = bt_;
+                            }
+                        }
                     }
-                    Kind::Type => break,
+                    NextOutput::IndentedBlocks(v) => {
+                        let mut count = 1;
+                        while let Kind::Fn(_, x) = kind {
+                            count += 1;
+                            kind = *x;
+                        }
+                        assert_eq!(count, v.len());
+                        for bt in v {
+                            let (tp, leftover) = new_parse_type_helper(bt, generics, Kind::Type)?;
+                            BlockTraversal::expect_end_option(leftover)?;
+                            arguments.push(tp);
+                        }
+                        ret_bt = None;
+                        break;
+                    }
                 }
             }
-            let ret = Type::Type {
-                type_constructor: index.id as u32,
-                arguments,
-            };
-            Ok(ret)
+            Kind::Type => break,
         }
     }
+    let ret = if is_fn {
+        Type::Function(Box::new(arguments[0].clone()), Box::new(arguments[1].clone()))
+    } else {
+        Type::Type {
+            type_constructor: index.unwrap().id as u32,
+            arguments,
+        }
+    };
+    Ok((ret, ret_bt))
 }
 
 fn get_from_generics(name: &str, generics: &Generics) -> Option<Type> {
@@ -1406,24 +1411,47 @@ fn get_from_generics(name: &str, generics: &Generics) -> Option<Type> {
         .map(|(_, index)| Type::Generic(*index))
 }
 
-pub fn parse_data(
-    tokens: Tokens,
+pub fn new_parse_data(
+    bt: BlockTraversal,
     parent_type: u32,
     generics: &Generics,
 ) -> Result<Vec<(String, Type, Mark)>> {
     let mut output = Vec::new();
-    for mut i in tokens.get_with_indentation(1).into_iter() {
-        let (name, name_mark) = i.next_word()?.destructure();
-        let mut arg_types: Vec<Type> = Vec::new();
-        while i.peek().is_ok() {
-            arg_types.push(parse_type(&mut i, &generics)?)
+    match bt.next()? {
+        NextOutput::IndentedBlocks(v) => {
+            for branch in v {
+                let (constructor_name, constructor_mark, bt) = branch.expect_word()?;
+                let mut arg_types: Vec<Type> = Vec::new();
+                match bt.next() {
+                    Ok(NextOutput::IndentedBlocks(ts)) => {
+                        for type_block in ts {
+                            let (t, leftover_bt) = new_parse_type(type_block, generics)?;
+                            BlockTraversal::expect_end_option(leftover_bt)?;
+                            arg_types.push(t);
+                        }
+                    }
+                    _ => {
+                        let mut temp_bt = bt;
+                        while matches!(temp_bt.next(), Ok(NextOutput::Token {..})) {
+                            let (t, leftover_bt) = new_parse_type(temp_bt, generics)?;
+                            arg_types.push(t);
+                            temp_bt = BlockTraversal::expect_no_indents(leftover_bt, constructor_mark)?;
+                        }
+                        temp_bt.expect_end()?;
+                    }
+                }
+                let mut args = arg_types.into_iter();
+                output.push((constructor_name.to_string(), build_type(
+                    &mut args, 
+                    Type::Type { type_constructor: parent_type, arguments: generics_to_type(generics) }), 
+                    constructor_mark.clone()
+                ));
+            }
         }
-        let mut args = arg_types.into_iter();
-        output.push((name, build_type(
-            &mut args, 
-            Type::Type { type_constructor: parent_type, arguments: generics_to_type(generics) }), 
-            name_mark
-        ));
+        NextOutput::Token { .. } => {
+            debug_print_block(bt, 0);
+            todo!();
+        }
     }
     Ok(output)
 }
@@ -1515,6 +1543,7 @@ impl Type {
         output
     }
 }
+
 fn cut_off_n(mut tp: &Type, n: u32) -> &Type {  // should be result
     for _ in 0..n {
         match tp {
@@ -1526,7 +1555,6 @@ fn cut_off_n(mut tp: &Type, n: u32) -> &Type {  // should be result
     }
     tp
 }
-
 
 #[derive(Debug, Hash, Clone)]
 pub enum Kind {

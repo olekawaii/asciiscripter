@@ -1,15 +1,14 @@
 include list 
 
-forall a 
-type tree contains
+forall a type tree contains
     empty
     node 
         a          -- value
         tree a     -- left  subtree
         tree a     -- right subtree
 
-forall a b 
-define map_tree as the fn fn a b fn tree a tree b 
+forall a b let map_tree be the 
+    fn fn a b fn tree a tree b 
     lambda f lambda t match t
         case empty                      empty
         case node root left right       node 
@@ -19,8 +18,7 @@ define map_tree as the fn fn a b fn tree a tree b
 
 --  Fold a tree into a list
 
-forall a 
-define fold_tree as the fn tree a list a 
+forall a let fold_tree be the fn tree a list a 
     lambda x match x 
         case empty                      nil
         case node root left right       cat
@@ -30,14 +28,14 @@ define fold_tree as the fn tree a list a
 --  Attach the first tree to the leftmost branch 
 --  of the second tree
 
-forall a
-define attach_to_leftmost as the fn tree a fn tree a tree a
+forall a let attach_to_leftmost be the 
+    fn tree a fn tree a tree a
     lambda new lambda old match new
-        case empty        old
-        case _            attach_to_leftmost_helper new old 
+        case empty                      old
+        case _                          attach_to_leftmost_helper new old 
 
-forall a
-define attach_to_leftmost_helper as the fn tree a fn tree a tree a
+forall a let attach_to_leftmost_helper be the 
+    fn tree a fn tree a tree a
     lambda new lambda old match old
         case empty                      new 
         case node root left right       node

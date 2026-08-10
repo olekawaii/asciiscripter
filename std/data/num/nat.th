@@ -12,14 +12,14 @@ type nat contains
     one
     succ nat
 
-define sum_nat as the fn nat fn nat nat 
+let sum_nat be the fn nat fn nat nat 
     lambda x match x
         case one        succ
         case succ a     compose 
             succ 
             sum_nat a
 
-define product_nat as the fn nat fn nat nat 
+let product_nat be the fn nat fn nat nat 
     lambda x lambda y match x
         case one        y
         case succ a     sum_nat y product_nat a y
@@ -28,21 +28,21 @@ define product_nat as the fn nat fn nat nat
 --  zero, it returns a whole number, which has 
 --  a zero variant.
 
-define decrement_nat as the fn nat whole lambda x pred x
+let decrement_nat be the fn nat whole lambda x pred x
 
-define compare_nat as the fn nat fn nat ordering
+let compare_nat be the fn nat fn nat ordering
     lambda x lambda y match tuple x y
         case tuple succ a succ b     compare_nat a b
         case tuple succ _ one        gt
         case tuple one    succ _     lt
 
-define eq_nat as the fn nat fn nat bool 
+let eq_nat be the fn nat fn nat bool 
     lambda x lambda y eq_ordering eq compare_nat x y
 
 --  check that the first nat is greater than
 --  the second one
 
-define greater as the fn nat fn nat bool 
+let greater be the fn nat fn nat bool 
     lambda a lambda b match tuple a b 
         case tuple succ _ one        true
         case tuple succ a succ b     greater a b
@@ -51,10 +51,10 @@ define greater as the fn nat fn nat bool
 --  find the greatest common denominator of two 
 --  nats
 
-define gcd as the fn nat fn nat nat 
+let gcd be the fn nat fn nat nat 
     gcd_helper i ii
 
-define gcd_helper as the fn nat fn nat fn nat fn nat nat 
+let gcd_helper be the fn nat fn nat fn nat fn nat nat 
     lambda output lambda try lambda x lambda y match 
         or greater try x greater try y
         case true                    output
@@ -71,7 +71,7 @@ define gcd_helper as the fn nat fn nat fn nat fn nat nat
 
 --  find the least common multiple of two nats
 
-define lcm as the fn nat fn nat nat 
+let lcm be the fn nat fn nat nat 
     lambda x lambda y
         match 
             divide_exactly 
@@ -85,8 +85,8 @@ define lcm as the fn nat fn nat nat
 type coordinate contains
     coordinate int int
 
-forall a 
-define repeat as the fn nat fn fn a a fn a a 
+forall a let repeat be the 
+    fn nat fn fn a a fn a a 
     lambda count lambda f lambda x match count
         case one                  f x
         case succ new_count       f repeat 
@@ -94,41 +94,42 @@ define repeat as the fn nat fn fn a a fn a a
             f 
             x
 
-define sum_coordinate as the fn coordinate fn coordinate coordinate 
+let sum_coordinate be the fn coordinate fn coordinate coordinate 
     lambda coordinate x_i y_i lambda coordinate x_ii y_ii
         coordinate sum_int x_i x_ii sum_int y_i y_ii
 
-define increment_whole as the fn whole nat lambda pred x x
+let increment_whole be the fn whole nat lambda pred x x
 
-define decrement_whole as the fn whole int lambda x match x 
+let decrement_whole be the fn whole int lambda x match x 
     case pred succ succ x     pos x
     case pred succ one        zero
     case pred one             neg one
 
-define eq_coordinate as the fn coordinate fn coordinate bool 
+let eq_coordinate be the fn coordinate fn coordinate bool 
     lambda coordinate a b lambda coordinate c d and eq_int a c eq_int b d
 
-type whole contains pred nat
+type whole contains 
+    pred nat
 
-define whole_zero as the whole pred one
+let whole_zero be the whole pred one
 
-define nat_to_whole as the fn nat whole lambda x pred succ x
+let nat_to_whole be the fn nat whole lambda x pred succ x
 
-define whole_to_int as the fn whole int lambda x match x
+let whole_to_int be the fn whole int lambda x match x
     case pred one             zero
     case pred succ a          pos a
 
-define int_to_whole as the fn int option whole lambda x match x
+let int_to_whole be the fn int option whole lambda x match x
     case neg _                none
     case pos a                some nat_to_whole a
     case zero                 some whole_zero
 
-define subtract_exactly as the fn whole fn whole option whole 
+let subtract_exactly be the fn whole fn whole option whole 
     lambda x lambda y int_to_whole sum_int 
         whole_to_int x 
         product_int neg one whole_to_int y
 
-define divide_exactly as the fn whole fn whole option whole 
+let divide_exactly be the fn whole fn whole option whole 
     lambda x match x 
         case pred one         const 
             some whole_zero
@@ -138,210 +139,210 @@ define divide_exactly as the fn whole fn whole option whole
                 the fn whole whole lambda x nat_to_whole increment_whole x
                 divide_exactly a y
 
-define divisible as the fn whole fn whole bool 
+let divisible be the fn whole fn whole bool 
     lambda x lambda y match divide_exactly x y
         case some _           true
         case none             false
 
---  these define variables for the first hundred 
+--  these let variables for the first hundred 
 --  nats using roman numerals
 
-define i         as the nat one
+let i         be the nat one
 
-define ii        as the nat succ i
+let ii        be the nat succ i
 
-define iii       as the nat succ ii
+let iii       be the nat succ ii
 
-define iv        as the nat succ iii
+let iv        be the nat succ iii
 
-define v         as the nat succ iv
+let v         be the nat succ iv
 
-define vi        as the nat succ v
+let vi        be the nat succ v
 
-define vii       as the nat succ vi
+let vii       be the nat succ vi
 
-define viii      as the nat succ vii
+let viii      be the nat succ vii
 
-define ix        as the nat succ viii
+let ix        be the nat succ viii
 
-define x         as the nat succ ix
+let x         be the nat succ ix
 
-define xi        as the nat succ x
+let xi        be the nat succ x
 
-define xii       as the nat succ xi
+let xii       be the nat succ xi
 
-define xiii      as the nat succ xii
+let xiii      be the nat succ xii
 
-define xiv       as the nat succ xiii
+let xiv       be the nat succ xiii
 
-define xv        as the nat succ xiv
+let xv        be the nat succ xiv
 
-define xvi       as the nat succ xv
+let xvi       be the nat succ xv
 
-define xvii      as the nat succ xvi
+let xvii      be the nat succ xvi
 
-define xviii     as the nat succ xvii
+let xviii     be the nat succ xvii
 
-define xix       as the nat succ xviii
+let xix       be the nat succ xviii
 
-define xx        as the nat succ xix
+let xx        be the nat succ xix
 
-define xxi       as the nat succ xx
+let xxi       be the nat succ xx
 
-define xxii      as the nat succ xxi
+let xxii      be the nat succ xxi
 
-define xxiii     as the nat succ xxii
+let xxiii     be the nat succ xxii
 
-define xxiv      as the nat succ xxiii
+let xxiv      be the nat succ xxiii
 
-define xxv       as the nat succ xxiv
+let xxv       be the nat succ xxiv
 
-define xxvi      as the nat succ xxv
+let xxvi      be the nat succ xxv
 
-define xxvii     as the nat succ xxvi
+let xxvii     be the nat succ xxvi
 
-define xxviii    as the nat succ xxvii
+let xxviii    be the nat succ xxvii
 
-define xxix      as the nat succ xxviii
+let xxix      be the nat succ xxviii
 
-define xxx       as the nat succ xxix
+let xxx       be the nat succ xxix
 
-define xxxi      as the nat succ xxx
+let xxxi      be the nat succ xxx
 
-define xxxii     as the nat succ xxxi
+let xxxii     be the nat succ xxxi
 
-define xxxiii    as the nat succ xxxii
+let xxxiii    be the nat succ xxxii
 
-define xxxiv     as the nat succ xxxiii
+let xxxiv     be the nat succ xxxiii
 
-define xxxv      as the nat succ xxxiv
+let xxxv      be the nat succ xxxiv
 
-define xxxvi     as the nat succ xxxv
+let xxxvi     be the nat succ xxxv
 
-define xxxvii    as the nat succ xxxvi
+let xxxvii    be the nat succ xxxvi
 
-define xxxviii   as the nat succ xxxvii
+let xxxviii   be the nat succ xxxvii
 
-define xxxix     as the nat succ xxxviii
+let xxxix     be the nat succ xxxviii
 
-define xl        as the nat succ xxxix
+let xl        be the nat succ xxxix
 
-define xli       as the nat succ xl
+let xli       be the nat succ xl
 
-define xlii      as the nat succ xli
+let xlii      be the nat succ xli
 
-define xliii     as the nat succ xlii
+let xliii     be the nat succ xlii
 
-define xliv      as the nat succ xliii
+let xliv      be the nat succ xliii
 
-define xlv       as the nat succ xliv
+let xlv       be the nat succ xliv
 
-define xlvi      as the nat succ xlv
+let xlvi      be the nat succ xlv
 
-define xlvii     as the nat succ xlvi
+let xlvii     be the nat succ xlvi
 
-define xlviii    as the nat succ xlvii
+let xlviii    be the nat succ xlvii
 
-define xlix      as the nat succ xlviii
+let xlix      be the nat succ xlviii
 
-define l         as the nat succ xlix
+let l         be the nat succ xlix
 
-define li        as the nat succ l
+let li        be the nat succ l
 
-define lii       as the nat succ li
+let lii       be the nat succ li
 
-define liii      as the nat succ lii
+let liii      be the nat succ lii
 
-define liv       as the nat succ liii
+let liv       be the nat succ liii
 
-define lv        as the nat succ liv
+let lv        be the nat succ liv
 
-define lvi       as the nat succ lv
+let lvi       be the nat succ lv
 
-define lvii      as the nat succ lvi
+let lvii      be the nat succ lvi
 
-define lviii     as the nat succ lvii
+let lviii     be the nat succ lvii
 
-define lix       as the nat succ lviii
+let lix       be the nat succ lviii
 
-define lx        as the nat succ lix
+let lx        be the nat succ lix
 
-define lxi       as the nat succ lx
+let lxi       be the nat succ lx
 
-define lxii      as the nat succ lxi
+let lxii      be the nat succ lxi
 
-define lxiii     as the nat succ lxii
+let lxiii     be the nat succ lxii
 
-define lxiv      as the nat succ lxiii
+let lxiv      be the nat succ lxiii
 
-define lxv       as the nat succ lxiv
+let lxv       be the nat succ lxiv
 
-define lxvi      as the nat succ lxv
+let lxvi      be the nat succ lxv
 
-define lxvii     as the nat succ lxvi
+let lxvii     be the nat succ lxvi
 
-define lxviii    as the nat succ lxvii
+let lxviii    be the nat succ lxvii
 
-define lxix      as the nat succ lxviii
+let lxix      be the nat succ lxviii
 
-define lxx       as the nat succ lxix
+let lxx       be the nat succ lxix
 
-define lxxi      as the nat succ lxx
+let lxxi      be the nat succ lxx
 
-define lxxii     as the nat succ lxxi
+let lxxii     be the nat succ lxxi
 
-define lxxiii    as the nat succ lxxii
+let lxxiii    be the nat succ lxxii
 
-define lxxiv     as the nat succ lxxiii
+let lxxiv     be the nat succ lxxiii
 
-define lxxv      as the nat succ lxxiv
+let lxxv      be the nat succ lxxiv
 
-define lxxvi     as the nat succ lxxv
+let lxxvi     be the nat succ lxxv
 
-define lxxvii    as the nat succ lxxvi
+let lxxvii    be the nat succ lxxvi
 
-define lxxviii   as the nat succ lxxvii
+let lxxviii   be the nat succ lxxvii
 
-define lxxix     as the nat succ lxxviii
+let lxxix     be the nat succ lxxviii
 
-define lxxx      as the nat succ lxxix
+let lxxx      be the nat succ lxxix
 
-define lxxxi     as the nat succ lxxx
+let lxxxi     be the nat succ lxxx
 
-define lxxxii    as the nat succ lxxxi
+let lxxxii    be the nat succ lxxxi
 
-define lxxxiii   as the nat succ lxxxii
+let lxxxiii   be the nat succ lxxxii
 
-define lxxxiv    as the nat succ lxxxiii
+let lxxxiv    be the nat succ lxxxiii
 
-define lxxxv     as the nat succ lxxxiv
+let lxxxv     be the nat succ lxxxiv
 
-define lxxxvi    as the nat succ lxxxv
+let lxxxvi    be the nat succ lxxxv
 
-define lxxxvii   as the nat succ lxxxvi
+let lxxxvii   be the nat succ lxxxvi
 
-define lxxxviii  as the nat succ lxxxvii
+let lxxxviii  be the nat succ lxxxvii
 
-define lxxxix    as the nat succ lxxxviii
+let lxxxix    be the nat succ lxxxviii
 
-define xc        as the nat succ lxxxix
+let xc        be the nat succ lxxxix
 
-define xci       as the nat succ xc
+let xci       be the nat succ xc
 
-define xcii      as the nat succ xci
+let xcii      be the nat succ xci
 
-define xciii     as the nat succ xcii
+let xciii     be the nat succ xcii
 
-define xciv      as the nat succ xciii
+let xciv      be the nat succ xciii
 
-define xcv       as the nat succ xciv
+let xcv       be the nat succ xciv
 
-define xcvi      as the nat succ xcv
+let xcvi      be the nat succ xcv
 
-define xcvii     as the nat succ xcvi
+let xcvii     be the nat succ xcvi
 
-define xcviii    as the nat succ xcvii
+let xcviii    be the nat succ xcvii
 
-define xcix      as the nat succ xcviii
+let xcix      be the nat succ xcviii
 
-define c         as the nat succ xcix
+let c         be the nat succ xcix

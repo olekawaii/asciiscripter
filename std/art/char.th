@@ -103,7 +103,7 @@ type visible_character contains
     right_curly_brace
     tilde
 
-define flip_over_y_visible as the 
+let flip_over_y_visible be the 
     fn visible_character visible_character 
     lambda c match c
         case apostrophe              grave_accent
@@ -126,11 +126,11 @@ define flip_over_y_visible as the
         case small_q                 small_p
         case _                       c
 
-define flip_over_y_char as the 
+let flip_over_y_char be the 
     fn cell cell 
     map_over_char flip_over_y_visible
 
-define map_over_char as the 
+let map_over_char be the 
     fn 
         fn visible_character visible_character 
         fn cell cell
@@ -138,7 +138,7 @@ define map_over_char as the
         case cell_space              cell_space
         case cell c color            cell f c color
 
-define recolor_character as the 
+let recolor_character be the 
     fn color fn cell cell 
     lambda color lambda character match character
         case cell_space              cell_space

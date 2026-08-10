@@ -5,7 +5,7 @@ type int contains
     pos nat
     zero
 
-define compare_int as the 
+let compare_int be the 
     fn int fn int ordering
     lambda x lambda y match tuple x y 
         case tuple pos a pos b     compare_nat a b
@@ -19,23 +19,23 @@ define compare_int as the
         case tuple _     pos _     lt
         case tuple _     neg _     gt
 
-define eq_int as the 
+let eq_int be the 
     fn int fn int bool 
     lambda x lambda y eq_ordering eq compare_int x y
 
-define max_int as the 
+let max_int be the 
     fn int fn int int
     lambda x lambda y match compare_int x y
         case lt                    y
         case _                     x
 
-define min_int as the 
+let min_int be the 
     fn int fn int int
     lambda x lambda y match compare_int x y
         case gt                    y
         case _                     x
 
-define sum_int as the 
+let sum_int be the 
     fn int fn int int 
     lambda x lambda y match tuple x y
         case tuple pos _ neg _     sum_int decrement x increment y
@@ -44,22 +44,22 @@ define sum_int as the
         case tuple zero  _         y
         case _                     sum_int y x
 
-define increment as the fn int int lambda x match x
+let increment be the fn int int lambda x match x
     case pos a                 pos succ a
     case neg one               zero 
     case neg succ a            neg a
     case zero                  pos one
 
-define decrement as the fn int int 
+let decrement be the fn int int 
     compose 
         negate 
         compose 
             increment 
             negate
 
-define negate as the fn int int product_int neg one
+let negate be the fn int int product_int neg one
 
-define product_int as the 
+let product_int be the 
     fn int fn int int 
     lambda x lambda y match tuple x y
         case 
@@ -74,6 +74,6 @@ define product_int as the
             neg product_nat a b
         case _                      zero
 
-define absolute_value as the fn int whole lambda x match x
+let absolute_value be the fn int whole lambda x match x
     case either pos x neg x        nat_to_whole x
     case zero                      whole_zero

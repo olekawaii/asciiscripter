@@ -19,7 +19,6 @@ use std::{
     io::{ Write, BufWriter },
     process::{Command, Stdio},
     sync::Arc,
-    collections::HashMap,
     cell::RefCell,
 };
 
@@ -51,6 +50,65 @@ pub enum Expression {
     // used for Expression::default(). If encountered, 
     // it's a compiler bug somewhere
     CompilerBug
+}
+
+#[allow(unused)]
+fn debug_expression(expr: &Expression, names: &Vec<String>) {
+    debug_expression_helper(expr, 0, names);
+}
+
+#[allow(unused)]
+fn debug_expression_helper(expr: &Expression, level: usize, names: &Vec<String>) {
+    let mut out = "    ".repeat(level);
+    match expr {
+        Expression::Tree {root, arguments} => {
+            debug_expression_helper(&*root, level, names);
+            for i in arguments.iter() {
+                debug_expression_helper(i, level + 1, names);
+            }
+            return
+        }
+        Expression::Lambda { pattern, body } => {
+            out.push_str("lambda");
+            eprintln!("{}", &out);
+            debug_pattern(&pattern.value, level + 1, names);
+            debug_expression_helper(&*body, level + 1, names);
+        }
+        Expression::Match { matched_on, branches } => {
+            out.push_str("match");
+            eprintln!("{}", &out);
+            debug_expression_helper(&*matched_on, level + 1, names);
+            out = "    ".repeat(level + 1);
+            out.push_str("case");
+            for (pattern, expr) in branches {
+                eprintln!("{}", &out);
+                debug_pattern(&pattern.value, level + 2, names);
+                debug_expression_helper(&*expr, level + 2, names);
+            }
+        }
+        Expression::Thunk { .. } => {
+            out.push_str("<thunk>");
+            eprintln!("{}", &out);
+        }
+        Expression::Undefined { .. } => {
+            out.push_str("undefined");
+            eprintln!("{}", &out);
+        }
+        Expression::LocalVarPlaceholder(n) => {
+            let s = n.to_string();
+            out.push_str("local ");
+            out.push_str(&s);
+            eprintln!("{}", &out);
+        }
+        Expression::DataConstructor(n) => {
+            out.push_str(&names[*n as usize]);
+            eprintln!("{}", &out);
+        }
+        Expression::CompilerBug => {
+            eprintln!("f");
+            panic!();
+        }
+    }
 }
 
 impl Default for Expression {
@@ -98,6 +156,7 @@ impl std::fmt::Display for RuntimeError {
     }
 }
 
+#[allow(unused)]
 fn debug_print(expr: &Expression, names: &Vec<String>) -> String {
     match expr {
         Expression::Tree { root, arguments } => {
@@ -119,7 +178,45 @@ pub enum Pattern {
     Captured(u32),
     DataConstructor(u32, Vec<Pattern>),
     Bound(u32, Box<Pattern>),
-    Either(Box<(Pattern, Pattern)>)
+    Either(Vec<Pattern>)
+}
+
+#[allow(unused)]
+fn debug_pattern(pattern: &Pattern, level: usize, names: &Vec<String>) {
+    let mut out = "    ".repeat(level);
+    match pattern {
+        Pattern::Dropped => {
+            out.push('_');
+            eprintln!("{}", out);
+        }
+        Pattern::Captured(n) => {
+            let s = n.to_string();
+            out.push_str("local ");
+            out.push_str(&s);
+            eprintln!("{}", out);
+        }
+        Pattern::DataConstructor(n, v) => {
+            out.push_str(&names[*n as usize]);
+            eprintln!("{}", out);
+            for i in v.iter() {
+                debug_pattern(i, level + 1, names);
+            }
+        }
+        Pattern::Either(v) => {
+            out.push_str("either");
+            eprintln!("{}", out);
+            for i in v.iter() {
+                debug_pattern(i, level + 1, names);
+            }
+        }
+        Pattern::Bound(n, v) => {
+            out.push_str("bind local ");
+            let s = n.to_string();
+            out.push_str(&s);
+            eprintln!("{}", out);
+            debug_pattern(&*v, level + 1, names);
+        }
+    }
 }
 
 fn matches_expression(
@@ -150,8 +247,7 @@ fn matches_expression(
             }
         }
         Pattern::Either(x) => {
-            let (fst, snd) = &**x;
-            matches_expression(fst, matched, names) || matches_expression(snd, matched, names)
+            x.iter().any(|x| matches_expression(x, matched, names))
         }
     }
 }
@@ -199,12 +295,7 @@ fn match_on_expression_helper(
         }
         Pattern::Either(x) => {
             let pat: &Pattern;
-            let (first, second) = &**x;
-            if matches_expression(first, &mut matched, names) {
-                pat = first;
-            } else {
-                pat = second;
-            }
+            pat = x.iter().find(|x| matches_expression(x, &mut matched, names)).unwrap();
             match_on_expression_helper(output, pat, matched, names);
         }
     }
@@ -222,6 +313,7 @@ impl Expression {
         if self.is_simplified() { return }
         let mut is_simplified = false;
         'uwu: while !is_simplified {
+            // debug_expression(&self, names);
             match std::mem::take(self) {
                 Expression::Thunk {value: exp, mark} => match Arc::try_unwrap(exp) {
                     Ok(x) => *self = x.into_inner(),

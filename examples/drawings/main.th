@@ -1,8 +1,8 @@
 include frame
 
-define main as the list frame chess_set
+let main be the list frame chess_set
 
-define thorn_logo as art xvii xvii
+let thorn_logo be art xvii xvii
     ,.       ,.  ....77.......77..
   ,A$$$,   .A$$c ..777777...77777.
  f"Y$$$$ ,&M$$$$L.7777777.77777777
@@ -21,17 +21,15 @@ define thorn_logo as art xvii xvii
 'e.    ,$$;      777....7777......
   "*wew7*"       ..77777777.......
 
-define layer_x_apart as the 
+let layer_x_apart be the 
     fn nat fn list frame frame 
     lambda n lambda x foldr 
         layer_frames
         new_frame
-        continuously 
-            by n shift east
-            x
+        continuously by n shift east x
 
-define chess_set as the list frame match chess_pieces
-    case 
+let chess_set be the list frame match chess_pieces
+    case
         cons k cons q cons b cons n cons r cons p nil
         lift_list layer_frames
             by vi shift north layer_x_apart 
@@ -39,7 +37,7 @@ define chess_set as the list frame match chess_pieces
                 cons r cons n cons b cons q cons k cons b cons n cons r nil
             layer_x_apart viii replicate nat_to_whole viii p 
 
-define chess_pieces as art vii vii
+let chess_pieces be art vii vii
   _:_  ..777..       .......       .......
  __!__ .77777.o  o  c7..7..7   o   ...7...
  \_ _/ .77|77. \v|v/ .77777.  / \  ..7|7..
@@ -55,29 +53,7 @@ define chess_pieces as art vii vii
  _/ \_ .77|77. |___| .77777. _/ \_ .77|77.
 (_____)7777777(_____)7777777(_____)7777777
 
--- define mahjong_tiles as art ix vii
---    ,,  ...22..   I   ...2...   I   ...2... I   I .2...2. I   I .2...2.
---  <')   .222...   I   ...2...   I   ...2... I   I .2...2. I _ I .2.1.2.
---   ( \  ..2.2..       .......       .......       .......   |   ...1...
--- --YY---.22222.   I   ...2... I   I .2...2. I   I .2...2. I " I .2.1.2.
---     |\ ....22.   I   ...2... I   I .2...2. I   I .2...2. I   I .2...2.
---  I I I .2.2.2.   I   ...2... I v I .2.2.2.       .......   _   ...2...
---  I I I .2.2.2.       ....... I/ \I .22.22.  .-.  ..777..  (_)  ..222..
---        ....... I I I .2.4.2.       ....... (   ) .7...7.   _   ...2...
---  I I I .2.2.2.       ....... I\ /I .22.22.  `"'  ..777..  (_)  ..222..
---  I I I .2.2.2. I I I .2.4.2. I ^ I .2.2.2.       .......       .......
---  _     .2...4. _   _ .2...4. _   _ .2...4.     _ 2222...(_)_   2222...
--- (_)_   2221444(_) (_)2221444(_)_(_)2221444(_) (_)..2222.  (_)_ ..2222.
---   (_)_ .41112. _   _ .41112. _(_)_ .41112. _   _ .1..222 _  (_).1..222
---     (_)444.222(_) (_)444.222(_) (_)444.222(_) (_)111.111(_) (_)111.111
---        .......       .......       .......(_) (_)111.111(_) (_)111.111
---  _   _ 2222...   .   ...1...
--- (_) (_)..2222. __|__ .11111.
--- (_) (_).1..222 |_|_/ .11111.
--- (_) (_)111.111   |   ...1...
--- (_) (_)111.111   |   ...1...
-
-define muchomor as art xvi viii
+let muchomor be art xvi viii
   __c__,___     ..117117111.....
 (_c__O_/\_3_)   1171171111711...
        .        .....||7........
@@ -87,14 +63,14 @@ define muchomor as art xvi viii
      | |  (__o_).....7|7..111711
      | |   (  ) .....7|7...7||7.
 
-define bird as art ix v
+let bird be art ix v
     ,,   ....11...
   <')    ..371....
    ( \   ...1|1...
 ---YY----777337777
      |\  .....11..
 
-define nixos_logo as art xxxii xvii
+let nixos_logo be art xxxii xvii
         __    ____    __        ........44....6666....66........
        /  \   \   \  /  \       .......4||4...6|||6..6||6.......
        \   \   \   \/   /       .......4|||4...6|||66|||6.......
@@ -113,7 +89,7 @@ define nixos_logo as art xxxii xvii
        /   /\   \   \   \       .......4|||44|||4...6|||6.......
        \__/  \___\   \__/       .......4444..44444...6666.......
 
-define bird_song as art xxxv vii
+let bird_song be art xxxv vii
                       ,,           ......................11...........
                     <')            ....................371............
     |)   Presto  _   ( \    v      ....44...444444..4...1.1....4......
@@ -122,10 +98,10 @@ define bird_song as art xxxv vii
 '-- J ----- P -----'------ ----'---444.4.44444.4.444444444444.44444444
              `-..___..-'           .............44444444444...........
 
-define rose as art viii i
+let rose be art viii i
 @)-'-,--11222222
 
-define palm_tree as art xxiii x
+let palm_tree be art xxiii x
         _              ........2..............
   .="= / \ ="=.        ..2222.2|2.2222........
  /\\  //  \  / \       .222..22||2..2|2.......
@@ -137,7 +113,7 @@ define palm_tree as art xxiii x
        \ /    \________.......7|7....777777777
        ( )    /\    /\ .......7|7....77....77.
 
-define spongebob_characters as art xxxv vi
+let spongebob_characters be art xxxv vi
                    __       . .    ...................44.......1.1....
   ___       (     (oo)  _   | |   _..333.......5.....4774..1...7.7...1
  | oo|   _ OO\ _  -()-  >)  .-.  (<.3|773...5.775.5..4444..11..111..11

@@ -1,6 +1,6 @@
 include frame
 
---  A video is represented as a list of frames.
+--  A video is represented be a list of frames.
 --  Thus, you can use any of the functions in
 --  list.th on them. Functions defined here are
 --  just more specific to videos.
@@ -8,17 +8,17 @@ include frame
 --  add infinitely many empty frames to the end 
 --  of a video
 
-define pad_right_inf as the fn list frame list frame 
+let pad_right_inf be the fn list frame list frame 
     lambda v cat v cycle lift_list new_frame
 
-define pad_left as the 
+let pad_left be the 
     fn nat fn list frame list frame
     lambda n cat replicate nat_to_whole n new_frame
 
 --  Layers two videos together. The output video 
 --  will have the length of the larger one
 
-define layer as the 
+let layer be the 
     fn list frame fn list frame list frame 
     lambda a lambda b 
         match tuple a b
@@ -30,7 +30,7 @@ define layer as the
 
 --  Apply a function to every frame of a video
 
-define entirely as the 
+let entirely be the 
     fn fn frame frame fn list frame list frame 
     map_list
 
@@ -38,12 +38,12 @@ define entirely as the
 --  reversed x to the end of it, making the  
 --  transition smooth.                       
 
-define loop as the fn list frame list frame 
+let loop be the fn list frame list frame 
     lambda v cat v drop nat_to_whole one reverse drop nat_to_whole one v
 
 --  duplicate the last frame 
 
-define extend as the fn list frame list frame 
+let extend be the fn list frame list frame 
     lambda x match x
         case cons x nil         cons x lift_list x
         case cons x xs          cons x extend xs
@@ -51,21 +51,21 @@ define extend as the fn list frame list frame
 
 --  slow n multiplies every frame n times
 
-define slow as the fn nat fn list frame list frame 
+let slow be the fn nat fn list frame list frame 
     lambda num lambda vid match vid
         case cons x xs          cat replicate nat_to_whole num x slow num xs
         case nil                nil
 
 --  move the first frame to the back of the video
 
-define rotate as the fn list frame list frame 
+let rotate be the fn list frame list frame 
     lambda vid match vid 
         case cons x xs          append x xs
         case nil                nil
 
 --  move the last frame to the front of the video
 
-define rotate_right as the fn list frame list frame 
+let rotate_right be the fn list frame list frame 
     lambda x match list_to_non_empty x
         case none               nil
         case some l             cons last l init l
@@ -74,7 +74,7 @@ define rotate_right as the fn list frame list frame
 --  every frame `n` times where `n` is the index
 --  of the frame (zero based)                                       
 
-define continuously as the 
+let continuously be the 
     fn fn frame frame fn list frame list frame
     lambda f lambda v match v
         case cons x xs          cons x continuously f entirely f xs
@@ -82,12 +82,12 @@ define continuously as the
 
 --  apply a function to video n times
 
-define for as the 
+let for be the 
     fn nat fn fn list frame list frame fn list frame list frame 
     repeat
 
 --  Returns the first frame of a video. Crashes
 --  if the video is empty
 
-define first_frame as the fn list frame frame 
+let first_frame be the fn list frame frame 
     lambda cons x _    x    -- fails on nil

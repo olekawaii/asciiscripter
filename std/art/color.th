@@ -33,7 +33,7 @@ type color contains
 --  next_color is the next clock-wise color in
 --  this color wheel
 
-define next_color as the fn color color lambda x match x
+let next_color be the fn color color lambda x match x
     case red                    magenta
     case magenta                blue
     case blue                   cyan
@@ -46,7 +46,5 @@ define next_color as the fn color color lambda x match x
 --  rgb color wheel. black and white are 
 --  uneffected
 
-define complementary as the 
-    fn color color 
-    repeat iii 
-        next_color
+let complementary be the fn color color repeat iii 
+    next_color

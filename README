@@ -31,7 +31,7 @@ What's the point of this language? The point is to have
 A goal I have is to make the thorn source code as pretty as the actual
 ASCII art. See for yourself (snippet from examples/dragon/main.th)
 
-define center_head as the list frame loop art xii ix
+let center_head be the list frame loop art xii ix
    )  (     ...7..7.....    )  (    ....7..7....     )  (   .....7..7...
   ((__))    ..776677....   ((__))   ...776677...    ((__))  ....776677..
   /o..o\    ..636636....   /o..o\   ...636636...    /o..o\  ....636636..
@@ -110,7 +110,7 @@ project.
 --  this is a comment
                             DECLARATIONS
 forall NAME... DECLARATION     * declare any local type variables
-define NAME as EXPRESSION      * define a global variable
+let NAME be EXPRESSION         * define a global variable
 type NAME contains             * type declaration. NAME is a data
     NAME TYPE...                 constructor and TYPE are its arguments
     ...
@@ -133,17 +133,17 @@ either PATTERN PATTERN         * match either pattern (|)
 This code defines a function that applies a function to an integer.
 The main body, if with paranthesis, would be (apply (add one) three).
 
-    define apply as the
+    let apply be the
         fn fn int int fn int int
         undefined
 
-    define main as the int apply add one three
+    let main be the int apply add one three
 
 What if we wanted to pass a lambda instead of the (add one)? We can't
 do (apply (lambda x add one x) three) because there are no paranthesis.
 Instead, we need to do
                                                         __       . .
-    define main is the int apply       ___       (     (oo)  _   | |   _
+    let main be the int apply          ___       (     (oo)  _   | |   _
         lambda x add one x            | oo|   _ OO\ _  -()-  >)  .-.  (<
         three                        \|___|/  \/___ /   __     \/___\/
                                       '---'   ( ___ )  j[]L    ( -o- )
@@ -166,7 +166,7 @@ declare any type variables. Here's a demo of the list and option types
         none
         some a
 
-    define first_bool as the fn list bool option bool
+    let first_bool be the fn list bool option bool
         lambda input_list match input_list
             case nil                           none
             case cons head _tail               some head
@@ -179,12 +179,12 @@ In the last line, `cons` is a data constructor and `head/tail` are
 variable names for the `a` and `list a` in the list definition. _tail
 is prepended with an underscore to drop the value.
 
-    define main as the option bool
+    let main be the option bool
         first_bool cons true cons false nil
 
 output:  some true        (thorn's output, if the above is in main.th)
 
-    define main as the option bool first_bool nil
+    let main be the option bool first_bool nil
 
 output:  none
 
@@ -196,7 +196,7 @@ points. Ignore the undefined types/functions.
     type point contains
         point float float
 
-    define distance as the fn point fn point float
+    let distance be the fn point fn point float
         lambda pa lambda pb match tuple pa pb
             case
                 tuple point xa ya point xb yb     -- destructuring pa,pb
@@ -209,7 +209,7 @@ get their x and y values. However, because the point type only contains
 one variant, we can actually patternmatch directly in the lambda
 expression like so
 
-    define distance as the fn point fn point float
+    let distance be the fn point fn point float
         lambda point xa ya lambda point xb yb  sqrt sum
             squared diff xb xa
             squared diff yb ya
@@ -223,7 +223,7 @@ be found in the syntax overview section.
 There is no mutation and therefore there are no loops. The only way to
 loop is to recurse or use a function that recurses.         ,,
                                                           <')
-    define main as the nat sum                             ( \
+    let main be the nat sum                                ( \
         three                               +--------------YY------+
         succ one                            | 1 = one        |\    |
                                             | 2 = succ one         |
@@ -231,9 +231,9 @@ loop is to recurse or use a function that recurses.         ,,
         one                                 | ...                  |
         succ nat                            +----------------------+
 
-    define three as the nat succ succ one
+    let three be the nat succ succ one
 
-    define sum as the fn nat fn nat nat
+    let sum be the fn nat fn nat nat
         lambda x match x
             case one         succ
             case succ a      lambda y succ sum a y     -- recursive
@@ -260,11 +260,11 @@ are some examples. I'll use the thorn repl to define and test them.
 >>>     one                                         . .
 >>>     succ nat                                    \ /
 >>>                                                 \ /   \
->>> define infinity as the nat succ infinity        \ /    \________
+>>> let infinity be the nat succ infinity           \ /    \________
 >>>                                                 ( )    /\    /\
 >>> forall a b type tuple contains tuple a b
 >>>
->>> define are_equal as the
+>>> let are_equal be the
 >>>     fn nat fn nat bool
 >>>     lambda x lambda y match tuple x y
 >>>         case tuple one    one              true
@@ -318,9 +318,9 @@ The animation is 6x4 in size and has 2 frames.
 
     include video       -- finds and imports video.th
 
-    define main as the list frame dragon_tail
+    let main be the list frame dragon_tail
 
-    define dragon_tail as art vi iv
+    let dragon_tail be art vi iv
      \   ).6|||6(   / 6|||6.
       ) / ..6|6. \ (  .6|6..
      ( /  .6|6..  \ ) ..6|6.
@@ -341,7 +341,7 @@ There is special syntax for using local/global variables in the art. To
 use a color variable, you just replace the color number with the
 variable name like so (colors defined in std/art/color.th)
 
-    define dragon_tail as the
+    let dragon_tail be the
         fn color list frame           -- expecting the color as
         lambda c art vi iv            -- a function argument
              \   ).c|||c(   / c|||c.
@@ -380,7 +380,7 @@ custom palette type.
 
     include video
 
-    define main as the list frame dragon_roar default_dragon_p
+    let main be the list frame dragon_roar default_dragon_p
 
     type dragon_p contains
         dragon_p
@@ -389,10 +389,10 @@ custom palette type.
             color    -- eye
             color    -- wing
 
-    define default_dragon_p as the dragon_p
+    let default_dragon_p be the dragon_p
         dragon_p cyan white yellow green
 
-    define dragon_roar as the
+    let dragon_roar be the
         fn dragon_p list frame
         lambda dragon_p s b e _  entirely shift south art xiii vii
             .            b.............            b............
@@ -414,7 +414,7 @@ You can see how the core types are implemented in std/ . There are many
 useful functions in video.th, list.th, and frame.th . To find the
 definition of a function, just run
 
-    $ grep -Rn 'define function_name '
+    $ grep -Rn 'let function_name '
 
 -----------------------------   OUTPUT   -------------------------------
 

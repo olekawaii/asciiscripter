@@ -7,8 +7,7 @@ include ordering binary_tree option
 --  * the sorting is determined by the ordering
 --    function
 
-forall a b
-type ordered_map contains
+forall a b type ordered_map contains
     unsafe_ordered_map
         fn a fn a ordering     -- Ordering function
         tree tuple a b         -- Internal sorted binary tree
@@ -16,77 +15,70 @@ type ordered_map contains
 --  Create a new empty map with a given ordering 
 --  function
 
-forall a b
-define new_ordered_map as the 
+forall a b let new_ordered_map be the 
     fn fn a fn a ordering ordered_map a b
     lambda f unsafe_ordered_map f empty
 
 --  Get the value associated with the give key. 
 --  Returns an optional value
 
-forall a b
-define get_ord as the fn a fn ordered_map a b option b
+forall a b let get_ord be the 
+    fn a fn ordered_map a b option b
     lambda key lambda unsafe_ordered_map f tree match tree
-        case empty                                none
-        case node tuple k value left right        match f key k 
-            case eq    some value
-            case lt    get_ord key 
-                unsafe_ordered_map f left
-            case gt    get_ord key 
-                unsafe_ordered_map f right
+        case empty                  none
+        case node tuple k v l r     match f key k 
+            case eq     some v
+            case lt     get_ord key unsafe_ordered_map f l
+            case gt     get_ord key unsafe_ordered_map f r
 
 --  Insert a key/value pair into a map, returning 
 --  the new map
 
-forall a b
-define insert_ord as the 
+forall a b let insert_ord be the 
     fn a fn b fn ordered_map a b ordered_map a b
-    lambda key lambda value lambda unsafe_ordered_map f t
-        unsafe_ordered_map f insert_ord_helper key value f t
-
-forall a b
-define insert_ord_helper as the 
-    fn a fn b fn 
-        fn a fn a ordering 
-        fn tree tuple a b tree tuple a b
-    lambda key lambda value lambda f lambda t match t
-        case empty       node tuple key value empty empty
-        case 
-            node bind root tuple k _ left right    
-            match f key k 
-                case eq        node tuple key value left right
-                case lt        node 
-                    root
-                    insert_ord_helper key value f left
-                    right
-                case gt        node 
-                    root
-                    left
-                    insert_ord_helper key value f right
+    lambda key lambda value lambda map
+        unsafe_apply_to_ordered_map_pair 
+            key
+            lambda x match x
+                case empty              node tuple key value empty empty
+                case node _ l r         node tuple key value l r
+            map
 
 --  Remove a key from a map, returning the new map
 
-forall a b
-define remove_ord as the fn a fn ordered_map a b ordered_map a b
-    lambda key lambda unsafe_ordered_map f tree 
-        unsafe_ordered_map f remove_ord_helper key f tree
+forall a b let remove_ord be the fn a fn ordered_map a b ordered_map a b
+    lambda key lambda map
+        unsafe_apply_to_ordered_map_pair 
+            key
+            lambda x match x
+                case empty              empty
+                case node _ l r         attach_to_leftmost l r
+            map
 
-forall a b
-define remove_ord_helper as the 
-    fn a fn 
-        fn a fn a ordering 
+forall a b let unsafe_apply_to_ordered_map_pair be the
+    fn a fn
         fn tree tuple a b tree tuple a b
-    lambda key lambda f lambda tree match tree
-        case empty     empty
+        fn ordered_map a b ordered_map a b
+    lambda k lambda f lambda unsafe_ordered_map o t
+        unsafe_ordered_map o unsafe_apply_to_ordered_map_pair_helper k f o t
+
+forall a b let unsafe_apply_to_ordered_map_pair_helper be the 
+    fn a fn
+        fn tree tuple a b tree tuple a b
+        fn
+            fn a fn a ordering 
+            fn tree tuple a b tree tuple a b
+    lambda key lambda ff lambda f lambda tree match tree
+        case empty              ff empty
         case 
             node bind root tuple k _ left right    
             match f key k 
-                case eq        attach_to_leftmost left right
-                case lt        node 
+                case eq                 ff tree
+                case lt                 node 
                     root
-                    remove_ord_helper key f left
+                    unsafe_apply_to_ordered_map_pair_helper key ff f left
                     right
-                case gt        node 
+                case gt                 node 
                     root
                     left
-                    remove_ord_helper key f right
+                    unsafe_apply_to_ordered_map_pair_helper key ff f right
