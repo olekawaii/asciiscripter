@@ -17,19 +17,17 @@
 const UNDERLINE_CHAR: &str = "^";
 
 use std::{
+    fs::read_to_string,
     sync::{Arc, Mutex},
-    fs::read_to_string
 };
 
 // debug info used by compile-time/run-time errors
 
 pub struct DebugInfo {
-    pub files:       Vec<String>,   // paths to all .th files
+    pub files: Vec<String>, // paths to all .th files
 }
 
-pub static DEBUG_INFO: Mutex<DebugInfo> = Mutex::new(DebugInfo { 
-    files:       Vec::new(),
-});
+pub static DEBUG_INFO: Mutex<DebugInfo> = Mutex::new(DebugInfo { files: Vec::new() });
 
 pub fn get_file_name(index: u32) -> String {
     DEBUG_INFO.lock().unwrap().files[index as usize].clone()
@@ -76,11 +74,11 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
     let file_contents = read_to_string(&file_name).unwrap();
     let mut file_name_chars = file_name.chars();
     if file_name_chars.next().unwrap() == '.' {
-        file_name_chars.next(); 
+        file_name_chars.next();
         file_name = file_name_chars.collect();
     }
     let mut lines = file_contents.lines().enumerate();
-    let line_before = if mark.line == 0 { 
+    let line_before = if mark.line == 0 {
         ""
     } else {
         lines.find(|(n, _)| *n == mark.line - 1).unwrap().1
@@ -115,9 +113,9 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
 
 #[derive(Debug)]
 pub struct Error {
-    pub error_type:  Box<dyn ErrorType>,
-    pub mark:        Mark,
-    pub note:        Option<String>
+    pub error_type: Box<dyn ErrorType>,
+    pub mark: Mark,
+    pub note: Option<String>,
 }
 
 pub fn make_error(error: impl ErrorType + 'static, mark: Mark) -> Error {
@@ -141,24 +139,29 @@ pub trait ErrorType: std::fmt::Display + std::fmt::Debug {
 
 impl PartialEq for Error {
     fn eq(&self, other: &Error) -> bool {
-        (&self.mark.file, self.mark.line, self.mark.character).eq(
-        &(&other.mark.file, other.mark.line, other.mark.character))
+        (&self.mark.file, self.mark.line, self.mark.character).eq(&(
+            &other.mark.file,
+            other.mark.line,
+            other.mark.character,
+        ))
     }
 }
 
-impl Eq for Error {
-}
+impl Eq for Error {}
 
 impl PartialOrd for Error {
-    fn partial_cmp(&self, other: &Error) -> Option<std::cmp::Ordering> { 
-        Some(self.cmp(other)) 
+    fn partial_cmp(&self, other: &Error) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for Error {
     fn cmp(&self, other: &Error) -> std::cmp::Ordering {
-        (&self.mark.file, self.mark.line, self.mark.character).cmp(
-        &(&other.mark.file, other.mark.line, other.mark.character))
+        (&self.mark.file, self.mark.line, self.mark.character).cmp(&(
+            &other.mark.file,
+            other.mark.line,
+            other.mark.character,
+        ))
     }
 }
 

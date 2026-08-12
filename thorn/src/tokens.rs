@@ -6,7 +6,7 @@ const INDENTATION: u8 = 4;
 #[derive(Debug)]
 pub enum ParseError {
     // ConflictingAllignment,
-    BadIndentation,
+    BadIndentation(u32),
     TrailingCharacters,
     InvalidColor,
     // InvalidName,
@@ -22,14 +22,16 @@ pub enum ParseError {
     TranspOnChar,
     ColorOnSpace,
     CantHaveIndents,
+    ExpectedNumBranches(u32),
 }
 
 impl ErrorType for ParseError {
     fn gist(&self) -> &'static str {
         match self {
             // Self::ConflictingAllignment => "conflicting allignment",
+            Self::ExpectedNumBranches(_) => "unexpected number of branches",
             Self::TrailingCharacters => "trailing characters",
-            Self::BadIndentation => "indentation not divisible by four",
+            Self::BadIndentation(_) => "bad indentation length",
             Self::InvalidColor => "invalid color",
             Self::ColorOnSpace => "can only be used with non-spaces",
             Self::TranspOnChar => "unexpected character",
@@ -57,12 +59,24 @@ impl std::fmt::Display for ParseError {
         match self {
             Self::UnexpectedKeyword => write!(f, "encountered an unexpected keyword"),
             Self::TrailingCharacters => write!(f, "expected an end to the expression"),
-            Self::ColorOnSpace => write!(f, "colors can not be used on spaces. instead use . or |"),
-            Self::TranspOnChar => write!(f, "colors . and | can only be used with spaces to mark transparency"),
+            Self::ColorOnSpace => write!(
+                f,
+                "colors can not be used on spaces. instead use \x1b[97m.\x1b[90m or \x1b[97m|\x1b[90m"
+            ),
+            Self::TranspOnChar => write!(
+                f,
+                "colors \x1b[97m.\x1b[90m and \x1b[97m|\x1b[90m can only be used with spaces to mark transparency"
+            ),
             Self::UnexpectedEnd => write!(f, "unexpected end to block"),
-            Self::UnexpectedEndLine => write!(f, "unexpected end to line. try puttings args on their own lines"),
-            Self::ExpectedKeyword(k) => write!(f, "expected the keyword '{}'", k),
+            Self::UnexpectedEndLine => write!(f, "expected the line to continue"),
+            Self::ExpectedKeyword(k) => write!(f, "expected the keyword \x1b[97m{}\x1b[90m", k),
             // Self::InvalidName => write!(f, "invalid keyword or variable name"),
+            Self::BadIndentation(n) => {
+                write!(f, "expected an indentation length of \x1b[97m{}\x1b[90m", n)
+            }
+            Self::ExpectedNumBranches(n) => {
+                write!(f, "expected \x1b[97m{}\x1b[90m branches after this line", n)
+            }
             Self::BadArtLength { width, got } => write!(
                 f,
                 "expected line length to be divisible hy {}, but it has {got} chars",
@@ -72,10 +86,12 @@ impl std::fmt::Display for ParseError {
                 f,
                 "expected number of lines to be divisible hy {height}, but it has {got} lines",
             ),
-            Self::CantHaveIndents => write!(f,
-"this block has indented branches. They are not
+            Self::CantHaveIndents => write!(
+                f,
+                "this block has indented branches. They are not
 allowed in this context. If you want them, move
-this block into its own branch"),
+this block into its own branch"
+            ),
             _ => write!(f, "todo"),
         }
     }
@@ -104,7 +120,7 @@ pub fn parse_roman_numeral(numeral: &str) -> Option<u32> {
         let pattern_len = pattern.len();
         let numeral_len = numeral.len() - starting_index;
         if numeral_len == 0 {
-            return Some(output)
+            return Some(output);
         } else if numeral_len < pattern_len
             || &numeral[starting_index..starting_index + pattern_len] != pattern
         {
@@ -192,7 +208,11 @@ pub fn words(s: &str) -> Vec<(usize, &str, usize)> {
         match character {
             ' ' => {
                 if length != 0 {
-                    output.push((character_index, &s[character_index..character_index+length], length));
+                    output.push((
+                        character_index,
+                        &s[character_index..character_index + length],
+                        length,
+                    ));
                     length = 0;
                 }
             }
@@ -205,7 +225,11 @@ pub fn words(s: &str) -> Vec<(usize, &str, usize)> {
         }
     }
     if length != 0 {
-        output.push((character_index, &s[character_index..character_index+length], length));
+        output.push((
+            character_index,
+            &s[character_index..character_index + length],
+            length,
+        ));
     }
     output
 }
@@ -234,9 +258,9 @@ pub enum Keyword {
 
 #[derive(Clone, Debug)]
 pub struct Block {
-    pub line_tokens:               Vec<(OwnedToken, Mark)>,
-    pub indented_blocks_beneath:   Vec<Block>,
-    pub line_end_mark:             Mark,
+    pub line_tokens: Vec<(OwnedToken, Mark)>,
+    pub indented_blocks_beneath: Vec<Block>,
+    pub line_end_mark: Mark,
 }
 
 #[allow(unused)]
@@ -245,38 +269,35 @@ pub fn debug_print_block(bt: BlockTraversal, indentation: u32) {
     for (i, _) in bt.block.line_tokens.iter().skip(bt.word) {
         match i {
             OwnedToken::Keyword(k) => eprint!("{k} "),
-            OwnedToken::Word(w)    => eprint!("{w} "),
+            OwnedToken::Word(w) => eprint!("{w} "),
         }
     }
     eprintln!();
-    bt.block.indented_blocks_beneath.iter().for_each(
-        |x| debug_print_block(BlockTraversal::new(x), indentation + 1)
-    );
+    bt.block
+        .indented_blocks_beneath
+        .iter()
+        .for_each(|x| debug_print_block(BlockTraversal::new(x), indentation + 1));
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct BlockTraversal<'a> {
-    pub block:                     &'a Block,
-    pub word:                      usize,
+    pub block: &'a Block,
+    pub word: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OwnedToken {
     Keyword(Keyword),
-    Word(String)
+    Word(String),
 }
 
 impl<'a> BlockTraversal<'a> {
     pub fn new(block: &'a Block) -> Self {
-        BlockTraversal {
-            block,
-            word: 0,
-        }
+        BlockTraversal { block, word: 0 }
     }
 
     pub fn get_indented_blocks(self) -> Vec<Self> {
-        self
-            .block
+        self.block
             .indented_blocks_beneath
             .iter()
             .map(BlockTraversal::new)
@@ -301,19 +322,19 @@ impl<'a> BlockTraversal<'a> {
     pub fn expect_no_indents(bt: Option<Self>, mark: &'a Mark) -> Result<Self> {
         match bt {
             Some(x) => Ok(x),
-            None    => Err(make_error(ParseError::CantHaveIndents, mark.clone()))
+            None => Err(make_error(ParseError::CantHaveIndents, mark.clone())),
         }
     }
 
     pub fn expect_end(self) -> Result<()> {
         let token_mark: &Mark = match self.next() {
-            Ok(NextOutput::Token(_, mark, _))       => mark,
-            Ok(NextOutput::IndentedBlocks(v))       => v[0].next_token_in_line().unwrap().1,
-            Err(_)                                  => return Ok(())
+            Ok(NextOutput::Token(_, mark, _)) => mark,
+            Ok(NextOutput::IndentedBlocks(v)) => v[0].next_token_in_line().unwrap().1,
+            Err(_) => return Ok(()),
         };
         Err(make_error(
             ParseError::TrailingCharacters,
-            token_mark.clone()
+            token_mark.clone(),
         ))
     }
 
@@ -321,8 +342,8 @@ impl<'a> BlockTraversal<'a> {
         if self.reached_end_of_line() {
             return Err(make_error(
                 ParseError::UnexpectedEndLine,
-                self.block.line_end_mark.clone()
-            ))
+                self.block.line_end_mark.clone(),
+            ));
         }
         let (token, mark) = &self.block.line_tokens[self.word];
         self.word += 1;
@@ -330,12 +351,9 @@ impl<'a> BlockTraversal<'a> {
     }
 
     pub fn next_token_in_line_fallthrough(self) -> Result<(&'a OwnedToken, &'a Mark, Self)> {
-        match self.next()? {
+        match self.next_expecting_count(1)? {
             NextOutput::Token(t, mark, bt) => Ok((t, mark, bt)),
-            NextOutput::IndentedBlocks(v) => {
-                assert!(v.len() == 1);
-                v[0].next_token_in_line()
-            }
+            NextOutput::IndentedBlocks(v) => v[0].next_token_in_line(),
         }
     }
 
@@ -343,13 +361,26 @@ impl<'a> BlockTraversal<'a> {
         if self.reached_end_of_block() {
             return Err(make_error(
                 ParseError::UnexpectedEnd,
-                self.block.line_end_mark.clone()
-            ))
+                self.block.line_end_mark.clone(),
+            ));
         }
         match self.next_token_in_line() {
             Ok((token, mark, bt)) => Ok(NextOutput::Token(token, mark, bt)),
-            Err(_)                => Ok(NextOutput::IndentedBlocks(self.get_indented_blocks()))
+            Err(_) => Ok(NextOutput::IndentedBlocks(self.get_indented_blocks())),
         }
+    }
+
+    pub fn next_expecting_count(self, branch_count: usize) -> Result<NextOutput<'a>> {
+        let ret = self.next()?;
+        if let NextOutput::IndentedBlocks(v) = &ret
+            && v.len() != branch_count
+        {
+            return Err(make_error(
+                ParseError::ExpectedNumBranches(branch_count as u32),
+                self.block.line_end_mark.clone(),
+            ));
+        }
+        Ok(ret)
     }
 
     pub fn expect_keyword(self, keyword: Keyword) -> Result<(&'a Mark, Self)> {
@@ -357,69 +388,88 @@ impl<'a> BlockTraversal<'a> {
         if *token != OwnedToken::Keyword(keyword) {
             return Err(make_error(
                 ParseError::ExpectedKeyword(keyword),
-                mark.clone()
-            ))
+                mark.clone(),
+            ));
         }
         Ok((mark, bt))
     }
 
     pub fn expect_word(self) -> Result<(&'a str, &'a Mark, Self)> {
         let (token, mark, bt) = self.next_token_in_line_fallthrough()?;
-        if let OwnedToken::Word(w) = token { Ok((w, mark, bt)) }
-        else { Err(make_error(ParseError::UnexpectedKeyword, mark.clone())) }
+        if let OwnedToken::Word(w) = token {
+            Ok((w, mark, bt))
+        } else {
+            Err(make_error(ParseError::UnexpectedKeyword, mark.clone()))
+        }
     }
 }
 
 pub enum NextOutput<'a> {
     Token(&'a OwnedToken, &'a Mark, BlockTraversal<'a>),
-    IndentedBlocks(Vec<BlockTraversal<'a>>)
+    IndentedBlocks(Vec<BlockTraversal<'a>>),
 }
 
 impl std::fmt::Display for Keyword {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Keyword::ForAll     => write!(f, "forall"),
-            Keyword::Include    => write!(f, "include"),
-            Keyword::Match      => write!(f, "match"),
-            Keyword::With       => write!(f, "with"),
-            Keyword::Lambda     => write!(f, "lambda"),
-            Keyword::Bind       => write!(f, "bind"),
-            Keyword::Either     => write!(f, "either"),
-            Keyword::Let        => write!(f, "let"),
-            Keyword::The        => write!(f, "the"),
-            Keyword::Be         => write!(f, "be"),
-            Keyword::Case       => write!(f, "case"),
-            Keyword::Type       => write!(f, "type"),
-            Keyword::Contains   => write!(f, "contains"),
-            Keyword::Undefined  => write!(f, "undefined"),
+            Keyword::ForAll => write!(f, "forall"),
+            Keyword::Include => write!(f, "include"),
+            Keyword::Match => write!(f, "match"),
+            Keyword::With => write!(f, "with"),
+            Keyword::Lambda => write!(f, "lambda"),
+            Keyword::Bind => write!(f, "bind"),
+            Keyword::Either => write!(f, "either"),
+            Keyword::Let => write!(f, "let"),
+            Keyword::The => write!(f, "the"),
+            Keyword::Be => write!(f, "be"),
+            Keyword::Case => write!(f, "case"),
+            Keyword::Type => write!(f, "type"),
+            Keyword::Contains => write!(f, "contains"),
+            Keyword::Undefined => write!(f, "undefined"),
         }
     }
 }
 
-pub fn tokenize_block(input: Vec<(usize, &str)>, file: u32, indentation_level: u32) -> Result<Block> {
+pub fn tokenize_block(
+    input: Vec<(usize, &str)>,
+    file: u32,
+    indentation_level: u32,
+) -> Result<Block> {
     let mut bodies: Vec<Block> = Vec::new();
     let mut lines = input.into_iter();
     let (line_number, first_line) = lines.next().unwrap();
-    assert!(indentation_length(first_line) as u32 == indentation_level * INDENTATION as u32);
     let first_line_indentation = indentation_length(first_line);
-    if first_line_indentation as u32 != indentation_level * INDENTATION as u32 {
+    let expected_indentation = indentation_level * INDENTATION as u32;
+    if first_line_indentation as u32 != expected_indentation {
         let mark = Mark {
             file,
-            line:       line_number,
-            block:      None,
-            character:  0,
-            length:     first_line_indentation as usize
+            line: line_number,
+            block: None,
+            character: 0,
+            length: first_line_indentation as usize,
         };
-        return Err(make_error(ParseError::BadIndentation, mark))
+        return Err(make_error(
+            ParseError::BadIndentation(expected_indentation),
+            mark,
+        ));
     }
-    let (root_line, end_mark, art_dimensions) = tokenize_line(first_line, line_number as u32, file)?;
+    let (root_line, end_mark, art_dimensions) =
+        tokenize_line(first_line, line_number as u32, file)?;
     if let Some((x, y, art_mark)) = art_dimensions {
         let art_indentation = match indentation_level {
             0 => 0,
             _ => (indentation_level + 1) * INDENTATION as u32,
         };
         let art_lns: Vec<(usize, Vec<(usize, char)>)> = lines
-            .map(|(n, s)| (n, s.chars().skip(art_indentation as usize).enumerate().collect()))
+            .map(|(n, s)| {
+                (
+                    n,
+                    s.chars()
+                        .skip(art_indentation as usize)
+                        .enumerate()
+                        .collect(),
+                )
+            })
             .collect();
         let mut new_output = Vec::new();
         for (line_index, line) in art_lns {
@@ -441,7 +491,7 @@ pub fn tokenize_block(input: Vec<(usize, &str)>, file: u32, indentation_level: u
         let aaa = parse_art(x as usize, y as usize, new_output, art_mark.clone())?;
         let tokens: Vec<(OwnedToken, Mark)> = build_tokens_from_art(art_mark, aaa)?
             .into_iter()
-            .map(|Marked::<OwnedToken> { mark, value} | (value, mark))
+            .map(|Marked::<OwnedToken> { mark, value }| (value, mark))
             .collect();
         return Ok(Block {
             line_end_mark: end_mark.clone(),
@@ -451,7 +501,7 @@ pub fn tokenize_block(input: Vec<(usize, &str)>, file: u32, indentation_level: u
                 line_end_mark: end_mark,
                 indented_blocks_beneath: Vec::new(),
             }],
-        })
+        });
     }
     let mut line_buffer = Vec::new();
     for (line_number, line) in lines {
@@ -468,18 +518,20 @@ pub fn tokenize_block(input: Vec<(usize, &str)>, file: u32, indentation_level: u
         bodies.push(block);
     }
     Ok(Block {
-        line_tokens:               root_line,
-        indented_blocks_beneath:   bodies,
-        line_end_mark:             end_mark
+        line_tokens: root_line,
+        indented_blocks_beneath: bodies,
+        line_end_mark: end_mark,
     })
 }
 
 // the Option<(u32, u32, Mark)> are the width and
 // height of `art` if it exists in the line
 
-fn tokenize_line(line: &str, line_number: u32, file: u32)
-    -> Result<(Vec<(OwnedToken, Mark)>, Mark, Option<(u32, u32, Mark)>)>
-{
+fn tokenize_line(
+    line: &str,
+    line_number: u32,
+    file: u32,
+) -> Result<(Vec<(OwnedToken, Mark)>, Mark, Option<(u32, u32, Mark)>)> {
     let mut ret: Vec<(OwnedToken, Mark)> = Vec::new();
     let mut art_ret = None;
     let mut words = words(line).into_iter();
@@ -492,44 +544,57 @@ fn tokenize_line(line: &str, line_number: u32, file: u32)
             length,
         };
         let token = match word {
-            "--"         =>  break, // comment
-            "include"    =>  OwnedToken::Keyword(Keyword::Include   ),
-            "forall"     =>  OwnedToken::Keyword(Keyword::ForAll    ),
-            "type"       =>  OwnedToken::Keyword(Keyword::Type      ),
-            "contains"   =>  OwnedToken::Keyword(Keyword::Contains  ),
-            "let"        =>  OwnedToken::Keyword(Keyword::Let       ),
-            "the"        =>  OwnedToken::Keyword(Keyword::The       ),
-            "be"         =>  OwnedToken::Keyword(Keyword::Be        ),
-            "lambda"     =>  OwnedToken::Keyword(Keyword::Lambda    ),
-            "match"      =>  OwnedToken::Keyword(Keyword::Match     ),
-            "bind"       =>  OwnedToken::Keyword(Keyword::Bind      ),
-            "either"     =>  OwnedToken::Keyword(Keyword::Either    ),
-            "with"       =>  OwnedToken::Keyword(Keyword::With      ),
-            "case"       =>  OwnedToken::Keyword(Keyword::Case      ),
-            "undefined"  =>  OwnedToken::Keyword(Keyword::Undefined ),
-            "art"        => {
-                let Some((character, x, length)) = words.next() else { return Err(make_error(
-                    ParseError::ArtMissingArgs,
-                    token_mark,
-                ))};
-                let Some(x) = parse_roman_numeral(x) else { return Err(make_error(
-                    ParseError::ExpectedRoman,
-                    Mark { character, length, ..token_mark }
-                ))};
-                let Some((character, y, length)) = words.next() else { return Err(make_error(
-                    ParseError::ArtMissingArgs,
-                    token_mark,
-                    //Mark { character: character, ..mark }
-                ))};
-                let Some(y) = parse_roman_numeral(y) else { return Err(make_error(
-                    ParseError::ExpectedRoman,
-                    Mark { character, length, ..token_mark }
-                ))};
+            "--" => break, // comment
+            "include" => OwnedToken::Keyword(Keyword::Include),
+            "forall" => OwnedToken::Keyword(Keyword::ForAll),
+            "type" => OwnedToken::Keyword(Keyword::Type),
+            "contains" => OwnedToken::Keyword(Keyword::Contains),
+            "let" => OwnedToken::Keyword(Keyword::Let),
+            "the" => OwnedToken::Keyword(Keyword::The),
+            "be" => OwnedToken::Keyword(Keyword::Be),
+            "lambda" => OwnedToken::Keyword(Keyword::Lambda),
+            "match" => OwnedToken::Keyword(Keyword::Match),
+            "bind" => OwnedToken::Keyword(Keyword::Bind),
+            "either" => OwnedToken::Keyword(Keyword::Either),
+            "with" => OwnedToken::Keyword(Keyword::With),
+            "case" => OwnedToken::Keyword(Keyword::Case),
+            "undefined" => OwnedToken::Keyword(Keyword::Undefined),
+            "art" => {
+                let Some((character, x, length)) = words.next() else {
+                    return Err(make_error(ParseError::ArtMissingArgs, token_mark));
+                };
+                let Some(x) = parse_roman_numeral(x) else {
+                    return Err(make_error(
+                        ParseError::ExpectedRoman,
+                        Mark {
+                            character,
+                            length,
+                            ..token_mark
+                        },
+                    ));
+                };
+                let Some((character, y, length)) = words.next() else {
+                    return Err(make_error(
+                        ParseError::ArtMissingArgs,
+                        token_mark,
+                        //Mark { character: character, ..mark }
+                    ));
+                };
+                let Some(y) = parse_roman_numeral(y) else {
+                    return Err(make_error(
+                        ParseError::ExpectedRoman,
+                        Mark {
+                            character,
+                            length,
+                            ..token_mark
+                        },
+                    ));
+                };
                 art_ret = Some((x, y, token_mark));
                 assert!(words.next().is_none());
-                break
+                break;
             }
-            s =>  OwnedToken::Word(String::from(s)),
+            s => OwnedToken::Word(String::from(s)),
         };
         ret.push((token, token_mark));
     }
@@ -547,7 +612,7 @@ pub fn build_token(name: &str, mark: &Mark) -> Marked<OwnedToken> {
 type Cells = Vec<((u32, u32), (Marked<char>, Marked<char>))>;
 
 pub fn build_nat(n: u32, buffer: &mut LinkedList<Marked<OwnedToken>>, mark: &Mark) {
-    (0 .. n - 1).for_each(|_| buffer.push_back(build_token("succ", mark)));
+    (0..n - 1).for_each(|_| buffer.push_back(build_token("succ", mark)));
     buffer.push_back(build_token("one", mark));
 }
 
@@ -555,7 +620,7 @@ pub fn build_int(n: i32, buffer: &mut LinkedList<Marked<OwnedToken>>, mark: &Mar
     match n.cmp(&0) {
         std::cmp::Ordering::Equal => {
             buffer.push_back(build_token("zero", mark));
-            return
+            return;
         }
         std::cmp::Ordering::Less => buffer.push_back(build_token("neg", mark)),
         std::cmp::Ordering::Greater => buffer.push_back(build_token("pos", mark)),
@@ -565,7 +630,7 @@ pub fn build_int(n: i32, buffer: &mut LinkedList<Marked<OwnedToken>>, mark: &Mar
 
 pub fn build_shift_by(x: i32, y: i32, buffer: &mut LinkedList<Marked<OwnedToken>>, mark: &Mark) {
     if x == 0 && y == 0 {
-        return
+        return;
     }
     buffer.push_back(build_token("shift_by", mark));
     build_int(x, buffer, mark);
@@ -658,53 +723,100 @@ pub fn build_tokens_from_art(
                             value: OwnedToken::Word("cell".to_string()),
                         });
                         let character = match c1_char {
-                            '!' => "exclamation_mark",   'P' => "capital_p",
-                            '"' => "quotation_mark",     'Q' => "capital_q",
-                            '#' => "number_sign",        'R' => "capital_r",
-                            '$' => "dollar_sign",        'S' => "capital_s",
-                            '%' => "percent_sign",       'T' => "capital_t",
-                            '&' => "ampersand",          'U' => "capital_u",
-                            '\'' => "apostrophe",        'V' => "capital_v",
-                            '(' => "left_paranthesis",   'W' => "capital_w",
-                            ')' => "right_paranthesis",  'X' => "capital_x",
-                            '*' => "asterisk",           'Y' => "capital_y",
-                            '+' => "plus_sign",          'Z' => "capital_z",
-                            ',' => "comma",              '[' => "left_square_bracket",
-                            '-' => "hyphen_minus",       '\\' => "reverse_solidus",
-                            '.' => "full_stop",          ']' => "right_square_bracket",
-                            '/' => "solidus",            '^' => "circumflex_accent",
-                            '0' => "digit_zero",         '_' => "low_line",
-                            '1' => "digit_one",          '`' => "grave_accent",
-                            '2' => "digit_two",          'a' => "small_a",
-                            '3' => "digit_three",        'b' => "small_b",
-                            '4' => "digit_four",         'c' => "small_c",
-                            '5' => "digit_five",         'd' => "small_d",
-                            '6' => "digit_six",          'e' => "small_e",
-                            '7' => "digit_seven",        'f' => "small_f",
-                            '8' => "digit_eight",        'g' => "small_g",
-                            '9' => "digit_nine",         'h' => "small_h",
-                            ':' => "colon",              'i' => "small_i",
-                            ';' => "semicolon",          'j' => "small_j",
-                            '<' => "less_than_sign",     'k' => "small_k",
-                            '=' => "equals_sign",        'l' => "small_l",
-                            '>' => "greater_than_sign",  'm' => "small_m",
-                            '?' => "question_mark",      'n' => "small_n",
-                            '@' => "commercial_at",      'o' => "small_o",
-                            'A' => "capital_a",          'p' => "small_p",
-                            'B' => "capital_b",          'q' => "small_q",
-                            'C' => "capital_c",          'r' => "small_r",
-                            'D' => "capital_d",          's' => "small_s",
-                            'E' => "capital_e",          't' => "small_t",
-                            'F' => "capital_f",          'u' => "small_u",
-                            'G' => "capital_g",          'v' => "small_v",
-                            'H' => "capital_h",          'w' => "small_w",
-                            'I' => "capital_i",          'x' => "small_x",
-                            'J' => "capital_j",          'y' => "small_y",
-                            'K' => "capital_k",          'z' => "small_z",
-                            'L' => "capital_l",          '{' => "left_curly_brace",
-                            'M' => "capital_m",          '|' => "vertical_line",
-                            'N' => "capital_n",          '}' => "right_curly_brace",
-                            'O' => "capital_o",          '~' => "tilde",
+                            '!' => "exclamation_mark",
+                            'P' => "capital_p",
+                            '"' => "quotation_mark",
+                            'Q' => "capital_q",
+                            '#' => "number_sign",
+                            'R' => "capital_r",
+                            '$' => "dollar_sign",
+                            'S' => "capital_s",
+                            '%' => "percent_sign",
+                            'T' => "capital_t",
+                            '&' => "ampersand",
+                            'U' => "capital_u",
+                            '\'' => "apostrophe",
+                            'V' => "capital_v",
+                            '(' => "left_paranthesis",
+                            'W' => "capital_w",
+                            ')' => "right_paranthesis",
+                            'X' => "capital_x",
+                            '*' => "asterisk",
+                            'Y' => "capital_y",
+                            '+' => "plus_sign",
+                            'Z' => "capital_z",
+                            ',' => "comma",
+                            '[' => "left_square_bracket",
+                            '-' => "hyphen_minus",
+                            '\\' => "reverse_solidus",
+                            '.' => "full_stop",
+                            ']' => "right_square_bracket",
+                            '/' => "solidus",
+                            '^' => "circumflex_accent",
+                            '0' => "digit_zero",
+                            '_' => "low_line",
+                            '1' => "digit_one",
+                            '`' => "grave_accent",
+                            '2' => "digit_two",
+                            'a' => "small_a",
+                            '3' => "digit_three",
+                            'b' => "small_b",
+                            '4' => "digit_four",
+                            'c' => "small_c",
+                            '5' => "digit_five",
+                            'd' => "small_d",
+                            '6' => "digit_six",
+                            'e' => "small_e",
+                            '7' => "digit_seven",
+                            'f' => "small_f",
+                            '8' => "digit_eight",
+                            'g' => "small_g",
+                            '9' => "digit_nine",
+                            'h' => "small_h",
+                            ':' => "colon",
+                            'i' => "small_i",
+                            ';' => "semicolon",
+                            'j' => "small_j",
+                            '<' => "less_than_sign",
+                            'k' => "small_k",
+                            '=' => "equals_sign",
+                            'l' => "small_l",
+                            '>' => "greater_than_sign",
+                            'm' => "small_m",
+                            '?' => "question_mark",
+                            'n' => "small_n",
+                            '@' => "commercial_at",
+                            'o' => "small_o",
+                            'A' => "capital_a",
+                            'p' => "small_p",
+                            'B' => "capital_b",
+                            'q' => "small_q",
+                            'C' => "capital_c",
+                            'r' => "small_r",
+                            'D' => "capital_d",
+                            's' => "small_s",
+                            'E' => "capital_e",
+                            't' => "small_t",
+                            'F' => "capital_f",
+                            'u' => "small_u",
+                            'G' => "capital_g",
+                            'v' => "small_v",
+                            'H' => "capital_h",
+                            'w' => "small_w",
+                            'I' => "capital_i",
+                            'x' => "small_x",
+                            'J' => "capital_j",
+                            'y' => "small_y",
+                            'K' => "capital_k",
+                            'z' => "small_z",
+                            'L' => "capital_l",
+                            '{' => "left_curly_brace",
+                            'M' => "capital_m",
+                            '|' => "vertical_line",
+                            'N' => "capital_n",
+                            '}' => "right_curly_brace",
+                            'O' => "capital_o",
+                            '~' => "tilde",
                             ' ' => {
                                 return Err(Error {
                                     error_type: Box::new(ParseError::ColorOnSpace),
@@ -760,4 +872,3 @@ pub fn indentation_length(input: &str) -> u8 {
     }
     counter
 }
-

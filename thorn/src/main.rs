@@ -19,52 +19,42 @@ mod parse;
 mod runtime;
 mod tokens;
 
-
-use std::env;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::env;
 use std::process::Command;
 use std::rc::Rc;
-use std::cell::RefCell;
 
-use crate::tokens::{
-    tokenize_block,
-    BlockTraversal,
-};
+use crate::error::{DEBUG_INFO, Error, Mark, get_file_name, make_error};
 use crate::parse::{
-    Id,
-    GlobalVarData,
-    BlockKind,
-    CompilationError,
-    NameAndGenerics,
-    GlobalTypeData,
-    parse_the,
-    new_parse_expression
+    BlockKind, CompilationError, GlobalTypeData, GlobalVarData, Id, LocalVars, NameAndGenerics,
+    new_parse_expression, parse_the,
 };
 use crate::runtime::Expression;
-use crate::error::{
-    Error,
-    DEBUG_INFO,
-    Mark,
-    get_file_name,
-    make_error,
-};
+use crate::tokens::{BlockTraversal, tokenize_block};
 
 const MAIN_EXPR: &str = "/tmp/thorn-input-expr";
 
 fn main() -> std::io::Result<()> {
-    let _ = std::fs::write(MAIN_EXPR, "main");     // by default evaluate main
+    let _ = std::fs::write(MAIN_EXPR, "main"); // by default evaluate main
     {
         let mut ptr = parse::TYPES.lock().unwrap();
         *ptr = Some(HashMap::new());
     }
-    let Arguments { starting_dir, expression_provided, as_repl } = parse_cli_arguments()?;
+    let Arguments {
+        starting_dir,
+        expression_provided,
+        as_repl,
+    } = parse_cli_arguments()?;
     std::env::set_current_dir(&starting_dir)?;
     if as_repl {
         repl()?
     }
     if !reach_project_root()? {
-        eprintln!("\x1b[91merror:\x1b[0m reached root without finding \
-            main.th\n       make sure you're in a project");
+        eprintln!(
+            "\x1b[91merror:\x1b[0m reached root without finding \
+            main.th\n       make sure you're in a project"
+        );
         std::process::exit(1);
     }
     match parse::get_everything() {
@@ -74,27 +64,23 @@ fn main() -> std::io::Result<()> {
         }
         Ok((mut expressions, mut var_names, mut dummy)) => {
             if !expression_provided {
-                let GlobalVarData {var_type, id, ..} = dummy.get("main").unwrap();
+                let GlobalVarData { var_type, id, .. } = dummy.get("main").unwrap();
                 let id = match id {
                     Id::Variable(n) => n,
                     Id::Constructor(n) => n,
                 };
                 let main_expr = expressions[*id].clone();
                 main_expr.print(&var_names, var_type);
-            }
-            else {
+            } else {
                 let x;
                 {
                     let mut ptr = DEBUG_INFO.lock().unwrap();
                     ptr.files.push(String::from(MAIN_EXPR));
                     x = ptr.files.len() - 1;
                 }
-                if let Err(e) = new_evaluate_block(
-                    x as u32,
-                    &mut dummy,
-                    &mut var_names,
-                    &mut expressions,
-                ) {
+                if let Err(e) =
+                    new_evaluate_block(x as u32, &mut dummy, &mut var_names, &mut expressions)
+                {
                     eprintln!("{e}");
                     std::process::exit(1);
                 }
@@ -112,7 +98,7 @@ fn read_line(prompt: &str, indent: u8, extra_input: &str) -> String {
     let full_prompt: String = format!("\x1b[96m{}\x1b[0m", prompt);
     let readline = rl.readline_with_initial(&full_prompt, (&indent_string, ""));
     match readline {
-        Err(_)   => std::process::exit(0),
+        Err(_) => std::process::exit(0),
         Ok(line) => {
             let s = line.trim_end().replace('\t', "    ").to_string();
             // if s == "" && prompt == "... " {
@@ -128,10 +114,9 @@ fn prompt_to_edit_function(mark: &Mark) -> bool {
     println!();
     match input.as_str() {
         "y" | "Y" | "yes" | "" => (),
-        _ => return false
-
+        _ => return false,
     }
-    let location = format!("+call cursor({},{})", mark.line +1, mark.character +1);
+    let location = format!("+call cursor({},{})", mark.line + 1, mark.character + 1);
     let file_name = get_file_name(mark.file);
     let _more = Command::new("vim")
         .arg(&location)
@@ -151,18 +136,18 @@ fn repl() -> std::io::Result<()> {
         println!("including main");
         loop {
             match parse::get_everything() {
-                Err(ref err@Error { ref mark, .. }) => {
+                Err(ref err @ Error { ref mark, .. }) => {
                     eprintln!("{err}");
                     if !prompt_to_edit_function(mark) {
                         println!("giving up");
-                        break
+                        break;
                     }
                 }
                 Ok((e, v, d)) => {
                     expressions = e;
                     dummy = d;
                     names = v;
-                    break
+                    break;
                 }
             }
         }
@@ -185,42 +170,31 @@ fn repl() -> std::io::Result<()> {
         let mut words: Vec<&str>;
         line = read_line(">>> ", indent, "");
         if line.is_empty() {
-            continue
+            continue;
         }
         words = line.split_whitespace().collect();
         let first_word = words[0].to_string();
         let locked_to_one = words.contains(&"contains");
-        if
-            words[0] == "let"    ||
-            words[0] == "type"   ||
-            words[0] == "the"    ||
-            words[0] == "forall"
-        {
+        if words[0] == "let" || words[0] == "type" || words[0] == "the" || words[0] == "forall" {
             text.push_str(&line);
             loop {
                 words = line.split_whitespace().collect();
-                let include_case: &str = if
-                    words.contains(&"match") &&
-                    words[words.len() - 1] != "match"
-                {
-                    "case "
-                } else {
-                    ""
-                };
+                let include_case: &str =
+                    if words.contains(&"match") && words[words.len() - 1] != "match" {
+                        "case "
+                    } else {
+                        ""
+                    };
                 indent = tokens::indentation_length(&line) / 4;
                 indent += 1;
-                if
-                    words.contains(&"forall") &&
-                    !words.contains(&"type") &&
-                    !words.contains(&"let")
+                if words.contains(&"forall") && !words.contains(&"type") && !words.contains(&"let")
                 {
                     indent = 0
                 }
-                if
-                     words.contains(&"case") &&
-                    !words.contains(&"match") &&
-                     words[words.len() - 1] != "the" &&
-                     words.len() != 1
+                if words.contains(&"case")
+                    && !words.contains(&"match")
+                    && words[words.len() - 1] != "the"
+                    && words.len() != 1
                 {
                     indent -= 1;
                 }
@@ -231,7 +205,7 @@ fn repl() -> std::io::Result<()> {
                 text.push('\n');
                 text.push_str(&line);
                 if line.is_empty() {
-                    break
+                    break;
                 }
             }
             let _ = std::fs::write(&temp_file_path, &text);
@@ -244,14 +218,14 @@ fn repl() -> std::io::Result<()> {
                             &mut names,
                             &mut expressions,
                         ) {
-                            Err(ref err@Error { ref mark, .. }) => {
+                            Err(ref err @ Error { ref mark, .. }) => {
                                 eprintln!("\x1b[1A{err}");
                                 if !prompt_to_edit_function(mark) {
                                     println!("giving up");
-                                    break
+                                    break;
                                 }
                             }
-                            Ok(()) => break
+                            Ok(()) => break,
                         }
                     }
                     "the" => {
@@ -261,11 +235,11 @@ fn repl() -> std::io::Result<()> {
                             &mut names,
                             &mut expressions,
                         ) {
-                            Err(ref err@Error { ref mark, .. }) => {
+                            Err(ref err @ Error { ref mark, .. }) => {
                                 eprintln!("\x1b[1A\x1b[0J{err}");
                                 if !prompt_to_edit_function(mark) {
                                     println!("giving up");
-                                    break
+                                    break;
                                 }
                             }
                             Ok(_) => {
@@ -289,25 +263,21 @@ fn new_evaluate_block(
     expressions: &mut Vec<Expression>,
 ) -> error::Result<()> {
     let new_vec = Vec::new();
-    let temp_local_vars = HashMap::new();
+    let mut temp_local_vars = LocalVars { vars: Vec::new() };
     let file_name = get_file_name(temp_file_name);
     let text = std::fs::read_to_string(file_name).unwrap();
     let lines: Vec<(usize, &str)> = text.lines().enumerate().collect();
     let block = tokenize_block(lines, temp_file_name, 0)?;
     let bt = BlockTraversal::new(&block);
-    let (tp, bt) = parse_the(
-        bt,
-        &new_vec
-    )?;
-    let possible: [u32;100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
+    let (tp, bt) = parse_the(bt, &new_vec)?;
+    let possible: [u32; 100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
     let available_files = HashSet::from(possible);
     let (expr, leftover) = new_parse_expression(
         expressions,
         &available_files,
         &tp,
         bt,
-        &temp_local_vars,
-        0,
+        &mut temp_local_vars,
         dummy,
         &new_vec,
     )?;
@@ -319,56 +289,72 @@ fn new_evaluate_block(
     Ok(())
 }
 
-
 fn compile_block(
     temp_file_name: u32,
     dummy: &mut HashMap<String, GlobalVarData>,
     var_names: &mut Vec<String>,
     expressions: &mut Vec<Expression>,
 ) -> error::Result<()> {
-    let temp_local_vars = HashMap::new();
+    let mut temp_local_vars = LocalVars { vars: Vec::new() };
     let file_name = get_file_name(temp_file_name);
     let text = std::fs::read_to_string(file_name).unwrap();
-    let block = parse::new_tokenize_file(text, temp_file_name)?.into_iter().next().unwrap();
+    let block = parse::new_tokenize_file(text, temp_file_name)?
+        .into_iter()
+        .next()
+        .unwrap();
     let bt = BlockTraversal::new(&block);
-    let (NameAndGenerics {name, mark, generics, kind}, bt) = parse::new_extract_name_and_generics(bt)?;
+    let (
+        NameAndGenerics {
+            name,
+            mark,
+            generics,
+            kind,
+        },
+        bt,
+    ) = parse::new_extract_name_and_generics(bt)?;
     // block.add_context(&name.clone().into());
     match kind {
         BlockKind::Variable => {
             if let Some(x) = dummy.get(&name) {
                 return Err(make_error(
                     CompilationError::MultipleDeclarations(x.mark.file),
-                    mark
-                ))
+                    mark,
+                ));
             }
             let index = var_names.len();
             var_names.push(String::new());
             expressions.push(Expression::Thunk {
                 value: Rc::new(RefCell::new(Expression::default())),
-                mark: Some(Rc::new(mark.clone()))
+                mark: Some(Rc::new(mark.clone())),
             });
             let (var_type, bt) = parse_the(bt, &generics)?;
-            dummy.insert(name.clone(), GlobalVarData {
-                var_type,
-                mark,
-                id: Id::Variable(index),
-                generics,
-            });
-            let Some(GlobalVarData { var_type, generics, .. }) = dummy.get(&name)
-            else { unreachable!() };
-            let possible: [u32;100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
-            let available_files = HashSet::from(possible);
-            let (expression, _bt) = match
-                new_parse_expression(
-                    expressions,
-                    &available_files,
+            dummy.insert(
+                name.clone(),
+                GlobalVarData {
                     var_type,
-                    bt,
-                    &temp_local_vars,
-                    0,
-                    dummy,
+                    mark,
+                    id: Id::Variable(index),
                     generics,
-                ).and_then(|(e, bt)| BlockTraversal::expect_end_option(bt).and(Ok((e, bt))))
+                },
+            );
+            let Some(GlobalVarData {
+                var_type, generics, ..
+            }) = dummy.get(&name)
+            else {
+                unreachable!()
+            };
+            let possible: [u32; 100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
+            let available_files = HashSet::from(possible);
+            let (expression, _bt) = match new_parse_expression(
+                expressions,
+                &available_files,
+                var_type,
+                bt,
+                &mut temp_local_vars,
+                dummy,
+                generics,
+            )
+            .and_then(|(e, bt)| BlockTraversal::expect_end_option(bt).and(Ok((e, bt))))
             {
                 Ok(x) => x,
                 Err(e) => {
@@ -382,7 +368,9 @@ fn compile_block(
                 let Expression::Thunk { value: ref x, .. } = expressions[index] else {
                     unreachable!()
                 };
-                let Ok(mut inner) = (*x).try_borrow_mut() else { unreachable!() };
+                let Ok(mut inner) = (*x).try_borrow_mut() else {
+                    unreachable!()
+                };
                 *inner = expression;
             }
         }
@@ -393,8 +381,8 @@ fn compile_block(
                 if ptr.contains_key(&name) {
                     return Err(make_error(
                         CompilationError::MultipleDeclarations(mark.file),
-                        mark
-                    ))
+                        mark,
+                    ));
                 }
                 let data = GlobalTypeData {
                     mark: mark.clone(),
@@ -405,16 +393,24 @@ fn compile_block(
                 ptr.insert(name.clone(), data.clone());
                 data
             };
-            let GlobalTypeData {mark: _, id: index, generics, kind: _ } = &data;
-            match parse::new_parse_data( bt, *index as u32, generics) {
+            let GlobalTypeData {
+                mark: _,
+                id: index,
+                generics,
+                kind: _,
+            } = &data;
+            match parse::new_parse_data(bt, *index as u32, generics) {
                 Ok(branches) => {
                     for (name, tp, mark) in branches.into_iter() {
-                        dummy.insert(name.clone(), GlobalVarData {
-                            mark: mark.clone(),
-                            id: Id::Constructor(expressions.len()),
-                            generics: generics.clone(),
-                            var_type: tp,
-                        });
+                        dummy.insert(
+                            name.clone(),
+                            GlobalVarData {
+                                mark: mark.clone(),
+                                id: Id::Constructor(expressions.len()),
+                                generics: generics.clone(),
+                                var_type: tp,
+                            },
+                        );
                         expressions.push(Expression::DataConstructor(expressions.len() as u32));
                         var_names.push(name);
                     }
@@ -439,10 +435,10 @@ fn compile_block(
 pub fn reach_project_root() -> std::io::Result<bool> {
     loop {
         if std::env::current_dir().unwrap() == std::path::Path::new("/") {
-            return Ok(false)
+            return Ok(false);
         }
         if std::path::Path::new("main.th").exists() {
-            break
+            break;
         }
         std::env::set_current_dir("..")?
     }
@@ -450,17 +446,17 @@ pub fn reach_project_root() -> std::io::Result<bool> {
 }
 
 struct Arguments {
-    starting_dir:          String,
-    expression_provided:   bool,
-    as_repl:               bool,
+    starting_dir: String,
+    expression_provided: bool,
+    as_repl: bool,
 }
 
 impl Default for Arguments {
     fn default() -> Arguments {
         Arguments {
-            starting_dir:         String::from("."),
-            expression_provided:  false,
-            as_repl:              false
+            starting_dir: String::from("."),
+            expression_provided: false,
+            as_repl: false,
         }
     }
 }
@@ -483,15 +479,13 @@ fn parse_cli_arguments() -> std::io::Result<Arguments> {
                         buffer.push('\n');
                     }
                     let _ = std::fs::write(MAIN_EXPR, &buffer);
-                }
-                else {
+                } else {
                     let _ = std::fs::write(MAIN_EXPR, &arg);
                 }
             }
             "--help" | "-h" => {
                 eprintln!(
-
-"Interpreter of the thorn language
+                    "Interpreter of the thorn language
 
 usage:
     thorn [options] [directory]
@@ -514,9 +508,9 @@ art animations, it is typically piped into thorn-to-sh or
 thorn-to-gif. To play a shell script animation:
 
     $ thorn . | thorn-to-sh | sh
-");
+"
+                );
                 std::process::exit(1);
-
             }
             _ => output.starting_dir = x,
         }

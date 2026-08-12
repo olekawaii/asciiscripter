@@ -14,17 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::{
-    HashMap,
-    HashSet,
-};
-use std::fs::read_to_string;
-use std::sync::Mutex;
-use std::rc::Rc;
+use std::borrow::Cow;
 use std::cell::RefCell;
-use std::borrow::Cow; // TODO use for passing in type parse_expression
+use std::collections::{HashMap, HashSet};
+use std::fs::read_to_string;
+use std::rc::Rc;
+use std::sync::Mutex; // TODO use for passing in type parse_expression
 
-use crate::error::{make_error, Result, Error, ErrorType, Mark, Marked, DEBUG_INFO, get_file_name};
+use crate::error::{DEBUG_INFO, Error, ErrorType, Mark, Marked, Result, get_file_name, make_error};
 use crate::runtime::{Expression, Pattern};
 use crate::tokens::*;
 
@@ -44,25 +41,25 @@ pub enum CompilationError {
     BadFile(String),
     MultipleDeclarations(u32),
     // TypeAnnotationNeeded,
-    RedundentPattern
+    RedundentPattern,
 }
 
 impl ErrorType for CompilationError {
     fn gist(&self) -> &'static str {
         match self {
-            Self::CannotInferType         => "can't infer type",
+            Self::CannotInferType => "can't infer type",
             // Self::TypeAnnotationNeeded    => "type annotation needed",
             // Self::BadTypeInference(_, _)  => "of unexpected type",
-            Self::NotUsed                 => "local variable never used",
-            Self::EitherMismatch          => "mismatch between branches",
+            Self::NotUsed => "local variable never used",
+            Self::EitherMismatch => "mismatch between branches",
             Self::MultipleDeclarations(_) => "multiple declarations",
             //Self::PartialPattern => "not all patterns covered",
-            Self::RedundentPattern        => "redundent pattern",
-            Self::ExpectedMoreArguments   => "expected more arguments",
-            Self::NotInScope(_,_)         => "not in scope",
-            Self::TypeNotInScope(_)       => "type not in scope",
-            Self::TypeMismatch(_, _)      => "of unexpected type",
-            Self::BadFile(_)              => "couldn't find file"
+            Self::RedundentPattern => "redundent pattern",
+            Self::ExpectedMoreArguments => "expected more arguments",
+            Self::NotInScope(_, _) => "not in scope",
+            Self::TypeNotInScope(_) => "type not in scope",
+            Self::TypeMismatch(_, _) => "of unexpected type",
+            Self::BadFile(_) => "couldn't find file",
         }
     }
 
@@ -81,13 +78,25 @@ impl std::fmt::Display for CompilationError {
             //     got.show()
             // ),
             // Self::TypeAnnotationNeeded => write!(f, "consider adding a type annotation with the \x1b[97mthe\x1b[90m keyword"),
-            Self::EitherMismatch => write!(f, "the two patterns in the \x1b[97meither\x1b[90m pattern must have
-the same variables and of the same type"),
-            Self::MultipleDeclarations(s) => write!(f, "name already used in \x1b[97m{s}\x1b[90m"),
-            Self::NotUsed => write!(f, "consider prepending it with an \x1b[97m_\x1b[90m to drop the value"),
-            Self::RedundentPattern => write!(f,
-"this branch will never be reached because the
-branch above is a wildcard that matches everything"),
+            Self::EitherMismatch => write!(
+                f,
+                "the two patterns in the \x1b[97meither\x1b[90m pattern must have
+the same variables and of the same type"
+            ),
+            Self::MultipleDeclarations(s) => write!(
+                f,
+                "name already used in \x1b[97m{}\x1b[90m",
+                get_file_name(*s)
+            ),
+            Self::NotUsed => write!(
+                f,
+                "consider prepending it with an \x1b[97m_\x1b[90m to drop the value"
+            ),
+            Self::RedundentPattern => write!(
+                f,
+                "this branch will never be reached because the
+branch above is a wildcard that matches everything"
+            ),
             Self::BadFile(s) => write!(f, "unable to find \x1b[97m{s}\x1b[90m in this project"),
             Self::NotInScope(x, hint) => write!(
                 f,
@@ -97,11 +106,12 @@ branch above is a wildcard that matches everything"),
                     Some(name) => {
                         let file_name = get_file_name(*name);
                         format!(
-",
+                            ",
 however it's defined in {}
 consider including it with \x1b[97minclude {}\x1b[90m",
-get_file_name(*name),
-extract_file_name(&file_name))
+                            get_file_name(*name),
+                            extract_file_name(&file_name)
+                        )
                     }
                 }
             ),
@@ -111,32 +121,44 @@ extract_file_name(&file_name))
                 "expected a value of type \x1b[97m{}\x1b[90mhowever this value can never evaluate to it{}",
                 tp1.show(),
                 if let Some(tp2) = tp2 {
-                    format!(
-                        ".\nit is of type \x1b[97m{}\x1b[90m",
-                        tp2.show()
-                    )
+                    format!(".\nit is of type \x1b[97m{}\x1b[90m", tp2.show())
                 } else {
                     String::new()
                 }
             ),
-            _ => write!(f, "todo")
+            _ => write!(f, "todo"),
         }
     }
 }
-
 
 // TODO use this
 
 struct LoadedExpressions {
     expressions: Vec<Expression>,
-    info_table:  HashMap<String, GlobalVarData>,
-    var_names:   Vec<String>,
-    patterns:    Vec<Pattern>,
+    info_table: HashMap<String, GlobalVarData>,
+    var_names: Vec<String>,
+    patterns: Vec<Pattern>,
 }
 
 type GlobalTypes = HashMap<String, GlobalTypeData>;
 
-type LocalVars = HashMap<String, (u32, Type, Mark)>;
+#[derive(Default, Clone)]
+pub struct LocalVars<'a> {
+    pub vars: Vec<(&'a str, Type, &'a Mark)>,
+}
+
+impl<'a> LocalVars<'a> {
+    fn get_name(&'a self, key: &str) -> Option<(u32, &'a str, &'a Type, &'a Mark)> {
+        let (n, (a, b, c)) = self
+            .vars
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (s, _, _))| *s == key)?;
+        Some((n as u32, a, b, c))
+    }
+}
+
 pub type Generics = Vec<(String, usize)>;
 
 #[derive(Clone)]
@@ -170,10 +192,7 @@ pub fn get_everything() -> Result<(Vec<Expression>, Vec<String>, Globals)> {
         .output()
         .unwrap();
     let files = String::from_utf8_lossy(&output.stdout);
-    let files: Vec<String> = files
-        .split_whitespace()
-        .map(|x| x.to_string())
-        .collect();
+    let files: Vec<String> = files.split_whitespace().map(|x| x.to_string()).collect();
     {
         let mut ptr = DEBUG_INFO.lock().unwrap();
         ptr.files = files.clone();
@@ -183,9 +202,9 @@ pub fn get_everything() -> Result<(Vec<Expression>, Vec<String>, Globals)> {
     for _ in 0..vars_dummy.len() {
         map.push(String::new());
     }
-    for (name, GlobalVarData {id, ..}) in vars_dummy.iter() {
+    for (name, GlobalVarData { id, .. }) in vars_dummy.iter() {
         let id_index = match id {
-            Id::Variable(a)    => *a,
+            Id::Variable(a) => *a,
             Id::Constructor(a) => *a,
         };
         map[id_index] = name.clone();
@@ -198,7 +217,7 @@ pub fn get_everything() -> Result<(Vec<Expression>, Vec<String>, Globals)> {
 // 3. parse all values
 
 struct Dependencies {
-    files: HashMap<u32, HashSet<u32>>      // filename, its file dependencies
+    files: HashMap<u32, HashSet<u32>>, // filename, its file dependencies
 }
 
 impl Dependencies {
@@ -224,7 +243,7 @@ impl Dependencies {
 
 fn new_get_includes(
     blocks: &mut Vec<Block>,
-    file_names: &HashMap<String, (&str, u32)>
+    file_names: &HashMap<String, (&str, u32)>,
 ) -> Result<HashSet<u32>> {
     let elem = BlockTraversal::new(&blocks[0]);
     let mut output = HashSet::new();
@@ -232,7 +251,10 @@ fn new_get_includes(
         while let Ok((x, mark, bt_)) = bt.expect_word() {
             bt = bt_;
             let Some((_, key)) = file_names.get(x) else {
-                return Err(make_error(CompilationError::BadFile(x.to_string()), mark.clone()))
+                return Err(make_error(
+                    CompilationError::BadFile(x.to_string()),
+                    mark.clone(),
+                ));
             };
             output.insert(*key);
         }
@@ -253,12 +275,14 @@ fn extract_file_name(file_name: &str) -> String {
         .collect()
 }
 
-
 pub fn kind_from_generics(count: u32) -> Kind {
     if count == 0 {
         Kind::Type
     } else {
-        Kind::Fn(Box::new(Kind::Type), Box::new(kind_from_generics(count - 1)))
+        Kind::Fn(
+            Box::new(Kind::Type),
+            Box::new(kind_from_generics(count - 1)),
+        )
     }
 }
 
@@ -278,16 +302,21 @@ fn new_uwu(files: &[String]) -> Result<(Vec<Expression>, Globals)> {
     let mut var_bodies: Vec<BlockTraversal> = Vec::new();
 
     let mut type_table: HashMap<String, GlobalTypeData> = HashMap::new();
-    type_table.insert(String::from("fn"), GlobalTypeData {
-        mark: Mark::default(),
-        kind: Kind::Fn(Box::new(Kind::Type), Box::new(Kind::Type)),
-        id: 0,
-        generics: Vec::new(),
-    });
+    type_table.insert(
+        String::from("fn"),
+        GlobalTypeData {
+            mark: Mark::default(),
+            kind: Kind::Fn(Box::new(Kind::Type), Box::new(Kind::Type)),
+            id: 0,
+            generics: Vec::new(),
+        },
+    );
     let mut var_table: HashMap<String, (Mark, usize, Generics)> = HashMap::new();
 
     let mut file_tokens: Vec<(&str, Vec<Block>)> = Vec::new();
-    let mut dependencies: Dependencies = Dependencies { files: HashMap::new() };
+    let mut dependencies: Dependencies = Dependencies {
+        files: HashMap::new(),
+    };
 
     for (index, file_name) in files.iter().enumerate() {
         let contents = read_to_string(file_name).unwrap();
@@ -300,14 +329,24 @@ fn new_uwu(files: &[String]) -> Result<(Vec<Expression>, Globals)> {
     for (_file_name, blocks) in file_tokens.iter() {
         for block in blocks.iter() {
             let bt = BlockTraversal::new(block);
-            let (NameAndGenerics {name, mark, generics, kind}, bt) = new_extract_name_and_generics(bt)?;
+            let (
+                NameAndGenerics {
+                    name,
+                    mark,
+                    generics,
+                    kind,
+                },
+                bt,
+            ) = new_extract_name_and_generics(bt)?;
             match kind {
                 BlockKind::Variable => {
-                    if let Some(x) = var_table.insert(name, (mark.clone(), var_bodies.len(), generics)) {
+                    if let Some(x) =
+                        var_table.insert(name, (mark.clone(), var_bodies.len(), generics))
+                    {
                         return Err(make_error(
                             CompilationError::MultipleDeclarations(x.0.file),
-                            mark
-                        ))
+                            mark,
+                        ));
                     }
                     var_bodies.push(bt);
                 }
@@ -315,15 +354,18 @@ fn new_uwu(files: &[String]) -> Result<(Vec<Expression>, Globals)> {
                     if let Some(x) = type_table.get(&name) {
                         return Err(make_error(
                             CompilationError::MultipleDeclarations(x.mark.file),
-                            mark
-                        ))
+                            mark,
+                        ));
                     }
-                    type_table.insert(name, GlobalTypeData {
-                        mark: mark.clone(),
-                        id: type_table.len(),
-                        kind: kind_from_generics(generics.len() as u32),
-                        generics,
-                    });
+                    type_table.insert(
+                        name,
+                        GlobalTypeData {
+                            mark: mark.clone(),
+                            id: type_table.len(),
+                            kind: kind_from_generics(generics.len() as u32),
+                            generics,
+                        },
+                    );
                     type_bodies.push(bt);
                 }
             }
@@ -339,33 +381,44 @@ fn new_uwu(files: &[String]) -> Result<(Vec<Expression>, Globals)> {
 
     for (name, (mark, index, generics)) in var_table.into_iter() {
         let (var_type, bt) = parse_the(var_bodies[index], &generics)?;
-        final_var_table.insert(name, GlobalVarData {
-            var_type,
-            mark,
-            id: Id::Variable(index),
-            generics,
-        });
+        final_var_table.insert(
+            name,
+            GlobalVarData {
+                var_type,
+                mark,
+                id: Id::Variable(index),
+                generics,
+            },
+        );
         var_bodies[index] = bt;
     }
 
-    for (_name, GlobalTypeData {mark: _, id: index, generics, kind: _ }) in type_table.into_iter() {
+    for (
+        _name,
+        GlobalTypeData {
+            mark: _,
+            id: index,
+            generics,
+            kind: _,
+        },
+    ) in type_table.into_iter()
+    {
         if index != 0 {
-            let branches = new_parse_data(
-                type_bodies[index - 1],
-                index as u32,
-                &generics
-            )?;
+            let branches = new_parse_data(type_bodies[index - 1], index as u32, &generics)?;
             for (name, tp, mark) in branches.into_iter() {
-                if let Some(x) = final_var_table.insert(name, GlobalVarData {
-                    mark: mark.clone(),
-                    id: Id::Constructor(final_var_table.len()),
-                    generics: generics.clone(),
-                    var_type: tp,
-                }) {
+                if let Some(x) = final_var_table.insert(
+                    name,
+                    GlobalVarData {
+                        mark: mark.clone(),
+                        id: Id::Constructor(final_var_table.len()),
+                        generics: generics.clone(),
+                        var_type: tp,
+                    },
+                ) {
                     return Err(make_error(
                         CompilationError::MultipleDeclarations(x.mark.file),
-                        mark
-                    ))
+                        mark,
+                    ));
                 };
             }
         }
@@ -375,19 +428,30 @@ fn new_uwu(files: &[String]) -> Result<(Vec<Expression>, Globals)> {
     for _ in 0..final_var_table.len() {
         expressions.push(Expression::default());
     }
-    for (_, GlobalVarData {mark, id, ..}) in final_var_table.iter() {
+    for (_, GlobalVarData { mark, id, .. }) in final_var_table.iter() {
         match id {
             Id::Constructor(n) => expressions[*n] = Expression::DataConstructor(*n as u32),
-            Id::Variable(n) => expressions[*n] = Expression::Thunk {
-                value: Rc::new(RefCell::new(Expression::default())),
-                mark: Some(Rc::new(mark.clone()))
+            Id::Variable(n) => {
+                expressions[*n] = Expression::Thunk {
+                    value: Rc::new(RefCell::new(Expression::default())),
+                    mark: Some(Rc::new(mark.clone())),
+                }
             }
         }
     }
 
     // step 3: parse the expressions
-    let temp_local_vars = HashMap::new();
-    for (_, GlobalVarData {mark, var_type, id, generics}) in final_var_table.iter() {
+    for (
+        _,
+        GlobalVarData {
+            mark,
+            var_type,
+            id,
+            generics,
+        },
+    ) in final_var_table.iter()
+    {
+        let mut temp_local_vars = LocalVars { vars: Vec::new() };
         let available_files = dependencies.available_files(mark.file);
         let Id::Variable(index) = id else { continue };
         let (expression, bt) = new_parse_expression(
@@ -395,15 +459,18 @@ fn new_uwu(files: &[String]) -> Result<(Vec<Expression>, Globals)> {
             &available_files,
             var_type,
             var_bodies[*index],
-            &temp_local_vars,
-            0,
+            &mut temp_local_vars,
             &final_var_table,
             generics,
         )?;
         BlockTraversal::expect_end_option(bt)?;
         {
-            let Expression::Thunk { value: ref x, .. } = expressions[*index] else { unreachable!() };
-            let Ok(mut inner) = (*x).try_borrow_mut() else { unreachable!() };
+            let Expression::Thunk { value: ref x, .. } = expressions[*index] else {
+                unreachable!()
+            };
+            let Ok(mut inner) = (*x).try_borrow_mut() else {
+                unreachable!()
+            };
             *inner = expression;
         }
     }
@@ -411,37 +478,83 @@ fn new_uwu(files: &[String]) -> Result<(Vec<Expression>, Globals)> {
 }
 
 fn new_parse_pattern<'a>(
-    mut number_of_local:  u32,
-    expected_type:        &Type,
-    bt:                   BlockTraversal<'a>,
-    global_vars:          &Globals,
-) -> Result<(Pattern, Mark, LocalVars, u32, Option<BlockTraversal<'a>>)> {
-    let mut output = HashMap::new();
+    local_vars: &mut LocalVars<'a>,
+    expected_type: &Type,
+    bt: BlockTraversal<'a>,
+    global_vars: &Globals,
+) -> Result<(Pattern, Mark, Option<BlockTraversal<'a>>)> {
     let mark = bt.next_token_in_line()?.1.clone();
-    let (pattern, bt) = new_parse_pattern_helper(&mut number_of_local, expected_type, &mut output, bt, global_vars)?;
-    Ok((pattern, mark, output, number_of_local, bt))
+    let (pattern, bt) = new_parse_pattern_helper(local_vars, expected_type, bt, global_vars)?;
+    Ok((pattern, mark, bt))
 }
 
 // asserts that the two maps are equal and makes their ids equivelent
 
-fn assert_maps_equal(either_mark: &Mark, fst: &LocalVars, snd: &LocalVars) -> Result<()> {
-    if fst.len() != snd.len() {
-        return Err(make_error(CompilationError::EitherMismatch, either_mark.clone()));
+fn make_maps_equal(
+    either_mark: &Mark,
+    fst: &LocalVars,
+    snd: &LocalVars,
+    pattern: &mut Pattern,
+) -> Result<()> {
+    let mut ret = Vec::new();
+    if fst.vars.len() != snd.vars.len() {
+        return Err(make_error(
+            CompilationError::EitherMismatch,
+            either_mark.clone(),
+        ));
     };
-    for (name, (_, tp, mark)) in fst.iter() {
-        if let Some(x) = snd.get(name) && x.1 == *tp {
-            // x.0 = *id;
+    for (id, (name, tp, mark)) in fst.vars.iter().enumerate() {
+        if let Some((new_id, _, new_tp, _new_mark)) = snd.get_name(name)
+            && new_tp == tp
+        {
+            ret.push((new_id as u32, id as u32))
         } else {
-            return Err(make_error(CompilationError::EitherMismatch, mark.clone()));
+            return Err(make_error(
+                CompilationError::EitherMismatch,
+                (*mark).clone(),
+            ));
         }
     }
+    substitute_pattern(pattern, &ret);
     Ok(())
 }
 
+fn change_pattern_ids(f: impl Fn(u32) -> u32 + Clone, pattern: &mut Pattern) {
+    match pattern {
+        Pattern::Dropped => (),
+        Pattern::Captured(n) => {
+            *n = f(*n);
+        }
+        Pattern::DataConstructor(_, v) | Pattern::Either(v) => {
+            v.iter_mut().for_each(|i| change_pattern_ids(f.clone(), i))
+        }
+        Pattern::Bound(n, v) => {
+            change_pattern_ids(f.clone(), v);
+            *n = f(*n);
+        }
+    }
+}
+
+fn substitute_pattern(pattern: &mut Pattern, to_replace: &Vec<(u32, u32)>) {
+    change_pattern_ids(
+        |x| {
+            if let Some((_, new)) = to_replace.iter().find(|(a, _)| *a == x) {
+                *new
+            } else {
+                x
+            }
+        },
+        pattern,
+    );
+}
+
+fn increment_pattern_vars(pattern: &mut Pattern, inc: u32) {
+    change_pattern_ids(|x| x + inc, pattern);
+}
+
 fn new_parse_pattern_helper<'a>(
-    number_of_local: &mut u32,
+    local_vars: &mut LocalVars<'a>,
     expected_type: &Type,
-    output: &mut LocalVars,
     bt: BlockTraversal<'a>,
     global_vars: &Globals,
 ) -> Result<(Pattern, Option<BlockTraversal<'a>>)> {
@@ -450,10 +563,9 @@ fn new_parse_pattern_helper<'a>(
         OwnedToken::Keyword(Keyword::Bind) => {
             let (name, mark, bt) = bt.expect_word()?;
             assert!(!name.starts_with('_')); // TODO
-            *number_of_local += 1;
-            let number_of_local_copy = *number_of_local;
-            output.insert(name.to_string(), (*number_of_local, expected_type.clone(), mark.clone()));
-            let (pat, bt) = new_parse_pattern_helper(number_of_local, expected_type, output, bt, global_vars)?;
+            let number_of_local_copy = local_vars.vars.len() as u32;
+            local_vars.vars.push((name, expected_type.clone(), mark));
+            let (pat, bt) = new_parse_pattern_helper(local_vars, expected_type, bt, global_vars)?;
             Ok((Pattern::Bound(number_of_local_copy, Box::new(pat)), bt))
         }
         OwnedToken::Keyword(Keyword::Either) => {
@@ -463,56 +575,83 @@ fn new_parse_pattern_helper<'a>(
                 ret_bt = None;
                 assert!(branches.len() >= 2);
                 for branch in branches.into_iter() {
-                    let mut num = *number_of_local;
-                    let mut vars = HashMap::new();
-                    let (pat, bt) = new_parse_pattern_helper(&mut num, expected_type, &mut vars, branch, global_vars)?;
+                    let mut vars = LocalVars { vars: Vec::new() };
+                    let (pat, bt) =
+                        new_parse_pattern_helper(&mut vars, expected_type, branch, global_vars)?;
                     BlockTraversal::expect_end_option(bt)?;
                     patterns.push((pat, vars));
                 }
             } else {
                 let mut temp_bt = bt;
                 for i in 0..2 {
-                    let mut num = *number_of_local;
-                    let mut vars = HashMap::new();
-                    let (pat, bt) = new_parse_pattern_helper(&mut num, expected_type, &mut vars, temp_bt, global_vars)?;
+                    let mut vars = LocalVars { vars: Vec::new() };
+                    let (pat, bt) =
+                        new_parse_pattern_helper(&mut vars, expected_type, temp_bt, global_vars)?;
                     ret_bt = bt;
                     patterns.push((pat, vars));
-                    if i == 1 { break }
-                    else {
+                    if i == 1 {
+                        break;
+                    } else {
                         let mark = temp_bt.next_token_in_line()?.1;
-                        temp_bt  = BlockTraversal::expect_no_indents(bt, mark)?;
+                        temp_bt = BlockTraversal::expect_no_indents(bt, mark)?;
                     }
                 }
             }
+            let old_vars_len = local_vars.vars.len() as u32;
+            let old_vars = patterns[0].1.clone();
             for i in 1..patterns.len() {
-                assert_maps_equal(root_mark, &patterns[0].1, &patterns[i].1)?;
+                let new_vars = std::mem::take(&mut patterns[i].1);
+                make_maps_equal(root_mark, &old_vars, &new_vars, &mut patterns[i].0)?;
+                if old_vars_len != 0 {
+                    increment_pattern_vars(&mut patterns[i].0, old_vars_len)
+                }
             }
-            *number_of_local = patterns[0].1.len() as u32; // TODO bugged
-            output.extend(patterns[0].1.clone());
-            Ok((Pattern::Either(patterns.into_iter().map(|x| x.0).collect()), ret_bt))
+            if old_vars_len != 0 {
+                increment_pattern_vars(&mut patterns[0].0, old_vars_len)
+            }
+            local_vars
+                .vars
+                .extend(std::mem::take(&mut patterns[0].1.vars));
+            Ok((
+                Pattern::Either(patterns.into_iter().map(|x| x.0).collect()),
+                ret_bt,
+            ))
         }
         OwnedToken::Keyword(_) => Err(make_error(ParseError::UnexpectedKeyword, root_mark.clone())),
         OwnedToken::Word(name) if name.starts_with('_') => Ok((Pattern::Dropped, Some(bt))),
         OwnedToken::Word(name) => {
-            if
-                let Some(GlobalVarData { id: Id::Constructor(index), var_type: tp, generics: _new_generics, ..  }) = global_vars.get(name) &&
-                let Type::Type {type_constructor: tc1, ..} = tp.final_type() &&
-                let Type::Type {type_constructor: tc2, ..} = expected_type &&
-                *tc1 == *tc2
+            if let Some(GlobalVarData {
+                id: Id::Constructor(index),
+                var_type: tp,
+                generics: _new_generics,
+                ..
+            }) = global_vars.get(name)
+                && let Type::Type {
+                    type_constructor: tc1,
+                    ..
+                } = tp.final_type()
+                && let Type::Type {
+                    type_constructor: tc2,
+                    ..
+                } = expected_type
+                && *tc1 == *tc2
             {
                 let mut patterns = Vec::new();
-                let ts = get_type_from_constructor(tp.clone(), expected_type.clone(), root_mark)?.arg_types();
-                let ret_bt;
-                match bt.next()? {
+                let ts = get_type_from_constructor(tp.clone(), expected_type.clone(), root_mark)?
+                    .arg_types();
+                let mut ret_bt = Some(bt);
+                if ts.len() == 0 {
+                    return Ok((Pattern::DataConstructor(*index as u32, patterns), ret_bt));
+                }
+                match bt.next_expecting_count(ts.len())? {
                     NextOutput::Token(_, mark, _) => {
                         let mut temp_bt = Some(bt);
                         for t in ts {
                             let (pat, bt) = new_parse_pattern_helper(
-                                number_of_local,
+                                local_vars,
                                 &t,
-                                output,
                                 BlockTraversal::expect_no_indents(temp_bt, mark)?,
-                                global_vars
+                                global_vars,
                             )?;
                             temp_bt = bt;
                             patterns.push(pat);
@@ -521,9 +660,9 @@ fn new_parse_pattern_helper<'a>(
                     }
                     NextOutput::IndentedBlocks(v) => {
                         ret_bt = None;
-                        assert_eq!(v.len(), ts.len());
                         for (t, branch) in ts.iter().zip(v.iter()) {
-                            let (pat, bt) = new_parse_pattern_helper(number_of_local, t, output, *branch, global_vars)?;
+                            let (pat, bt) =
+                                new_parse_pattern_helper(local_vars, t, *branch, global_vars)?;
                             BlockTraversal::expect_end_option(bt)?;
                             patterns.push(pat);
                         }
@@ -531,9 +670,11 @@ fn new_parse_pattern_helper<'a>(
                 }
                 Ok((Pattern::DataConstructor(*index as u32, patterns), ret_bt))
             } else {
-                *number_of_local += 1;
-                output.insert(name.to_string(), (*number_of_local, expected_type.clone(), root_mark.clone()));
-                Ok((Pattern::Captured(*number_of_local), Some(bt)))
+                let id = local_vars.vars.len() as u32;
+                local_vars
+                    .vars
+                    .push((name, expected_type.clone(), root_mark));
+                Ok((Pattern::Captured(id), Some(bt)))
             }
         }
     }
@@ -543,28 +684,33 @@ fn is_used(expression: &Expression, id: u32) -> bool {
     match expression {
         Expression::Undefined { .. } => false, // debatable
         Expression::Lambda { body, .. } => is_used(body, id),
-        Expression::Tree {root, arguments} => {
-            if is_used(root, id) { return true }
+        Expression::Tree { root, arguments } => {
+            if is_used(root, id) {
+                return true;
+            }
             for i in arguments.iter() {
                 if is_used(i, id) {
-                    return true
+                    return true;
                 }
             }
             false
         }
         Expression::LocalVarPlaceholder(x) => *x == id,
-        Expression::Match { matched_on, branches } => {
+        Expression::Match {
+            matched_on,
+            branches,
+        } => {
             if is_used(matched_on, id) {
-                return true
+                return true;
             }
             for (_pattern, expr) in branches.iter() {
                 if is_used(expr, id) {
-                    return true
+                    return true;
                 }
             }
             false
         }
-        _ => false
+        _ => false,
     }
 }
 
@@ -579,9 +725,9 @@ fn replace_types(t: &mut Type, to_replace: &Vec<(usize, Type)>) {
             replace_types(&mut *a, to_replace);
             replace_types(&mut *b, to_replace);
         }
-        Type::Type { arguments, .. } => {
-            arguments.iter_mut().for_each(|x| replace_types(x, to_replace))
-        },
+        Type::Type { arguments, .. } => arguments
+            .iter_mut()
+            .for_each(|x| replace_types(x, to_replace)),
     }
 }
 
@@ -591,8 +737,9 @@ pub fn new_tokenize_file(input: String, file_index: u32) -> Result<Vec<Block>> {
     let file_lines: Vec<String> = input.lines().map(|x| x.trim_end().to_string()).collect();
     let mut file_lines = file_lines.iter().map(|x| x.as_str()).enumerate();
     while let Some((line_number, string)) = file_lines.next() {
-        if string.is_empty() || string.split_whitespace().next().unwrap() == "--" { // safe unwrap
-            continue
+        if string.is_empty() || string.split_whitespace().next().unwrap() == "--" {
+            // safe unwrap
+            continue;
         }
         current_block.push((line_number, string));
         'good_lines: loop {
@@ -613,18 +760,21 @@ pub fn new_tokenize_file(input: String, file_index: u32) -> Result<Vec<Block>> {
 }
 
 fn lookup_global_vars<'a>(
-    name:               &str,
-    mark:               &Mark,
-    file_dependencies:  &HashSet<u32>,
-    global_vars:        &'a Globals,
+    name: &str,
+    mark: &Mark,
+    file_dependencies: &HashSet<u32>,
+    global_vars: &'a Globals,
 ) -> Result<&'a GlobalVarData> {
     let Some(var) = global_vars.get(name) else {
-        return Err(make_error(CompilationError::NotInScope(name.into(), None), mark.clone()));
+        return Err(make_error(
+            CompilationError::NotInScope(name.into(), None),
+            mark.clone(),
+        ));
     };
     if !file_dependencies.contains(&var.mark.file) {
         return Err(make_error(
             CompilationError::NotInScope(name.into(), Some(var.mark.file)),
-            mark.clone()
+            mark.clone(),
         ));
     }
     Ok(var)
@@ -639,24 +789,34 @@ fn lookup_global_vars<'a>(
 
 fn get_type_from_constructor(data: Type, expected: Type, mark: &Mark) -> Result<Type> {
     let mut ret = data.clone();
-    let Type::Type {type_constructor: tc1, arguments: args1}: Type = data.final_type().clone()
+    let Type::Type {
+        type_constructor: tc1,
+        arguments: args1,
+    }: Type = data.final_type().clone()
     else {
         dbg!(data.final_type());
         unreachable!()
     };
-    let Type::Type {type_constructor: tc2, arguments: args2}: Type = expected.final_type().clone()
-    else {unreachable!()};
-    if tc1 != tc2 { return Err(make_error(
-        CompilationError::TypeMismatch(expected, Some(data)),
-        mark.clone()
-    ))}
+    let Type::Type {
+        type_constructor: tc2,
+        arguments: args2,
+    }: Type = expected.final_type().clone()
+    else {
+        unreachable!()
+    };
+    if tc1 != tc2 {
+        return Err(make_error(
+            CompilationError::TypeMismatch(expected, Some(data)),
+            mark.clone(),
+        ));
+    }
     let mut to_replace: Vec<(usize, Type)> = Vec::new();
-    args1
-        .into_iter()
-        .zip(args2)
-        .for_each(|(t1, t2)| if let Type::Generic(a) = t1 { // TODO probably broken
+    args1.into_iter().zip(args2).for_each(|(t1, t2)| {
+        if let Type::Generic(a) = t1 {
+            // TODO probably broken
             to_replace.push((a, t2))
-        });
+        }
+    });
     if !to_replace.is_empty() {
         replace_types(&mut ret, &to_replace)
     }
@@ -671,13 +831,13 @@ fn has_generics(t: &Type) -> bool {
     }
 }
 
-fn build_table_of_unknown_generics(t: &Type) -> HashMap<usize, Option<Type>> {
-    let mut map = HashMap::new();
+fn build_table_of_unknown_generics(t: &Type) -> Vec<(usize, Option<Type>)> {
+    let mut map = Vec::new();
     build_table_of_unknown_generics_helper(t, &mut map);
     map
 }
 
-fn build_table_of_unknown_generics_helper(t: &Type, map: &mut HashMap<usize, Option<Type>>) {
+fn build_table_of_unknown_generics_helper(t: &Type, map: &mut Vec<(usize, Option<Type>)>) {
     match t {
         Type::Type { arguments, .. } => arguments
             .iter()
@@ -687,12 +847,14 @@ fn build_table_of_unknown_generics_helper(t: &Type, map: &mut HashMap<usize, Opt
             build_table_of_unknown_generics_helper(t2, map);
         }
         Type::Generic(n) => {
-            map.insert(*n, None);
+            if map.iter().find(|(a, _)| a == n).is_none() {
+                map.push((*n, None));
+            }
         }
     }
 }
 
-fn substitute_back_in(t: &mut Type, map: &HashMap<usize, Option<Type>>) {
+fn substitute_back_in(t: &mut Type, map: &Vec<(usize, Option<Type>)>) {
     match t {
         Type::Type { arguments, .. } => arguments
             .iter_mut()
@@ -701,9 +863,7 @@ fn substitute_back_in(t: &mut Type, map: &HashMap<usize, Option<Type>>) {
             substitute_back_in(&mut (*t1), map);
             substitute_back_in(&mut (*t2), map);
         }
-        Type::Generic(n) => {
-            *t = map.get(n).unwrap().as_ref().unwrap().clone()
-        }
+        Type::Generic(n) => *t = map.iter().find(|(x, _)| x == n).unwrap().1.clone().unwrap(),
     }
 }
 
@@ -711,53 +871,69 @@ fn substitute_back_in(t: &mut Type, map: &HashMap<usize, Option<Type>>) {
 // and the tokens and returns its type, and
 // possibly the number of arguments
 
+fn still_has_unknown_generics(generics: &Vec<(usize, Option<Type>)>) -> bool {
+    generics.iter().map(|x| &x.1).any(|x| x.is_none())
+}
+
 fn new_figure_out_type<'a>(
-    expected_type:        Option<&Type>,
-    bt:                   BlockTraversal<'a>,
-    name:                 &str,
-    mark:                 &Mark,
-    global_vars:          &Globals,
-    local_vars:           &HashMap<String, (u32, Type, Mark)>,
-    generics:             &Generics
-)                      -> Result<(Type, Option<u32>)> {
+    expected_type: Option<&Type>,
+    bt: BlockTraversal<'a>,
+    name: &str,
+    mark: &Mark,
+    global_vars: &Globals,
+    local_vars: &LocalVars,
+    generics: &Generics,
+) -> Result<(Type, Option<u32>)> {
     let contains_unknown_generics: bool;
     let mut output: Type;
-    if let Some((_, tp, _)) = local_vars.get(name) {
+    if let Some((_id, _, tp, _)) = local_vars.get_name(name) {
         output = tp.clone();
         contains_unknown_generics = false;
-    }
-    else if let Some(GlobalVarData { var_type, .. }) = global_vars.get(name) {
+    } else if let Some(GlobalVarData { var_type, .. }) = global_vars.get(name) {
         output = var_type.clone();
         contains_unknown_generics = has_generics(var_type);
     } else {
         return Err(make_error(
             CompilationError::NotInScope(name.to_string(), None),
-            mark.clone()
+            mark.clone(),
         ));
-    } ;
+    };
     if !contains_unknown_generics {
-        let arg_count = if bt.expect_end().is_ok() { Some(0) } else { None };
+        let arg_count = if bt.expect_end().is_ok() {
+            Some(0)
+        } else {
+            None
+        };
         // the arg counter is only useful when we don't
         // know the block's type. If we do, we can skip
         // the rest and avoid the token clone
-        return Ok((output,  arg_count))
+        return Ok((output, arg_count));
     }
     // map containing the unknown generics mapped to found types
-    let mut unknown_generics: HashMap<usize, Option<Type>> = build_table_of_unknown_generics(&output);
+    let mut unknown_generics: Vec<(usize, Option<Type>)> = build_table_of_unknown_generics(&output);
     'success: {
-        if
-            let Some(Type::Type { type_constructor: c1, arguments: a1 }) = expected_type.map(|x| x.final_type()) &&
-            let Type::Type { type_constructor: c2, arguments: a2 } = output.final_type()
+        if let Some(Type::Type {
+            type_constructor: c1,
+            arguments: a1,
+        }) = expected_type.map(|x| x.final_type())
+            && let Type::Type {
+                type_constructor: c2,
+                arguments: a2,
+            } = output.final_type()
         {
             assert_eq!(c1, c2);
             for (a, b) in a1.iter().zip(a2.iter()) {
-                merge_types(b, a, &mut unknown_generics);
+                merge_types_borrowed(b, a, &mut unknown_generics);
             }
-            if unknown_generics.values().all(|x| x.is_some()) {
-                let arg_count = if bt.expect_end().is_ok() { Some(0) } else { None };
+            if !still_has_unknown_generics(&unknown_generics) {
+                let arg_count = if bt.expect_end().is_ok() {
+                    Some(0)
+                } else {
+                    None
+                };
 
                 substitute_back_in(&mut output, &unknown_generics);
-                return Ok((output, arg_count))
+                return Ok((output, arg_count));
             }
         }
         let t_args = output.clone().arg_types();
@@ -766,14 +942,14 @@ fn new_figure_out_type<'a>(
         let mut counter = {
             match expected_type {
                 None => -1,
-                Some(x) =>  (output.clone().arg_types().len() - x.clone().arg_types().len()) as i32,
+                Some(x) => (output.clone().arg_types().len() - x.clone().arg_types().len()) as i32,
             }
         };
         let mut bt = bt;
         loop {
             if bt.reached_end_of_line() {
                 counter = -1; // everything else is fair game
-                break
+                break;
             }
             match counter {
                 -1 => (), // why?
@@ -795,43 +971,44 @@ fn new_figure_out_type<'a>(
             let var_name = match value {
                 OwnedToken::Word(word) => word,
                 _ => {
-                    return Err(make_error(CompilationError::CannotInferType, var_mark.clone()))
+                    return Err(make_error(
+                        CompilationError::CannotInferType,
+                        var_mark.clone(),
+                    ));
                 }
             };
             let has_unknown_generics: bool;
-            let got_t = match local_vars.get(var_name) {
-                Some((_, t, _)) => {
+            let got_t = match local_vars.get_name(var_name) {
+                Some((_id, _, t, _)) => {
                     has_unknown_generics = false;
                     t.clone()
                 }
                 None => match global_vars.get(var_name) {
-                    Some(GlobalVarData { var_type, ..}) => {
+                    Some(GlobalVarData { var_type, .. }) => {
                         has_unknown_generics = has_generics(var_type);
                         var_type.clone()
                     }
                     None => {
                         return Err(make_error(
                             CompilationError::NotInScope(var_name.clone(), None),
-                            var_mark.clone()
+                            var_mark.clone(),
                         ));
                     }
-                }
+                },
             };
             if has_unknown_generics {
                 // not much i can do here
                 if matches!(got_t, Type::Type { .. }) {
-                }
-                else if got_t.is_function() && matches!(got_t.final_type(), Type::Type { .. }) {
+                } else if got_t.is_function() && matches!(got_t.final_type(), Type::Type { .. }) {
                     let expected_arg_count = t.clone().arg_types().len();
                     let got_arg_count = got_t.clone().arg_types().len();
                     if expected_arg_count != got_arg_count {
                         break 'success;
                     }
-                }
-                else {
+                } else {
                     break 'success;
                 }
-                continue
+                continue;
             }
             if got_t.is_function() {
                 // might be slightly wrong
@@ -841,16 +1018,21 @@ fn new_figure_out_type<'a>(
                     break 'success;
                 }
             }
-            merge_types(&t, &got_t, &mut unknown_generics);
+            merge_types(&t, got_t, &mut unknown_generics);
         }
         let mut total_number_args = number_args_used;
-        if let Ok(NextOutput::IndentedBlocks(branches)) = bt.next() && counter == -1 {
+        if let Ok(NextOutput::IndentedBlocks(branches)) = bt.next()
+            && counter == -1
+        {
             total_number_args = number_args_used.map(|x| x + branches.len() as u32);
             let zipped = t_args.zip(branches);
             for (tp, bt) in zipped {
+                if !still_has_unknown_generics(&unknown_generics) {
+                    break;
+                }
                 number_args_used = number_args_used.map(|x| x + 1);
                 if !has_generics(&tp) {
-                    continue
+                    continue;
                 }
                 let (token, mark, leftover) = bt.next_token_in_line().unwrap(); // safe
                 let got_t = match token {
@@ -863,57 +1045,62 @@ fn new_figure_out_type<'a>(
                             mark,
                             global_vars,
                             local_vars,
-                            generics
+                            generics,
                         ) {
-                            Ok((var_t, Some(arg_count))) => {
-                                cut_off_n(&var_t, arg_count).clone()
-                            }
+                            Ok((var_t, Some(arg_count))) => cut_off_n(&var_t, arg_count).clone(),
                             _ => {
                                 // TODO pattern match on error
-                                continue
+                                continue;
                             }
                         }
                     }
                     _ => continue, // add error to vec
                 };
                 // check_compatable(tp, got_t)?;
-                merge_types(&tp, &got_t, &mut unknown_generics);
+                merge_types(&tp, got_t, &mut unknown_generics);
             }
         }
-        if
-            let Some(t) = expected_type    &&
-            let Some(n) = number_args_used &&
-            n == total_number_args.unwrap()
+        if let Some(t) = expected_type
+            && let Some(n) = number_args_used
+            && n == total_number_args.unwrap()
         {
             let temp_t: &Type = cut_off_n(&output, n);
-            merge_types(temp_t, t, &mut unknown_generics);
+            merge_types_borrowed(temp_t, &t, &mut unknown_generics);
         }
-        if unknown_generics.values().any(|x| x.is_none()) {
-            return Err(make_error(CompilationError::CannotInferType, mark.clone()))
+        if still_has_unknown_generics(&unknown_generics) {
+            return Err(make_error(CompilationError::CannotInferType, mark.clone()));
         }
         substitute_back_in(&mut output, &unknown_generics);
-        return Ok((output, number_args_used))
+        return Ok((output, number_args_used));
     }
-    if unknown_generics.values().all(|x| x.is_some()) {
+    if !still_has_unknown_generics(&unknown_generics) {
         substitute_back_in(&mut output, &unknown_generics);
-        return Ok((output, None))
+        return Ok((output, None));
     }
     Err(make_error(CompilationError::CannotInferType, mark.clone()))
 }
 
-fn merge_types(unknown: &Type, new: &Type, output: &mut HashMap<usize, Option<Type>>) {
+fn merge_types(unknown: &Type, new: Type, output: &mut Vec<(usize, Option<Type>)>) {
+    if let Type::Generic(x) = unknown {
+        output.iter_mut().find(|(a, _)| a == x).unwrap().1 = Some(new);
+        return;
+    }
     match (unknown, new) {
-        (Type::Generic(x), _) => {
-            output.insert(*x, Some(new.clone()));
+        (Type::Function(a1, b1), Type::Function(a2, b2)) => {
+            merge_types(a1, *a2, output);
+            merge_types(b1, *b2, output);
         }
-        (Type::Function(a1,b1), Type::Function(a2,b2)) => {
-            merge_types(a1, a2, output);
-            merge_types(b1, b2, output);
-        }
-        (Type::Type { arguments: args1, .. }, Type::Type { arguments: args2, .. } ) => {
+        (
+            Type::Type {
+                arguments: args1, ..
+            },
+            Type::Type {
+                arguments: args2, ..
+            },
+        ) => {
             args1
                 .iter()
-                .zip(args2.iter())
+                .zip(args2.into_iter())
                 .for_each(|(a, b)| merge_types(a, b, output));
         }
         (a, b) => {
@@ -924,15 +1111,45 @@ fn merge_types(unknown: &Type, new: &Type, output: &mut HashMap<usize, Option<Ty
     }
 }
 
+fn merge_types_borrowed(unknown: &Type, new: &Type, output: &mut Vec<(usize, Option<Type>)>) {
+    if let Type::Generic(x) = unknown {
+        output.iter_mut().find(|(a, _)| a == x).unwrap().1 = Some(new.clone());
+        return;
+    }
+    match (unknown, new) {
+        (Type::Function(a1, b1), Type::Function(a2, b2)) => {
+            merge_types_borrowed(a1, &*a2, output);
+            merge_types_borrowed(b1, &*b2, output);
+        }
+        (
+            Type::Type {
+                arguments: args1, ..
+            },
+            Type::Type {
+                arguments: args2, ..
+            },
+        ) => {
+            args1
+                .iter()
+                .zip(args2.iter())
+                .for_each(|(a, b)| merge_types_borrowed(a, b, output));
+        }
+        (a, b) => {
+            dbg!(a);
+            dbg!(b);
+            todo!()
+        }
+    }
+}
+
 pub fn new_parse_expression<'a>(
-    expressions:           &mut Vec<Expression>,
-    file_dependencies:     &HashSet<u32>,
-    expected_type:         &Type,
-    bt:                    BlockTraversal<'a>,
-    local_vars:            &LocalVars,
-    local_vars_count:      u32,
-    global_vars:           &Globals,
-    generics:              &Generics,
+    expressions: &mut Vec<Expression>,
+    file_dependencies: &HashSet<u32>,
+    expected_type: &Type,
+    bt: BlockTraversal<'a>,
+    local_vars: &mut LocalVars<'a>,
+    global_vars: &Globals,
+    generics: &Generics,
 ) -> Result<(Expression, Option<BlockTraversal<'a>>)> {
     // assert_eq!(local_vars.len(), local_vars_count as usize); // TODO figure out why this fails
     let (token, mark, next_bt) = bt.next_token_in_line_fallthrough()?;
@@ -945,7 +1162,6 @@ pub fn new_parse_expression<'a>(
                 &tp,
                 bt,
                 local_vars,
-                local_vars_count,
                 global_vars,
                 generics,
             )
@@ -958,9 +1174,11 @@ pub fn new_parse_expression<'a>(
             let Type::Function(a, b) = expected_type else {
                 return Err(make_error(
                     CompilationError::TypeMismatch(expected_type.clone(), None),
-                    mark.clone()
-                ))
+                    mark.clone(),
+                ));
             };
+            let mut new_local_vars = local_vars.clone();
+            let local_vars = &mut new_local_vars;
             let (pattern, _pattern_mark, expr) = parse_lambda_case(
                 expressions,
                 file_dependencies,
@@ -968,40 +1186,28 @@ pub fn new_parse_expression<'a>(
                 b,
                 bt,
                 local_vars,
-                local_vars_count,
                 global_vars,
-                generics
+                generics,
             )?;
             Ok((
                 Expression::Lambda {
                     pattern: Rc::new(Marked::<Pattern> {
                         value: pattern,
-                        mark: mark.clone()
+                        mark: mark.clone(),
                     }),
                     body: Box::new(expr),
                 },
-                None
+                None,
             ))
         }
         OwnedToken::Keyword(Keyword::Match) => {
-            let matched_on_block;
+            let mut must_end = false;
             let (mut matched_on_bt, branches_bt) = match next_bt.next()? {
                 NextOutput::Token { .. } => {
-                    let line = next_bt.block.line_tokens
-                        .clone()
-                        .into_iter()
-                        .skip(next_bt.word)
-                        .collect();
-                    matched_on_block = Block {
-                        line_tokens: line,
-                        line_end_mark: next_bt.block.line_end_mark.clone(),
-                        indented_blocks_beneath: Vec::new(),
-                    };
-                    (BlockTraversal::new(&matched_on_block), next_bt.get_indented_blocks())
+                    must_end = true;
+                    (next_bt, next_bt.get_indented_blocks())
                 }
-                NextOutput::IndentedBlocks(v) => {
-                    (v[0], v.into_iter().skip(1).collect())
-                }
+                NextOutput::IndentedBlocks(v) => (v[0], v.into_iter().skip(1).collect()),
             };
             let tp: Type = {
                 let (value, mark, bt) = matched_on_bt.next_token_in_line()?;
@@ -1019,12 +1225,12 @@ pub fn new_parse_expression<'a>(
                             mark,
                             global_vars,
                             local_vars,
-                            generics
+                            generics,
                         )?;
                         root_type.final_type().clone()
                     }
                     OwnedToken::Keyword(_) => {
-                        return Err(make_error(ParseError::UnexpectedKeyword, mark.clone()))
+                        return Err(make_error(ParseError::UnexpectedKeyword, mark.clone()));
                     }
                 }
             };
@@ -1034,17 +1240,26 @@ pub fn new_parse_expression<'a>(
                 &tp,
                 matched_on_bt,
                 local_vars,
-                local_vars_count,
                 global_vars,
                 generics,
             )?;
-            BlockTraversal::expect_end_option(leftover_bt)?;
-            let mut branches: Vec<(Rc<Marked<Pattern>>, Expression)> = Vec::with_capacity(branches_bt.len());
+            if must_end {
+                BlockTraversal::expect_no_indents(leftover_bt, mark)?;
+            } else {
+                BlockTraversal::expect_end_option(leftover_bt)?;
+            }
+            let mut branches: Vec<(Rc<Marked<Pattern>>, Expression)> =
+                Vec::with_capacity(branches_bt.len());
             let mut encountered_wildcard = false;
             for branch_bt in branches_bt {
+                let mut new_local_vars = local_vars.clone();
+                let local_vars = &mut new_local_vars;
                 let (case_mark, _) = branch_bt.expect_keyword(Keyword::Case)?;
                 if encountered_wildcard {
-                    return Err(make_error(CompilationError::RedundentPattern, case_mark.clone()))
+                    return Err(make_error(
+                        CompilationError::RedundentPattern,
+                        case_mark.clone(),
+                    ));
                 }
                 let (pattern, pattern_mark, expr) = parse_lambda_case(
                     expressions,
@@ -1053,9 +1268,8 @@ pub fn new_parse_expression<'a>(
                     expected_type,
                     branch_bt,
                     local_vars,
-                    local_vars_count,
                     global_vars,
-                    generics
+                    generics,
                 )?;
                 if matches!(pattern, Pattern::Dropped | Pattern::Captured(_)) {
                     encountered_wildcard = true;
@@ -1065,7 +1279,7 @@ pub fn new_parse_expression<'a>(
                         value: pattern,
                         mark: pattern_mark.clone(),
                     }),
-                    expr
+                    expr,
                 ));
             }
             Ok((
@@ -1073,20 +1287,16 @@ pub fn new_parse_expression<'a>(
                     matched_on: Box::new(matched_on_expr),
                     branches: branches.into(),
                 },
-                None
+                None,
             ))
         }
         OwnedToken::Word(name) => {
             // peek if the next token is a newline
-            let (root_id, root_type) = if let Some((a, b, _)) = local_vars.get(name) {
-                (Expression::LocalVarPlaceholder(*a), b.clone())
+            let (root_id, root_type) = if let Some((a, _, b, _)) = local_vars.get_name(name) {
+                (Expression::LocalVarPlaceholder(a), b.clone())
             } else {
-                let GlobalVarData { id: a, .. } = lookup_global_vars(
-                    name,
-                    mark,
-                    file_dependencies,
-                    global_vars,
-                )?;
+                let GlobalVarData { id: a, .. } =
+                    lookup_global_vars(name, mark, file_dependencies, global_vars)?;
                 let (Id::Variable(a) | Id::Constructor(a)) = a;
                 let (t, _) = new_figure_out_type(
                     Some(expected_type),
@@ -1095,15 +1305,15 @@ pub fn new_parse_expression<'a>(
                     mark,
                     global_vars,
                     local_vars,
-                    generics
+                    generics,
                 )?;
                 (expressions[*a].clone(), t)
             };
             if !root_type.is_possible(expected_type) {
                 return Err(make_error(
-                    CompilationError::TypeMismatch( expected_type.clone(), Some(root_type.clone())),
-                    mark.clone()
-                ))
+                    CompilationError::TypeMismatch(expected_type.clone(), Some(root_type.clone())),
+                    mark.clone(),
+                ));
             }
             let mut output_args = Vec::new();
             let mut current_type = root_type.to_owned();
@@ -1115,7 +1325,10 @@ pub fn new_parse_expression<'a>(
                         let mut arg_groups = v.into_iter();
                         while current_type != *expected_type {
                             let Some(current_bt) = arg_groups.next() else {
-                                return Err(make_error(CompilationError::ExpectedMoreArguments, mark.clone()))
+                                return Err(make_error(
+                                    CompilationError::ExpectedMoreArguments,
+                                    mark.clone(),
+                                ));
                             };
                             let (next_type, leftover) = match current_type {
                                 Type::Function(a, b) => (*a, *b),
@@ -1128,7 +1341,6 @@ pub fn new_parse_expression<'a>(
                                 &next_type,
                                 current_bt,
                                 local_vars,
-                                local_vars_count,
                                 global_vars,
                                 generics,
                             )?;
@@ -1139,7 +1351,7 @@ pub fn new_parse_expression<'a>(
                             trailing_line.expect_end()?;
                         }
                         ret_bt = None;
-                        break
+                        break;
                     }
                     NextOutput::Token { .. } => {
                         let (next_type, leftover) = match current_type {
@@ -1153,7 +1365,6 @@ pub fn new_parse_expression<'a>(
                             &next_type,
                             bt,
                             local_vars,
-                            local_vars_count,
                             global_vars,
                             generics,
                         )?;
@@ -1162,16 +1373,17 @@ pub fn new_parse_expression<'a>(
                     }
                 }
             }
-            Ok(
-                if output_args.is_empty() {
-                    (root_id, ret_bt)
-                } else {
-                    (Expression::Tree {
+            Ok(if output_args.is_empty() {
+                (root_id, ret_bt)
+            } else {
+                (
+                    Expression::Tree {
                         root: Box::new(root_id),
                         arguments: output_args.into(),
-                    }, ret_bt)
-                }
-            )
+                    },
+                    ret_bt,
+                )
+            })
         }
         _ => {
             debug_print_block(bt, 0);
@@ -1183,60 +1395,53 @@ pub fn new_parse_expression<'a>(
 // lambda and case have the same syntax
 
 pub fn parse_lambda_case<'a>(
-    expressions:           &mut Vec<Expression>,
-    file_dependencies:     &HashSet<u32>,
-    pattern_type:          &Type,
-    block_type:            &Type,
-    bt:                    BlockTraversal<'a>,
-    local_vars:            &LocalVars,
-    local_vars_count:      u32,
-    global_vars:           &Globals,
-    generics:              &Generics,
+    expressions: &mut Vec<Expression>,
+    file_dependencies: &HashSet<u32>,
+    pattern_type: &Type,
+    block_type: &Type,
+    bt: BlockTraversal<'a>,
+    local_vars: &mut LocalVars<'a>,
+    global_vars: &Globals,
+    generics: &Generics,
 ) -> Result<(Pattern, &'a Mark, Expression)> {
-    let (lambda_mark, bt) = bt.expect_keyword(Keyword::Lambda).or(bt.expect_keyword(Keyword::Case))?;
-    let (pattern, local_vars_new, local_vars_count_new, body_bt) = match bt.next()? {
+    let original_local_var_count = local_vars.vars.len();
+    let (lambda_mark, bt) = bt
+        .expect_keyword(Keyword::Lambda)
+        .or(bt.expect_keyword(Keyword::Case))?;
+    let (pattern, body_bt) = match bt.next_expecting_count(2)? {
         NextOutput::IndentedBlocks(v) => {
-            assert!(v.len() == 2);
-            let (pattern, _mark, local_vars_new, local_vars_count_new, leftover_bt) =
-                new_parse_pattern(local_vars_count, pattern_type, v[0], global_vars)?;
+            let (pattern, _mark, leftover_bt) =
+                new_parse_pattern(local_vars, pattern_type, v[0], global_vars)?;
             BlockTraversal::expect_end_option(leftover_bt)?;
-            (pattern, local_vars_new, local_vars_count_new, v[1])
+            (pattern, v[1])
         }
         NextOutput::Token { .. } => {
-            let (pattern, _mark, local_vars_new, local_vars_count_new, body_bt) =
-                new_parse_pattern(local_vars_count, pattern_type, bt, global_vars)?;
+            let (pattern, _mark, body_bt) =
+                new_parse_pattern(local_vars, pattern_type, bt, global_vars)?;
             (
                 pattern,
-                local_vars_new,
-                local_vars_count_new,
-                BlockTraversal::expect_no_indents(body_bt, lambda_mark)?
+                BlockTraversal::expect_no_indents(body_bt, lambda_mark)?,
             )
         }
     };
-    let mut local_vars: &LocalVars = local_vars;
-    let mut new_locals;
-    if !local_vars_new.is_empty() {
-        new_locals = local_vars.clone();
-        local_vars_new
-            .clone()
-            .into_iter()
-            .for_each(|(k, v)| { new_locals.insert(k, v); });
-        local_vars = &new_locals;
-    }
     let (body, bt) = new_parse_expression(
         expressions,
         file_dependencies,
         block_type,
         body_bt,
         local_vars,
-        local_vars_count_new,
         global_vars,
         generics,
     )?;
     BlockTraversal::expect_end_option(bt)?;
-    for (_, (id, _tp, mark)) in local_vars_new.into_iter() {
-        if !is_used(&body, id) {
-            return Err(make_error(CompilationError::NotUsed, mark))
+    for (id, (_name, _tp, mark)) in local_vars
+        .vars
+        .iter()
+        .enumerate()
+        .skip(original_local_var_count)
+    {
+        if !is_used(&body, id as u32) {
+            return Err(make_error(CompilationError::NotUsed, (*mark).clone()));
         }
     }
     Ok((pattern, lambda_mark, body))
@@ -1245,22 +1450,24 @@ pub fn parse_lambda_case<'a>(
 #[derive(Hash, PartialEq, Eq)]
 pub enum BlockKind {
     Type,
-    Variable
+    Variable,
 }
 
 pub struct NameAndGenerics {
     pub name: String,
     pub mark: Mark,
     pub generics: Generics,
-    pub kind: BlockKind
+    pub kind: BlockKind,
 }
 
-pub fn new_extract_name_and_generics<'a>(bt: BlockTraversal<'a>) -> Result<(NameAndGenerics, BlockTraversal<'a>)> {
+pub fn new_extract_name_and_generics<'a>(
+    bt: BlockTraversal<'a>,
+) -> Result<(NameAndGenerics, BlockTraversal<'a>)> {
     let mut generics: Generics = Vec::new();
     let (name, mark, kind, bt) = extract_name_and_genericsl_helper(bt, &mut generics)?;
     fn extract_name_and_genericsl_helper<'a>(
         bt: BlockTraversal<'a>,
-        generics: &mut Generics
+        generics: &mut Generics,
     ) -> Result<(String, Mark, BlockKind, BlockTraversal<'a>)> {
         let (token, mark1, mut bt) = bt.next_token_in_line_fallthrough()?;
         match token {
@@ -1285,18 +1492,30 @@ pub fn new_extract_name_and_generics<'a>(bt: BlockTraversal<'a>) -> Result<(Name
             _ => Err(Error {
                 mark: mark1.clone(),
                 error_type: Box::new(ParseError::UnexpectedKeyword),
-                note: Some(String::from("\x1b[90mexpected one of \x1b[97mdefine forall type\x1b[90m")),
+                note: Some(String::from(
+                    "\x1b[90mexpected one of \x1b[97mdefine forall type\x1b[90m",
+                )),
             }),
         }
     }
-    Ok((NameAndGenerics { name: name.to_string(), mark: mark.clone(), generics, kind }, bt))
+    Ok((
+        NameAndGenerics {
+            name: name.to_string(),
+            mark: mark.clone(),
+            generics,
+            kind,
+        },
+        bt,
+    ))
 }
 
-pub fn parse_the<'a>(bt: BlockTraversal<'a>, generics: &Vec<(String, usize)>) -> Result<(Type, BlockTraversal<'a>)> {
+pub fn parse_the<'a>(
+    bt: BlockTraversal<'a>,
+    generics: &Vec<(String, usize)>,
+) -> Result<(Type, BlockTraversal<'a>)> {
     let (the_mark, bt) = bt.expect_keyword(Keyword::The)?;
-    let (tp, body) = match bt.next()? {
+    let (tp, body) = match bt.next_expecting_count(2)? {
         NextOutput::IndentedBlocks(v) => {
-            assert_eq!(v.len(), 2);
             let (tp, leftover) = new_parse_type(v[0], generics)?;
             BlockTraversal::expect_end_option(leftover).unwrap();
             (tp, v[1])
@@ -1309,35 +1528,42 @@ pub fn parse_the<'a>(bt: BlockTraversal<'a>, generics: &Vec<(String, usize)>) ->
     Ok((tp, body))
 }
 
-pub fn new_parse_type<'a> (bt: BlockTraversal<'a>, generics: &Vec<(String, usize)>)
-    -> Result<(Type, Option<BlockTraversal<'a>>)>
-{
+pub fn new_parse_type<'a>(
+    bt: BlockTraversal<'a>,
+    generics: &Vec<(String, usize)>,
+) -> Result<(Type, Option<BlockTraversal<'a>>)> {
     new_parse_type_helper(bt, generics, Kind::Type)
 }
 
 fn new_parse_type_helper<'a>(
-    bt:       BlockTraversal<'a>,
+    bt: BlockTraversal<'a>,
     generics: &Vec<(String, usize)>,
-    mut _kind: Kind // TODO
+    mut _kind: Kind, // TODO
 ) -> Result<(Type, Option<BlockTraversal<'a>>)> {
     let (word, mark, leftover_bt) = bt.expect_word()?;
     let is_fn = word == "fn";
     let mut kind = Kind::Fn(
         Kind::Type.into(),
-        Kind::Fn(Kind::Type.into(), Kind::Type.into()).into()
+        Kind::Fn(Kind::Type.into(), Kind::Type.into()).into(),
     );
     let mut index = None;
     if !is_fn {
         if let Some(t) = get_from_generics(word, generics) {
-            return Ok((t, Some(leftover_bt)))
+            return Ok((t, Some(leftover_bt)));
         }
         {
             let ptr = TYPES.lock().unwrap();
-            index = Some(ptr.as_ref().unwrap().get(word).ok_or(Error {
-                mark: mark.clone(),
-                error_type: Box::new(CompilationError::TypeNotInScope(word.to_string())),
-                note: None,
-            })?.clone());
+            index = Some(
+                ptr.as_ref()
+                    .unwrap()
+                    .get(word)
+                    .ok_or(Error {
+                        mark: mark.clone(),
+                        error_type: Box::new(CompilationError::TypeNotInScope(word.to_string())),
+                        note: None,
+                    })?
+                    .clone(),
+            );
         }
         kind = index.as_ref().unwrap().kind.clone();
     }
@@ -1351,9 +1577,7 @@ fn new_parse_type_helper<'a>(
                 let (tp, bt_) = new_parse_type_helper(bt, generics, Kind::Type)?;
                 arguments.push(tp);
                 match BlockTraversal::expect_no_indents(bt_, mark) {
-                    Err(e) if !matches!(kind, Kind::Type) => {
-                        return Err(e)
-                    }
+                    Err(e) if !matches!(kind, Kind::Type) => return Err(e),
                     Err(_) => {
                         ret_bt = None;
                         break;
@@ -1382,7 +1606,10 @@ fn new_parse_type_helper<'a>(
         }
     }
     let ret = if is_fn {
-        Type::Function(Box::new(arguments[0].clone()), Box::new(arguments[1].clone()))
+        Type::Function(
+            Box::new(arguments[0].clone()),
+            Box::new(arguments[1].clone()),
+        )
     } else {
         Type::Type {
             type_constructor: index.unwrap().id as u32,
@@ -1420,19 +1647,26 @@ pub fn new_parse_data(
                     }
                     _ => {
                         let mut temp_bt = bt;
-                        while matches!(temp_bt.next(), Ok(NextOutput::Token {..})) {
+                        while matches!(temp_bt.next(), Ok(NextOutput::Token { .. })) {
                             let (t, leftover_bt) = new_parse_type(temp_bt, generics)?;
                             arg_types.push(t);
-                            temp_bt = BlockTraversal::expect_no_indents(leftover_bt, constructor_mark)?;
+                            temp_bt =
+                                BlockTraversal::expect_no_indents(leftover_bt, constructor_mark)?;
                         }
                         temp_bt.expect_end()?;
                     }
                 }
                 let mut args = arg_types.into_iter();
-                output.push((constructor_name.to_string(), build_type(
-                    &mut args,
-                    Type::Type { type_constructor: parent_type, arguments: generics_to_type(generics) }),
-                    constructor_mark.clone()
+                output.push((
+                    constructor_name.to_string(),
+                    build_type(
+                        &mut args,
+                        Type::Type {
+                            type_constructor: parent_type,
+                            arguments: generics_to_type(generics),
+                        },
+                    ),
+                    constructor_mark.clone(),
                 ));
             }
         }
@@ -1459,25 +1693,26 @@ pub fn build_type(input: &mut impl Iterator<Item = Type>, result: Type) -> Type 
 pub enum Type {
     Type {
         type_constructor: u32,
-        arguments: Vec<Type>
+        arguments: Vec<Type>,
     },
     Function(Box<Type>, Box<Type>),
-    Generic(usize)
+    Generic(usize),
 }
 
 impl Type {
     pub fn final_type(&self) -> &Type {
         match self {
             Self::Function(_, b) => b.final_type(),
-            _ => self
+            _ => self,
         }
     }
 
     pub fn is_possible(&self, test: &Self) -> bool {
-        *self == *test || match self {
-            Self::Type { .. } | Self::Generic(_) => false,
-            Self::Function(_, output) => output.is_possible(test),
-        }
+        *self == *test
+            || match self {
+                Self::Type { .. } | Self::Generic(_) => false,
+                Self::Function(_, output) => output.is_possible(test),
+            }
     }
 
     pub fn is_function(&self) -> bool {
@@ -1496,7 +1731,10 @@ impl Type {
     pub fn show(&self) -> String {
         fn helper(tp: &Type, types: &HashMap<u32, String>, output: &mut String) {
             match tp {
-                Type::Type { type_constructor: a, arguments } => {
+                Type::Type {
+                    type_constructor: a,
+                    arguments,
+                } => {
                     let name = types.get(a).unwrap(); // safe
                     output.push_str(name);
                     output.push(' ');
@@ -1522,19 +1760,24 @@ impl Type {
         let mut new_map = HashMap::new();
         {
             let ptr = TYPES.lock().unwrap();
-            ptr.as_ref().unwrap().clone().into_iter().for_each(|(k, w)| { new_map.insert(w.id as u32, k); });
+            ptr.as_ref()
+                .unwrap()
+                .clone()
+                .into_iter()
+                .for_each(|(k, w)| {
+                    new_map.insert(w.id as u32, k);
+                });
         }
         helper(self, &new_map, &mut output);
         output
     }
 }
 
-fn cut_off_n(mut tp: &Type, n: u32) -> &Type {  // should be result
+fn cut_off_n(mut tp: &Type, n: u32) -> &Type {
+    // should be result
     for _ in 0..n {
         match tp {
-            Type::Function(_, b) => {
-                tp = b
-            }
+            Type::Function(_, b) => tp = b,
             _ => todo!(),
         }
     }
@@ -1544,5 +1787,5 @@ fn cut_off_n(mut tp: &Type, n: u32) -> &Type {  // should be result
 #[derive(Debug, Hash, Clone)]
 pub enum Kind {
     Type,
-    Fn(Box<Kind>, Box<Kind>)
+    Fn(Box<Kind>, Box<Kind>),
 }
