@@ -138,7 +138,7 @@ getSize c = \case
     Character char color -> (if color == c then 0 else 6) + case char of
         '%'  -> 2
         '\'' -> 3
-        '\\' -> 4
+        '\\' -> 2
         _ -> 1
 
 getColor = \case
@@ -230,7 +230,7 @@ colorChar (Character s c) = "\\33[9" <> case c of
   <> "m" <> clean s
 
 clean :: Char -> String
-clean '\\' = "\\134"
+clean '\\' = "\\\\"
 clean '\'' = "\\47"
 clean '\n' = "\\n"
 clean '%'  = "%%"
