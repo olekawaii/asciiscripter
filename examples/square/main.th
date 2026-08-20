@@ -1,16 +1,15 @@
 include video
 
-define main as the list frame 
-    take nat_to_whole xii layer
-        cycle lift_list layer_frames 
-            by xxiv shift east block
-            by xxiv shift west block
-        cycle cat
-            animation
-            take nat_to_whole vi continuously by ii shift east 
-                cycle lift_list first_frame reverse animation
+let main be the list frame take nat_to_whole xii layer
+    cycle lift_list layer_frames 
+        by xxiv shift east block
+        by xxiv shift west block
+    cycle cat
+        animation
+        take nat_to_whole vi continuously by ii shift east 
+            cycle lift_list first_frame reverse animation
 
-define squish as art x vi
+let squish be art x vi
   +----+  ..666666..  +-.     ..666.....  +-.     ..666.....
   |    |  ..6||||6..  |  \    ..6||2....  |  \    ..6||2....
   | .. |  ..6|66|6..  | ..`-+ ..6|66266.  |   \   ..6|||2...
@@ -24,7 +23,7 @@ define squish as art x vi
  |      \ .6||||||2.|       \ 6|||||||2. /      \ .2||||||2.
  +-------+.666622222+--------+6662222222+--------+2222222222
 
-define animation as the list frame layer
+let animation be the list frame layer
     squish
     replicate nat_to_whole vi layer_frames
         by xxiv shift west first_frame squish
@@ -32,7 +31,7 @@ define animation as the list frame layer
             by xii shift east first_frame reverse squish
             by xii shift west first_frame squish
 
-define block as the frame first_frame art x vi
+let block be the frame first_frame art x vi
           ||||||||||
           ||||||||||
           ||||||||||
