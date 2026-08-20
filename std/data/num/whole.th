@@ -1,0 +1,48 @@
+include bool ordering nat int
+
+type whole contains 
+    pred nat
+
+--  decrement a nat. since decrementing one is 
+--  zero, it returns a whole number, which has 
+--  a zero variant.
+
+let increment_whole be the fn whole nat lambda pred x x
+
+let decrement_whole be the fn whole int lambda x match x 
+    case pred succ succ x     pos x
+    case pred succ one        zero
+    case pred one             neg one
+
+let whole_zero be the whole pred one
+
+let nat_to_whole be the fn nat whole lambda x pred succ x
+
+let whole_to_int be the fn whole int lambda x match x
+    case pred one             zero
+    case pred succ a          pos a
+
+let int_to_whole be the fn int option whole lambda x match x
+    case neg _                none
+    case pos a                some nat_to_whole a
+    case zero                 some whole_zero
+
+let subtract_exactly be the fn whole fn whole option whole 
+    lambda x lambda y int_to_whole sum_int 
+        whole_to_int x 
+        product_int neg one whole_to_int y
+
+let divide_exactly be the fn whole fn whole option whole 
+    lambda x match x 
+        case pred one         const 
+            some whole_zero
+        case _                lambda y match subtract_exactly x y
+            case none             none
+            case some a           map_option
+                the fn whole whole lambda x nat_to_whole increment_whole x
+                divide_exactly a y
+
+let divisible be the fn whole fn whole bool 
+    lambda x lambda y match divide_exactly x y
+        case some _           true
+        case none             false

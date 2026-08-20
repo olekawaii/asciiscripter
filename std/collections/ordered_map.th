@@ -31,8 +31,7 @@ forall a b let get_ord be the
             case lt     get_ord key unsafe_ordered_map f l
             case gt     get_ord key unsafe_ordered_map f r
 
---  Insert a key/value pair into a map, returning 
---  the new map
+--  Insert a key/value pair into a map
 
 forall a b let insert_ord be the 
     fn a fn b fn ordered_map a b ordered_map a b
@@ -44,7 +43,7 @@ forall a b let insert_ord be the
                 case node _ l r         node tuple key value l r
             map
 
---  Remove a key from a map, returning the new map
+--  Remove a key from a map
 
 forall a b let remove_ord be the fn a fn ordered_map a b ordered_map a b
     lambda key lambda map

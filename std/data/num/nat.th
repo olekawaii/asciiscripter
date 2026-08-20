@@ -1,4 +1,4 @@
-include prelude
+include bool whole ordering list
 
 --  a recursive definition of a natural number 
 --  using church numerals. a nat is either one
@@ -43,10 +43,7 @@ let eq_nat be the fn nat fn nat bool
 --  the second one
 
 let greater be the fn nat fn nat bool 
-    lambda a lambda b match tuple a b 
-        case tuple succ _ one        true
-        case tuple succ a succ b     greater a b
-        case _                       false
+    lambda a lambda b eq_ordering gt compare_nat a b
 
 --  find the greatest common denominator of two 
 --  nats
@@ -59,12 +56,12 @@ let gcd_helper be the fn nat fn nat fn nat fn nat nat
         or greater try x greater try y
         case true                    output
         case false                   gcd_helper
-            match 
+            if
                 and 
                     divisible nat_to_whole x nat_to_whole try 
                     divisible nat_to_whole y nat_to_whole try 
-                case true                    try
-                case false                   output
+                try
+                output
             succ try
             x
             y
@@ -77,10 +74,10 @@ let lcm be the fn nat fn nat nat
             divide_exactly 
                 nat_to_whole product_nat x y 
                 nat_to_whole gcd x y 
-            case none             i
-            case some x           match x 
-                case pred one          i
-                case pred succ x       x
+            case none                    i
+            case some x                  match x 
+                case pred one                i
+                case pred succ x             x
 
 type coordinate contains
     coordinate int int
@@ -89,60 +86,14 @@ forall a let repeat be the
     fn nat fn fn a a fn a a 
     lambda count lambda f lambda x match count
         case one                  f x
-        case succ new_count       f repeat 
-            new_count 
-            f 
-            x
+        case succ new_count       f repeat new_count f x
 
 let sum_coordinate be the fn coordinate fn coordinate coordinate 
     lambda coordinate x_i y_i lambda coordinate x_ii y_ii
         coordinate sum_int x_i x_ii sum_int y_i y_ii
 
-let increment_whole be the fn whole nat lambda pred x x
-
-let decrement_whole be the fn whole int lambda x match x 
-    case pred succ succ x     pos x
-    case pred succ one        zero
-    case pred one             neg one
-
 let eq_coordinate be the fn coordinate fn coordinate bool 
-    lambda coordinate a b lambda coordinate c d and eq_int a c eq_int b d
-
-type whole contains 
-    pred nat
-
-let whole_zero be the whole pred one
-
-let nat_to_whole be the fn nat whole lambda x pred succ x
-
-let whole_to_int be the fn whole int lambda x match x
-    case pred one             zero
-    case pred succ a          pos a
-
-let int_to_whole be the fn int option whole lambda x match x
-    case neg _                none
-    case pos a                some nat_to_whole a
-    case zero                 some whole_zero
-
-let subtract_exactly be the fn whole fn whole option whole 
-    lambda x lambda y int_to_whole sum_int 
-        whole_to_int x 
-        product_int neg one whole_to_int y
-
-let divide_exactly be the fn whole fn whole option whole 
-    lambda x match x 
-        case pred one         const 
-            some whole_zero
-        case _                lambda y match subtract_exactly x y
-            case none             none
-            case some a           map_option
-                the fn whole whole lambda x nat_to_whole increment_whole x
-                divide_exactly a y
-
-let divisible be the fn whole fn whole bool 
-    lambda x lambda y match divide_exactly x y
-        case some _           true
-        case none             false
+    lambda coordinate a b lambda coordinate c d  and eq_int a c eq_int b d
 
 --  these let variables for the first hundred 
 --  nats using roman numerals
