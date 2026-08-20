@@ -77,9 +77,9 @@ build it with
 
     $ ./build.sh
 
-This installs thorn (the interpreter), thorn-to-sh, and thorn-to-gif to
+This installs thorn (the interpreter), th2sh, and th2gif to
 ~/.local/bin (make sure it's in your $PATH). It also installs the fonts
-used by thorn-to-gif to ~/.local/share/thorn/fonts
+used by th2gif to ~/.local/share/thorn/fonts
                                           _    ___   _
 If you have nix, there's a flake         / \   \  \ / \
 you can play around with                 \  \   \  '  /
@@ -98,8 +98,8 @@ thorn works like a calculator. It parses and compiles the source code
 into an internal representation, but afterwards also executes it,
 printing the evaluated main function.
 
-    $ thorn . | thorn-to-sh  | sh               # shell animation
-    $ thorn . | thorn-to-gif | ffplay -         # gif
+    $ thorn . | th2sh  | sh                   # posix shell animation
+    $ thorn . | th2gif | ffplay -             # gif
 
 Note that thorn expects to find a main.th file in the given directory
 or in any of its parent directories. That directory is the root of your
@@ -427,7 +427,7 @@ actually want, you have to interpret it with an external program.
 thorn tries to adhere to the UNIX philosophy. All programs do one thing
 and their outputs are intended to be inputs for other programs
 
-    $ thorn --eval 'the list frame chess_set' | thorn-to-sh | sh
+    $ thorn --eval 'the list frame chess_set' | th2sh | sh
                                       _:_
               n,_      o    o  o  c  __!__     o      n,_
     __ _ __  /.  \    / \    \v|v/   \_ _/    / \    /.  \  __ _ __

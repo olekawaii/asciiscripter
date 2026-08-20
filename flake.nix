@@ -53,13 +53,13 @@
             makeWrapper
           ];
           buildPhase = ''
-            ghc thorn-to-sh
-            ghc thorn-to-ppm
+            ghc th2sh.hs
+            ghc th2ppm.hs
           '';
           installPhase = ''
             mkdir -p $out/bin
-            cp thorn-to-sh thorn-to-ppm thorn-to-gif $out/bin
-            wrapProgram $out/bin/thorn-to-gif \
+            cp th2sh th2ppm th2gif $out/bin
+            wrapProgram $out/bin/th2gif \
               --add-flags "--font-dir ${fonts}/share/fonts"
           '';
         };
