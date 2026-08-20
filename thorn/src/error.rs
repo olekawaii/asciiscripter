@@ -16,10 +16,7 @@
 
 const UNDERLINE_CHAR: &str = "^";
 
-use std::{
-    fs::read_to_string,
-    sync::{Arc, Mutex},
-};
+use std::{fs::read_to_string, sync::Mutex};
 
 // debug info used by compile-time/run-time errors
 
@@ -29,7 +26,7 @@ pub struct DebugInfo {
 
 pub static DEBUG_INFO: Mutex<DebugInfo> = Mutex::new(DebugInfo { files: Vec::new() });
 
-pub fn get_file_name(index: u32) -> String {
+pub fn get_file_name(index: u16) -> String {
     DEBUG_INFO.lock().unwrap().files[index as usize].clone()
 }
 
@@ -37,18 +34,17 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Hash)]
 pub struct Mark {
-    pub file: u32,
-    pub block: Option<Arc<String>>,
-    pub line: usize,
-    pub character: usize,
-    pub length: usize,
+    pub file: u16,
+    pub line: u16,
+    pub column: u16,
+    pub length: u8,
 }
 
 impl Mark {
     pub fn one_after_the_highlight(&self) -> Self {
         Self {
             length: 1,
-            character: self.character + self.length,
+            column: self.column + self.length as u16,
             ..self.clone()
         }
     }
@@ -58,10 +54,9 @@ impl Default for Mark {
     fn default() -> Self {
         Self {
             file: 67,
-            block: None,
-            line: 0,
-            character: 0,
-            length: 0,
+            line: 67,
+            column: 67,
+            length: 67,
         }
     }
 }
@@ -81,27 +76,25 @@ pub fn show_mark(mark: Mark, message: &'static str) -> String {
     let line_before = if mark.line == 0 {
         ""
     } else {
-        lines.find(|(n, _)| *n == mark.line - 1).unwrap().1
+        lines.find(|(n, _)| *n == mark.line as usize - 1).unwrap().1
     };
     let current_line = lines.next().unwrap().1;
 
     let mut underline = String::new();
-    underline.push_str(&" ".repeat(mark.character));
-    underline.push_str(&UNDERLINE_CHAR.repeat(mark.length));
+    underline.push_str(&" ".repeat(mark.column as usize));
+    underline.push_str(&UNDERLINE_CHAR.repeat(mark.length as usize));
     underline.push_str("  ");
     underline.push_str(message);
     let empty_space = " ".repeat(indentation);
     format!(
-        "\x1b[90min \x1b[0m{}\x1b[90m:\x1b[0m{}\x1b[90m:\x1b[0m{}\x1b[90m{}\n\
-\x1b[91m{}| \x1b[90m{}\n\x1b[91m{} | \x1b[0m{}\n\x1b[91m{}  {}\x1b[0m",
+"\x1b[90min \x1b[0m{}\x1b[90m:\x1b[0m{}\x1b[90m:\x1b[0m{}
+\x1b[91m{}| \x1b[90m{}
+\x1b[91m{} | \x1b[0m{}
+\x1b[91m{}  {}\x1b[0m",
         file_name,
         mark.line + 1,
-        mark.character + 1,
+        mark.column + 1,
         //mark.line + 1,
-        match &mark.block {
-            None => String::from(""),
-            Some(name) => format!(", in the definition of \x1b[0m{}\x1b[90m", (*name).clone()),
-        },
         &empty_space,
         line_before,
         mark.line + 1,
@@ -139,10 +132,10 @@ pub trait ErrorType: std::fmt::Display + std::fmt::Debug {
 
 impl PartialEq for Error {
     fn eq(&self, other: &Error) -> bool {
-        (&self.mark.file, self.mark.line, self.mark.character).eq(&(
+        (&self.mark.file, self.mark.line, self.mark.column).eq(&(
             &other.mark.file,
             other.mark.line,
-            other.mark.character,
+            other.mark.column,
         ))
     }
 }
@@ -157,10 +150,10 @@ impl PartialOrd for Error {
 
 impl Ord for Error {
     fn cmp(&self, other: &Error) -> std::cmp::Ordering {
-        (&self.mark.file, self.mark.line, self.mark.character).cmp(&(
+        (&self.mark.file, self.mark.line, self.mark.column).cmp(&(
             &other.mark.file,
             other.mark.line,
-            other.mark.character,
+            other.mark.column,
         ))
     }
 }

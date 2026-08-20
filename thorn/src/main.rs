@@ -28,7 +28,7 @@ use std::rc::Rc;
 use crate::error::{DEBUG_INFO, Error, Mark, get_file_name, make_error};
 use crate::parse::{
     BlockKind, CompilationError, GlobalTypeData, GlobalVarData, Id, LocalVars, NameAndGenerics,
-    new_parse_expression, parse_the,
+    parse_expression, parse_the,
 };
 use crate::runtime::Expression;
 use crate::tokens::{BlockTraversal, tokenize_block};
@@ -48,7 +48,8 @@ fn main() -> std::io::Result<()> {
     } = parse_cli_arguments()?;
     std::env::set_current_dir(&starting_dir)?;
     if as_repl {
-        repl()?
+        repl()?;
+        return Ok(());
     }
     if !reach_project_root()? {
         eprintln!(
@@ -62,15 +63,15 @@ fn main() -> std::io::Result<()> {
             eprintln!("{x}");
             std::process::exit(1)
         }
-        Ok((mut expressions, mut var_names, mut dummy)) => {
+        Ok(mut loaded) => {
             if !expression_provided {
-                let GlobalVarData { var_type, id, .. } = dummy.get("main").unwrap();
+                let GlobalVarData { var_type, id, .. } = loaded.info_table.get("main").unwrap();
                 let id = match id {
                     Id::Variable(n) => n,
                     Id::Constructor(n) => n,
                 };
-                let main_expr = expressions[*id].clone();
-                main_expr.print(&var_names, var_type);
+                let main_expr = loaded.expressions[*id].clone();
+                main_expr.print(&loaded.var_names, var_type, &loaded.marks, &loaded.patterns);
             } else {
                 let x;
                 {
@@ -78,9 +79,7 @@ fn main() -> std::io::Result<()> {
                     ptr.files.push(String::from(MAIN_EXPR));
                     x = ptr.files.len() - 1;
                 }
-                if let Err(e) =
-                    new_evaluate_block(x as u32, &mut dummy, &mut var_names, &mut expressions)
-                {
+                if let Err(e) = new_evaluate_block(x as u16, &mut loaded) {
                     eprintln!("{e}");
                     std::process::exit(1);
                 }
@@ -116,7 +115,7 @@ fn prompt_to_edit_function(mark: &Mark) -> bool {
         "y" | "Y" | "yes" | "" => (),
         _ => return false,
     }
-    let location = format!("+call cursor({},{})", mark.line + 1, mark.character + 1);
+    let location = format!("+call cursor({},{})", mark.line + 1, mark.column + 1);
     let file_name = get_file_name(mark.file);
     let _more = Command::new("vim")
         .arg(&location)
@@ -128,9 +127,13 @@ fn prompt_to_edit_function(mark: &Mark) -> bool {
 }
 
 fn repl() -> std::io::Result<()> {
-    let mut dummy: HashMap<String, GlobalVarData> = HashMap::new();
-    let mut names: Vec<String> = Vec::new();
-    let mut expressions: Vec<Expression> = Vec::new();
+    let mut loaded = parse::LoadedExpressions {
+        info_table: HashMap::new(),
+        var_names: Vec::new(),
+        expressions: Vec::new(),
+        patterns: vec![runtime::Pattern::Dropped],
+        marks: Vec::new(),
+    };
     println!("thorn, :? for help");
     if let Ok(true) = reach_project_root() {
         println!("including main");
@@ -143,10 +146,8 @@ fn repl() -> std::io::Result<()> {
                         break;
                     }
                 }
-                Ok((e, v, d)) => {
-                    expressions = e;
-                    dummy = d;
-                    names = v;
+                Ok(l) => {
+                    loaded = l;
                     break;
                 }
             }
@@ -212,12 +213,7 @@ fn repl() -> std::io::Result<()> {
             loop {
                 match first_word.as_str() {
                     "let" | "forall" | "type" => {
-                        match compile_block(
-                            temp_file_index as u32,
-                            &mut dummy,
-                            &mut names,
-                            &mut expressions,
-                        ) {
+                        match compile_block(temp_file_index as u16, &mut loaded) {
                             Err(ref err @ Error { ref mark, .. }) => {
                                 eprintln!("\x1b[1A{err}");
                                 if !prompt_to_edit_function(mark) {
@@ -228,25 +224,18 @@ fn repl() -> std::io::Result<()> {
                             Ok(()) => break,
                         }
                     }
-                    "the" => {
-                        match new_evaluate_block(
-                            temp_file_index as u32,
-                            &mut dummy,
-                            &mut names,
-                            &mut expressions,
-                        ) {
-                            Err(ref err @ Error { ref mark, .. }) => {
-                                eprintln!("\x1b[1A\x1b[0J{err}");
-                                if !prompt_to_edit_function(mark) {
-                                    println!("giving up");
-                                    break;
-                                }
-                            }
-                            Ok(_) => {
+                    "the" => match new_evaluate_block(temp_file_index as u16, &mut loaded) {
+                        Err(ref err @ Error { ref mark, .. }) => {
+                            eprintln!("\x1b[1A\x1b[0J{err}");
+                            if !prompt_to_edit_function(mark) {
+                                println!("giving up");
                                 break;
                             }
                         }
-                    }
+                        Ok(_) => {
+                            break;
+                        }
+                    },
                     _ => todo!(),
                 }
             }
@@ -257,10 +246,8 @@ fn repl() -> std::io::Result<()> {
 }
 
 fn new_evaluate_block(
-    temp_file_name: u32,
-    dummy: &mut HashMap<String, GlobalVarData>,
-    var_names: &mut Vec<String>,
-    expressions: &mut Vec<Expression>,
+    temp_file_name: u16,
+    loaded: &mut parse::LoadedExpressions,
 ) -> error::Result<()> {
     let new_vec = Vec::new();
     let mut temp_local_vars = LocalVars { vars: Vec::new() };
@@ -270,35 +257,36 @@ fn new_evaluate_block(
     let block = tokenize_block(lines, temp_file_name, 0)?;
     let bt = BlockTraversal::new(&block);
     let (tp, bt) = parse_the(bt, &new_vec)?;
-    let possible: [u32; 100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
+    let possible: [u16; 100] = (0..100).collect::<Vec<u16>>().try_into().unwrap();
     let available_files = HashSet::from(possible);
-    let (expr, leftover) = new_parse_expression(
-        expressions,
+    let (expr, leftover) = parse_expression(
+        loaded,
         &available_files,
         &tp,
         bt,
         &mut temp_local_vars,
-        dummy,
         &new_vec,
     )?;
     BlockTraversal::expect_end_option(leftover)?;
     //print!("\x1b[1A\x1b[0J\x1b[90m\n");
     //std::io::stdout().flush();
-    expr.print(var_names, &tp);
+    expr.print(&loaded.var_names, &tp, &loaded.marks, &loaded.patterns);
     //print!("\x1b[0m\n");
     Ok(())
 }
 
-fn compile_block(
-    temp_file_name: u32,
-    dummy: &mut HashMap<String, GlobalVarData>,
-    var_names: &mut Vec<String>,
-    expressions: &mut Vec<Expression>,
-) -> error::Result<()> {
+fn compile_block(temp_file_name: u16, loaded: &mut parse::LoadedExpressions) -> error::Result<()> {
+    let parse::LoadedExpressions {
+        info_table: dummy,
+        var_names,
+        expressions,
+        marks,
+        patterns,
+    } = loaded;
     let mut temp_local_vars = LocalVars { vars: Vec::new() };
     let file_name = get_file_name(temp_file_name);
     let text = std::fs::read_to_string(file_name).unwrap();
-    let block = parse::new_tokenize_file(text, temp_file_name)?
+    let block = tokens::tokenize_file(&text, temp_file_name)?
         .into_iter()
         .next()
         .unwrap();
@@ -311,61 +299,59 @@ fn compile_block(
             kind,
         },
         bt,
-    ) = parse::new_extract_name_and_generics(bt)?;
+    ) = parse::extract_name_and_generics(bt)?;
     // block.add_context(&name.clone().into());
     match kind {
         BlockKind::Variable => {
-            if let Some(x) = dummy.get(&name) {
+            if let Some(x) = loaded.info_table.get(&name) {
                 return Err(make_error(
-                    CompilationError::MultipleDeclarations(x.mark.file),
+                    CompilationError::MultipleDeclarations(marks[x.mark as usize].file),
                     mark,
                 ));
             }
-            let index = var_names.len();
-            var_names.push(String::new());
-            expressions.push(Expression::Thunk {
+            let index = loaded.var_names.len();
+            loaded.var_names.push(String::new());
+            marks.push(mark);
+            let mark_id = marks.len() as u16 - 1;
+            loaded.expressions.push(Expression::Thunk {
                 value: Rc::new(RefCell::new(Expression::default())),
-                mark: Some(Rc::new(mark.clone())),
+                mark: Some(mark_id),
             });
             let (var_type, bt) = parse_the(bt, &generics)?;
-            dummy.insert(
+            loaded.info_table.insert(
                 name.clone(),
                 GlobalVarData {
                     var_type,
-                    mark,
+                    mark: mark_id,
                     id: Id::Variable(index),
                     generics,
                 },
             );
-            let Some(GlobalVarData {
+            let GlobalVarData {
                 var_type, generics, ..
-            }) = dummy.get(&name)
-            else {
-                unreachable!()
-            };
-            let possible: [u32; 100] = (0..100).collect::<Vec<u32>>().try_into().unwrap();
+            } = loaded.info_table.get(&name).unwrap().clone();
+            let possible: [u16; 100] = (0..100).collect::<Vec<u16>>().try_into().unwrap();
             let available_files = HashSet::from(possible);
-            let (expression, _bt) = match new_parse_expression(
-                expressions,
+            let (expression, _bt) = match parse_expression(
+                loaded,
                 &available_files,
-                var_type,
+                &var_type,
                 bt,
                 &mut temp_local_vars,
-                dummy,
-                generics,
+                &generics,
             )
             .and_then(|(e, bt)| BlockTraversal::expect_end_option(bt).and(Ok((e, bt))))
             {
                 Ok(x) => x,
                 Err(e) => {
-                    expressions.pop();
-                    var_names.pop();
-                    dummy.remove(&name);
+                    loaded.expressions.pop();
+                    loaded.var_names.pop();
+                    loaded.info_table.remove(&name);
                     return Err(e);
                 }
             };
             {
-                let Expression::Thunk { value: ref x, .. } = expressions[index] else {
+                let Expression::Thunk { value: ref x, .. } = loaded.expressions[index] else {
                     unreachable!()
                 };
                 let Ok(mut inner) = (*x).try_borrow_mut() else {
@@ -399,20 +385,22 @@ fn compile_block(
                 generics,
                 kind: _,
             } = &data;
-            match parse::new_parse_data(bt, *index as u32, generics) {
+            marks.push(mark.clone());
+            match parse::parse_data(bt, *index as u32, generics) {
                 Ok(branches) => {
                     for (name, tp, mark) in branches.into_iter() {
-                        dummy.insert(
+                        loaded.info_table.insert(
                             name.clone(),
                             GlobalVarData {
-                                mark: mark.clone(),
-                                id: Id::Constructor(expressions.len()),
+                                mark: marks.len() as u16 - 1,
+                                id: Id::Constructor(loaded.expressions.len()),
                                 generics: generics.clone(),
                                 var_type: tp,
                             },
                         );
-                        expressions.push(Expression::DataConstructor(expressions.len() as u32));
-                        var_names.push(name);
+                        let expr = Expression::DataConstructor(loaded.expressions.len() as u32);
+                        loaded.expressions.push(expr);
+                        loaded.var_names.push(name);
                     }
                 }
                 Err(e) => {

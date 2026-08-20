@@ -25,6 +25,207 @@ pub enum ParseError {
     ExpectedNumBranches(u32),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Keyword {
+    ForAll,
+    Include,
+    Lambda,
+    Match,
+    With,
+    Bind,
+    Either,
+    Let,
+    The,
+    Be,
+    Case,
+    Type,
+    Contains,
+    Undefined,
+}
+
+// Invariants:
+//     * Lines contain at least one word
+//     * Nested blocks are only indented by a single level
+
+#[derive(Clone, Debug)]
+pub struct Block<'a> {
+    pub line_tokens: Vec<(Token<'a>, Mark)>,
+    pub line_end_mark: Mark,
+    pub indented_blocks_beneath: Vec<Block<'a>>,
+}
+
+#[allow(unused)]
+pub fn debug_print_block(bt: BlockTraversal, indentation: u32) {
+    eprint!("{}", " ".repeat(4 * indentation as usize));
+    for (i, _) in bt.block.line_tokens.iter().skip(bt.word) {
+        match i {
+            Token::Keyword(k) => eprint!("{k} "),
+            Token::Word(w) => eprint!("{w} "),
+        }
+    }
+    eprintln!();
+    bt.block
+        .indented_blocks_beneath
+        .iter()
+        .for_each(|x| debug_print_block(BlockTraversal::new(x), indentation + 1));
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct BlockTraversal<'a> {
+    pub block: &'a Block<'a>,
+    pub word: usize,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Token<'a> {
+    Keyword(Keyword),
+    Word(&'a str),
+}
+
+impl<'a> BlockTraversal<'a> {
+    pub fn new(block: &'a Block) -> Self {
+        BlockTraversal { block, word: 0 }
+    }
+
+    pub fn get_indented_blocks(self) -> &'a [Block<'a>] {
+        &self.block.indented_blocks_beneath
+    }
+
+    pub fn reached_end_of_line(self) -> bool {
+        self.word == self.block.line_tokens.len()
+    }
+
+    pub fn reached_end_of_block(self) -> bool {
+        self.reached_end_of_line() && self.block.indented_blocks_beneath.is_empty()
+    }
+
+    pub fn expect_end_option(bt: Option<Self>) -> Result<()> {
+        match bt {
+            None => Ok(()),
+            Some(x) => x.expect_end(),
+        }
+    }
+
+    pub fn expect_no_indents(bt: Option<Self>, mark: &'a Mark) -> Result<Self> {
+        match bt {
+            Some(x) => Ok(x),
+            None => Err(make_error(ParseError::CantHaveIndents, mark.clone())),
+        }
+    }
+
+    pub fn expect_end(self) -> Result<()> {
+        let token_mark: &Mark = match self.next() {
+            Ok(NextOutput::Token(_, mark, _)) => mark,
+            Ok(NextOutput::IndentedBlocks(v)) => {
+                BlockTraversal::new(&v[0]).next_token_in_line().unwrap().1
+            }
+            Err(_) => return Ok(()),
+        };
+        Err(make_error(
+            ParseError::TrailingCharacters,
+            token_mark.clone(),
+        ))
+    }
+
+    pub fn next_token_in_line(mut self) -> Result<(Token<'a>, &'a Mark, Self)> {
+        if self.reached_end_of_line() {
+            return Err(make_error(
+                ParseError::UnexpectedEndLine,
+                self.block.line_end_mark.clone(),
+            ));
+        }
+        let (token, mark) = &self.block.line_tokens[self.word];
+        self.word += 1;
+        Ok((*token, mark, self))
+    }
+
+    pub fn next_token_in_line_fallthrough(self) -> Result<(Token<'a>, &'a Mark, Self)> {
+        match self.next_expecting_count(1)? {
+            NextOutput::Token(t, mark, bt) => Ok((t, mark, bt)),
+            NextOutput::IndentedBlocks(v) => BlockTraversal::new(&v[0]).next_token_in_line(),
+        }
+    }
+
+    pub fn next(self) -> Result<NextOutput<'a>> {
+        if self.reached_end_of_block() {
+            return Err(make_error(
+                ParseError::UnexpectedEnd,
+                self.block.line_end_mark.clone(),
+            ));
+        }
+        match self.next_token_in_line() {
+            Ok((token, mark, bt)) => Ok(NextOutput::Token(token, mark, bt)),
+            Err(_) => Ok(NextOutput::IndentedBlocks(self.get_indented_blocks())),
+        }
+    }
+
+    pub fn next_expecting_count(self, branch_count: usize) -> Result<NextOutput<'a>> {
+        let ret = self.next()?;
+        if let NextOutput::IndentedBlocks(v) = &ret
+            && v.len() != branch_count
+        {
+            return Err(make_error(
+                ParseError::ExpectedNumBranches(branch_count as u32),
+                self.block.line_end_mark.clone(),
+            ));
+        }
+        Ok(ret)
+    }
+
+    pub fn expect_keyword(self, keyword: Keyword) -> Result<(&'a Mark, Self)> {
+        let (token, mark, bt) = self.next_token_in_line_fallthrough()?;
+        if token != Token::Keyword(keyword) {
+            return Err(make_error(
+                ParseError::ExpectedKeyword(keyword),
+                mark.clone(),
+            ));
+        }
+        Ok((mark, bt))
+    }
+
+    pub fn expect_word(self) -> Result<(&'a str, &'a Mark, Self)> {
+        let (token, mark, bt) = self.next_token_in_line_fallthrough()?;
+        if let Token::Word(w) = token {
+            Ok((w, mark, bt))
+        } else {
+            Err(make_error(ParseError::UnexpectedKeyword, mark.clone()))
+        }
+    }
+}
+
+pub enum NextOutput<'a> {
+    Token(Token<'a>, &'a Mark, BlockTraversal<'a>),
+    IndentedBlocks(&'a [Block<'a>]),
+}
+
+pub fn tokenize_file<'a>(input: &'a str, file_index: u16) -> Result<Vec<Block<'a>>> {
+    let mut output: Vec<Block> = Vec::new();
+    let mut current_block: Vec<(usize, &str)> = Vec::new();
+    let file_lines: Vec<&str> = input.lines().map(|x| x.trim_end()).collect();
+    let mut file_lines = file_lines.into_iter().enumerate();
+    while let Some((line_number, string)) = file_lines.next() {
+        if string.is_empty() || string.split_whitespace().next().unwrap() == "--" {
+            // safe unwrap
+            continue;
+        }
+        current_block.push((line_number, string));
+        'good_lines: loop {
+            match file_lines.next() {
+                None | Some((_, "")) => {
+                    let block = tokenize_block(current_block, file_index, 0)?;
+                    output.push(block);
+                    current_block = Vec::new();
+                    break 'good_lines;
+                }
+                Some((line_number, string)) => {
+                    current_block.push((line_number, string));
+                }
+            }
+        }
+    }
+    Ok(output)
+}
+
 impl ErrorType for ParseError {
     fn gist(&self) -> &'static str {
         match self {
@@ -95,6 +296,12 @@ this block into its own branch"
             _ => write!(f, "todo"),
         }
     }
+}
+
+pub fn char_to_str(val: char) -> &'static str {
+    static ASCII_STR: &str = "abcdefghijklmnopqrstuvwxyz";
+    let i = val as usize - 97;
+    &ASCII_STR[i..i + 1]
 }
 
 pub fn parse_roman_numeral(numeral: &str) -> Option<u32> {
@@ -200,7 +407,7 @@ pub fn parse_art(
     }
 }
 
-pub fn words(s: &str) -> Vec<(usize, &str, usize)> {
+pub fn words(s: &str) -> Vec<(u16, &str, u8)> {
     let mut output = Vec::new();
     let mut character_index = 0;
     let mut length = 0;
@@ -209,9 +416,9 @@ pub fn words(s: &str) -> Vec<(usize, &str, usize)> {
             ' ' => {
                 if length != 0 {
                     output.push((
-                        character_index,
+                        character_index as u16,
                         &s[character_index..character_index + length],
-                        length,
+                        length as u8,
                     ));
                     length = 0;
                 }
@@ -226,187 +433,12 @@ pub fn words(s: &str) -> Vec<(usize, &str, usize)> {
     }
     if length != 0 {
         output.push((
-            character_index,
+            character_index as u16,
             &s[character_index..character_index + length],
-            length,
+            length as u8,
         ));
     }
     output
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Keyword {
-    ForAll,
-    Include,
-    Lambda,
-    Match,
-    With,
-    Bind,
-    Either,
-    Let,
-    The,
-    Be,
-    Case,
-    Type,
-    Contains,
-    Undefined,
-}
-
-// Invariants:
-//     * Lines contain at least one word
-//     * Nested blocks are only indented by a single level
-
-#[derive(Clone, Debug)]
-pub struct Block {
-    pub line_tokens: Vec<(OwnedToken, Mark)>,
-    pub indented_blocks_beneath: Vec<Block>,
-    pub line_end_mark: Mark,
-}
-
-#[allow(unused)]
-pub fn debug_print_block(bt: BlockTraversal, indentation: u32) {
-    eprint!("{}", " ".repeat(4 * indentation as usize));
-    for (i, _) in bt.block.line_tokens.iter().skip(bt.word) {
-        match i {
-            OwnedToken::Keyword(k) => eprint!("{k} "),
-            OwnedToken::Word(w) => eprint!("{w} "),
-        }
-    }
-    eprintln!();
-    bt.block
-        .indented_blocks_beneath
-        .iter()
-        .for_each(|x| debug_print_block(BlockTraversal::new(x), indentation + 1));
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct BlockTraversal<'a> {
-    pub block: &'a Block,
-    pub word: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum OwnedToken {
-    Keyword(Keyword),
-    Word(String),
-}
-
-impl<'a> BlockTraversal<'a> {
-    pub fn new(block: &'a Block) -> Self {
-        BlockTraversal { block, word: 0 }
-    }
-
-    pub fn get_indented_blocks(self) -> Vec<Self> {
-        self.block
-            .indented_blocks_beneath
-            .iter()
-            .map(BlockTraversal::new)
-            .collect()
-    }
-
-    pub fn reached_end_of_line(self) -> bool {
-        self.word == self.block.line_tokens.len()
-    }
-
-    pub fn reached_end_of_block(self) -> bool {
-        self.reached_end_of_line() && self.block.indented_blocks_beneath.is_empty()
-    }
-
-    pub fn expect_end_option(bt: Option<Self>) -> Result<()> {
-        match bt {
-            None => Ok(()),
-            Some(x) => x.expect_end(),
-        }
-    }
-
-    pub fn expect_no_indents(bt: Option<Self>, mark: &'a Mark) -> Result<Self> {
-        match bt {
-            Some(x) => Ok(x),
-            None => Err(make_error(ParseError::CantHaveIndents, mark.clone())),
-        }
-    }
-
-    pub fn expect_end(self) -> Result<()> {
-        let token_mark: &Mark = match self.next() {
-            Ok(NextOutput::Token(_, mark, _)) => mark,
-            Ok(NextOutput::IndentedBlocks(v)) => v[0].next_token_in_line().unwrap().1,
-            Err(_) => return Ok(()),
-        };
-        Err(make_error(
-            ParseError::TrailingCharacters,
-            token_mark.clone(),
-        ))
-    }
-
-    pub fn next_token_in_line(mut self) -> Result<(&'a OwnedToken, &'a Mark, Self)> {
-        if self.reached_end_of_line() {
-            return Err(make_error(
-                ParseError::UnexpectedEndLine,
-                self.block.line_end_mark.clone(),
-            ));
-        }
-        let (token, mark) = &self.block.line_tokens[self.word];
-        self.word += 1;
-        Ok((token, mark, self))
-    }
-
-    pub fn next_token_in_line_fallthrough(self) -> Result<(&'a OwnedToken, &'a Mark, Self)> {
-        match self.next_expecting_count(1)? {
-            NextOutput::Token(t, mark, bt) => Ok((t, mark, bt)),
-            NextOutput::IndentedBlocks(v) => v[0].next_token_in_line(),
-        }
-    }
-
-    pub fn next(self) -> Result<NextOutput<'a>> {
-        if self.reached_end_of_block() {
-            return Err(make_error(
-                ParseError::UnexpectedEnd,
-                self.block.line_end_mark.clone(),
-            ));
-        }
-        match self.next_token_in_line() {
-            Ok((token, mark, bt)) => Ok(NextOutput::Token(token, mark, bt)),
-            Err(_) => Ok(NextOutput::IndentedBlocks(self.get_indented_blocks())),
-        }
-    }
-
-    pub fn next_expecting_count(self, branch_count: usize) -> Result<NextOutput<'a>> {
-        let ret = self.next()?;
-        if let NextOutput::IndentedBlocks(v) = &ret
-            && v.len() != branch_count
-        {
-            return Err(make_error(
-                ParseError::ExpectedNumBranches(branch_count as u32),
-                self.block.line_end_mark.clone(),
-            ));
-        }
-        Ok(ret)
-    }
-
-    pub fn expect_keyword(self, keyword: Keyword) -> Result<(&'a Mark, Self)> {
-        let (token, mark, bt) = self.next_token_in_line_fallthrough()?;
-        if *token != OwnedToken::Keyword(keyword) {
-            return Err(make_error(
-                ParseError::ExpectedKeyword(keyword),
-                mark.clone(),
-            ));
-        }
-        Ok((mark, bt))
-    }
-
-    pub fn expect_word(self) -> Result<(&'a str, &'a Mark, Self)> {
-        let (token, mark, bt) = self.next_token_in_line_fallthrough()?;
-        if let OwnedToken::Word(w) = token {
-            Ok((w, mark, bt))
-        } else {
-            Err(make_error(ParseError::UnexpectedKeyword, mark.clone()))
-        }
-    }
-}
-
-pub enum NextOutput<'a> {
-    Token(&'a OwnedToken, &'a Mark, BlockTraversal<'a>),
-    IndentedBlocks(Vec<BlockTraversal<'a>>),
 }
 
 impl std::fmt::Display for Keyword {
@@ -430,11 +462,11 @@ impl std::fmt::Display for Keyword {
     }
 }
 
-pub fn tokenize_block(
-    input: Vec<(usize, &str)>,
-    file: u32,
+pub fn tokenize_block<'a>(
+    input: Vec<(usize, &'a str)>,
+    file: u16,
     indentation_level: u32,
-) -> Result<Block> {
+) -> Result<Block<'a>> {
     let mut bodies: Vec<Block> = Vec::new();
     let mut lines = input.into_iter();
     let (line_number, first_line) = lines.next().unwrap();
@@ -443,10 +475,9 @@ pub fn tokenize_block(
     if first_line_indentation as u32 != expected_indentation {
         let mark = Mark {
             file,
-            line: line_number,
-            block: None,
-            character: 0,
-            length: first_line_indentation as usize,
+            line: line_number as u16,
+            column: 0,
+            length: first_line_indentation as u8,
         };
         return Err(make_error(
             ParseError::BadIndentation(expected_indentation),
@@ -454,7 +485,7 @@ pub fn tokenize_block(
         ));
     }
     let (root_line, end_mark, art_dimensions) =
-        tokenize_line(first_line, line_number as u32, file)?;
+        tokenize_line(first_line, line_number as u16, file)?;
     if let Some((x, y, art_mark)) = art_dimensions {
         let art_indentation = match indentation_level {
             0 => 0,
@@ -478,8 +509,8 @@ pub fn tokenize_block(
                 let marked_char = Marked::<char> {
                     value: character,
                     mark: Mark {
-                        line: line_index,
-                        character: char_index,
+                        line: line_index as u16,
+                        column: char_index as u16,
                         length: 1,
                         ..art_mark.clone()
                     },
@@ -489,9 +520,9 @@ pub fn tokenize_block(
             new_output.push(temp);
         }
         let aaa = parse_art(x as usize, y as usize, new_output, art_mark.clone())?;
-        let tokens: Vec<(OwnedToken, Mark)> = build_tokens_from_art(art_mark, aaa)?
+        let tokens: Vec<(Token, Mark)> = build_tokens_from_art(art_mark, aaa)?
             .into_iter()
-            .map(|Marked::<OwnedToken> { mark, value }| (value, mark))
+            .map(|Marked::<Token> { mark, value }| (value, mark))
             .collect();
         return Ok(Block {
             line_end_mark: end_mark.clone(),
@@ -529,51 +560,50 @@ pub fn tokenize_block(
 
 fn tokenize_line(
     line: &str,
-    line_number: u32,
-    file: u32,
-) -> Result<(Vec<(OwnedToken, Mark)>, Mark, Option<(u32, u32, Mark)>)> {
-    let mut ret: Vec<(OwnedToken, Mark)> = Vec::new();
+    line_number: u16,
+    file: u16,
+) -> Result<(Vec<(Token<'_>, Mark)>, Mark, Option<(u32, u32, Mark)>)> {
+    let mut ret: Vec<(Token, Mark)> = Vec::new();
     let mut art_ret = None;
     let mut words = words(line).into_iter();
-    while let Some((character, word, length)) = words.next() {
+    while let Some((column, word, length)) = words.next() {
         let token_mark = Mark {
             file,
-            line: line_number as usize,
-            block: None,
-            character,
+            line: line_number,
+            column,
             length,
         };
         let token = match word {
             "--" => break, // comment
-            "include" => OwnedToken::Keyword(Keyword::Include),
-            "forall" => OwnedToken::Keyword(Keyword::ForAll),
-            "type" => OwnedToken::Keyword(Keyword::Type),
-            "contains" => OwnedToken::Keyword(Keyword::Contains),
-            "let" => OwnedToken::Keyword(Keyword::Let),
-            "the" => OwnedToken::Keyword(Keyword::The),
-            "be" => OwnedToken::Keyword(Keyword::Be),
-            "lambda" => OwnedToken::Keyword(Keyword::Lambda),
-            "match" => OwnedToken::Keyword(Keyword::Match),
-            "bind" => OwnedToken::Keyword(Keyword::Bind),
-            "either" => OwnedToken::Keyword(Keyword::Either),
-            "with" => OwnedToken::Keyword(Keyword::With),
-            "case" => OwnedToken::Keyword(Keyword::Case),
-            "undefined" => OwnedToken::Keyword(Keyword::Undefined),
+            "include" => Token::Keyword(Keyword::Include),
+            "forall" => Token::Keyword(Keyword::ForAll),
+            "type" => Token::Keyword(Keyword::Type),
+            "contains" => Token::Keyword(Keyword::Contains),
+            "let" => Token::Keyword(Keyword::Let),
+            "the" => Token::Keyword(Keyword::The),
+            "be" => Token::Keyword(Keyword::Be),
+            "lambda" => Token::Keyword(Keyword::Lambda),
+            "match" => Token::Keyword(Keyword::Match),
+            "bind" => Token::Keyword(Keyword::Bind),
+            "either" => Token::Keyword(Keyword::Either),
+            "with" => Token::Keyword(Keyword::With),
+            "case" => Token::Keyword(Keyword::Case),
+            "undefined" => Token::Keyword(Keyword::Undefined),
             "art" => {
-                let Some((character, x, length)) = words.next() else {
+                let Some((column, x, length)) = words.next() else {
                     return Err(make_error(ParseError::ArtMissingArgs, token_mark));
                 };
                 let Some(x) = parse_roman_numeral(x) else {
                     return Err(make_error(
                         ParseError::ExpectedRoman,
                         Mark {
-                            character,
+                            column,
                             length,
                             ..token_mark
                         },
                     ));
                 };
-                let Some((character, y, length)) = words.next() else {
+                let Some((column, y, length)) = words.next() else {
                     return Err(make_error(
                         ParseError::ArtMissingArgs,
                         token_mark,
@@ -584,7 +614,7 @@ fn tokenize_line(
                     return Err(make_error(
                         ParseError::ExpectedRoman,
                         Mark {
-                            character,
+                            column,
                             length,
                             ..token_mark
                         },
@@ -594,7 +624,7 @@ fn tokenize_line(
                 assert!(words.next().is_none());
                 break;
             }
-            s => OwnedToken::Word(String::from(s)),
+            s => Token::Word(s),
         };
         ret.push((token, token_mark));
     }
@@ -602,21 +632,21 @@ fn tokenize_line(
     Ok((ret, end_line_mark, art_ret))
 }
 
-pub fn build_token(name: &str, mark: &Mark) -> Marked<OwnedToken> {
-    Marked::<OwnedToken> {
-        value: OwnedToken::Word(name.to_string()),
+pub fn build_token<'a>(name: &'a str, mark: &Mark) -> Marked<Token<'a>> {
+    Marked::<Token<'a>> {
+        value: Token::Word(name),
         mark: mark.clone(),
     }
 }
 
 type Cells = Vec<((u32, u32), (Marked<char>, Marked<char>))>;
 
-pub fn build_nat(n: u32, buffer: &mut LinkedList<Marked<OwnedToken>>, mark: &Mark) {
+pub fn build_nat(n: u32, buffer: &mut LinkedList<Marked<Token>>, mark: &Mark) {
     (0..n - 1).for_each(|_| buffer.push_back(build_token("succ", mark)));
     buffer.push_back(build_token("one", mark));
 }
 
-pub fn build_int(n: i32, buffer: &mut LinkedList<Marked<OwnedToken>>, mark: &Mark) {
+pub fn build_int(n: i32, buffer: &mut LinkedList<Marked<Token>>, mark: &Mark) {
     match n.cmp(&0) {
         std::cmp::Ordering::Equal => {
             buffer.push_back(build_token("zero", mark));
@@ -628,7 +658,7 @@ pub fn build_int(n: i32, buffer: &mut LinkedList<Marked<OwnedToken>>, mark: &Mar
     build_nat(n.unsigned_abs(), buffer, mark);
 }
 
-pub fn build_shift_by(x: i32, y: i32, buffer: &mut LinkedList<Marked<OwnedToken>>, mark: &Mark) {
+pub fn build_shift_by(x: i32, y: i32, buffer: &mut LinkedList<Marked<Token>>, mark: &Mark) {
     if x == 0 && y == 0 {
         return;
     }
@@ -640,10 +670,10 @@ pub fn build_shift_by(x: i32, y: i32, buffer: &mut LinkedList<Marked<OwnedToken>
 pub fn build_tokens_from_art(
     mark: Mark,
     input: Vec<Vec<Cells>>,
-) -> Result<LinkedList<Marked<OwnedToken>>> {
+) -> Result<LinkedList<Marked<Token<'static>>>> {
     let mut video_commands = LinkedList::new();
-    video_commands.push_back(Marked::<OwnedToken> {
-        value: OwnedToken::Keyword(Keyword::The),
+    video_commands.push_back(Marked::<Token> {
+        value: Token::Keyword(Keyword::The),
         mark: mark.clone(),
     });
     video_commands.push_back(build_token("list", &mark));
@@ -670,7 +700,6 @@ pub fn build_tokens_from_art(
                     }
                 }
                 if c2_char == '&' {
-                    let s = String::from(c1_char.to_ascii_lowercase());
                     frame_buffer.push_back(build_token("empty_grid_cell", &mark));
                     video_commands.push_back(build_token("layer", &mark));
                     if index != 0 {
@@ -679,7 +708,7 @@ pub fn build_tokens_from_art(
                         video_commands.push_back(build_token("rotate_right", &mark));
                     }
                     video_commands.push_back(build_token("entirely", &mark));
-                    video_commands.push_back(build_token(&s, &c1.mark));
+                    video_commands.push_back(build_token(char_to_str(c1_char), &c1.mark));
                     continue;
                 }
                 if c2_char == '.' {
@@ -687,24 +716,21 @@ pub fn build_tokens_from_art(
                     continue;
                 }
                 if c2_char == '#' {
-                    let s = String::from(c1_char.to_ascii_lowercase());
                     frame_buffer.push_back(build_token("empty_grid_cell", &mark));
                     frame_commands.push_back(build_token("layer_frames", &mark));
                     build_shift_by(x as i32, y as i32, &mut frame_commands, &mark);
-                    frame_commands.push_back(build_token(&s, &c1.mark));
+                    frame_commands.push_back(build_token(char_to_str(c1_char), &c1.mark));
                     continue;
                 }
                 if c2_char == '?' {
                     frame_buffer.push_back(build_token("filter_grid_cell", &mark));
-                    let s = String::from(c1_char.to_ascii_lowercase());
-                    frame_buffer.push_back(build_token(&s, &c1.mark));
+                    frame_buffer.push_back(build_token(char_to_str(c1_char), &c1.mark));
                     continue;
                 }
                 if c2_char == '<' {
                     frame_buffer.push_back(build_token("filter_grid_cell", &mark));
                     frame_buffer.push_back(build_token("recolor_character", &mark));
-                    let s = String::from(c1_char.to_ascii_lowercase());
-                    frame_buffer.push_back(build_token(&s, &c1.mark));
+                    frame_buffer.push_back(build_token(char_to_str(c1_char), &c1.mark));
                     continue;
                 }
                 frame_buffer.push_back(build_token("full_grid_cell", &mark));
@@ -714,13 +740,12 @@ pub fn build_tokens_from_art(
                         frame_buffer.push_back(build_token("cell_space", &c1.mark));
                     }
                     (c1_char, '$') => {
-                        let s = String::from(c1_char.to_ascii_lowercase());
-                        frame_buffer.push_back(build_token(&s, &c1.mark));
+                        frame_buffer.push_back(build_token(char_to_str(c1_char), &c1.mark));
                     }
                     (c1_char, c2_char) => {
-                        frame_buffer.push_back(Marked::<OwnedToken> {
+                        frame_buffer.push_back(Marked::<Token> {
                             mark: mark.clone(),
-                            value: OwnedToken::Word("cell".to_string()),
+                            value: Token::Word("cell"),
                         });
                         let character = match c1_char {
                             '!' => "exclamation_mark",
@@ -843,8 +868,7 @@ pub fn build_tokens_from_art(
                         match color {
                             Ok(x) => frame_buffer.push_back(build_token(x, &mark)),
                             Err(x) => {
-                                let s = String::from(x);
-                                frame_buffer.push_back(build_token(&s, &c2.mark));
+                                frame_buffer.push_back(build_token(char_to_str(x), &c2.mark));
                             }
                         };
                     }
