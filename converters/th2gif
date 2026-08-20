@@ -6,7 +6,7 @@ FONT='unifont_8x16'
 FPS=5
 
 print_help() {
-    printf 'thorn-to-gif options:
+    printf 'th2gif options:
         --font-dir DIR       Set the font directory to DIR
         --font-name NAME     Set the font to NAME
         --fps FPS            Set the fps to FPS
@@ -51,7 +51,7 @@ temp="/tmp/thorn-to-gif"
 rm -r $temp > /dev/null 2>&1 || true
 mkdir $temp
 cd $temp
-thorn-to-ppm --font $FONT_PATH
+th2ppm --font $FONT_PATH
 
 ffmpeg                                 \
     -loglevel error                    \
