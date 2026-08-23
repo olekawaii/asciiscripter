@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::process::Command;
 use std::rc::Rc;
+use std::io::Write;
 
 use crate::error::{DEBUG_INFO, Error, Mark, get_file_name, make_error};
 use crate::parse::{
@@ -90,22 +91,17 @@ fn main() -> std::io::Result<()> {
 }
 
 fn read_line(prompt: &str, indent: u8, extra_input: &str) -> String {
-    let mut indent_string = String::with_capacity(indent as usize * 4);
-    (0..indent).for_each(|_| indent_string.push_str("    "));
-    indent_string.push_str(extra_input);
-    let mut rl = rustyline::DefaultEditor::new().unwrap();
-    let full_prompt: String = format!("\x1b[96m{}\x1b[0m", prompt);
-    let readline = rl.readline_with_initial(&full_prompt, (&indent_string, ""));
-    match readline {
-        Err(_) => std::process::exit(0),
-        Ok(line) => {
-            let s = line.trim_end().replace('\t', "    ").to_string();
-            // if s == "" && prompt == "... " {
-            //     println!("\x1b[1A\r\x1b[96m>>>\r\x1b[0m");
-            // }
-            s
-        }
+    let mut buffer = String::new();
+    print!("\x1b[0m\x1b[96m{prompt}\x1b[0m");
+    std::io::stdout().flush();
+    let stdin = std::io::stdin();
+    stdin.read_line(&mut buffer).unwrap();
+    if buffer.chars().rev().next() != Some('\n') {
+        println!();
+        std::process::exit(0);
     }
+    let ret = buffer.trim_end().replace('\t', "    ").to_string();
+    ret
 }
 
 fn prompt_to_edit_function(mark: &Mark) -> bool {

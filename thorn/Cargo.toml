@@ -3,8 +3,5 @@ name = "thorn"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-rustyline = "18.0.0"
-
 [profile.release]
 debug = true
